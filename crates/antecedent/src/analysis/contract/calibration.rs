@@ -92,6 +92,14 @@ impl StudyResult {
             {
                 cell.validation.as_str()
             }
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && matches!((&self.payload, &contract.body.query),
+                        (ResultPayload::SequentialContrast(_), antecedent_io::CausalQueryWire::SequentialContrast(q))
+                            if q.matches_wide_overlap_study()) => "not_applicable",
             // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
@@ -181,6 +189,7 @@ impl StudyResult {
         let validation = self.calibration_validation_axis(contract, coordinate);
         let (query, structure) = if validation == "not_applicable" {
             let query = match &self.payload {
+                ResultPayload::SequentialContrast(_) => "SequentialContrast",
                 ResultPayload::PanelDid(_) => "PanelDid",
                 ResultPayload::RandomizedEffect(_) | ResultPayload::PosteriorRow(_) => {
                     "RandomizedEffect"
@@ -216,7 +225,14 @@ impl StudyResult {
                 CalibrationBasisWire {
                     key: CalibrationKeyWire {
                         interval_method: interval_method.to_string(),
-                        se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
+                        se_kind: if shared.query == "SequentialContrast"
+                            && binding.method == IntervalMethod::AnalyticSe
+                        {
+                            "crossfit_score"
+                        } else {
+                            binding.se_kind.map_or("", |kind| kind.as_str())
+                        }
+                        .to_string(),
                         dependence: dependence.to_string(),
                         functional,
                         level: if binding.level.is_finite() { binding.level } else { 0.0 },

@@ -744,6 +744,7 @@ class LongitudinalRegimeSection:
     observed_subjects: int | None
 
 class SequentialContrastSection:
+    posterior_symmetric_interval: tuple[float, float] | None
     active_regime: tuple[int, int]
     control_regime: tuple[int, int]
     contrast: float

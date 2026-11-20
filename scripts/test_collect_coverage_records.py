@@ -1123,6 +1123,19 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         )
         self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
 
+    def test_conditional_coverage_retains_refusals_and_requires_every_return_bound(self):
+        points = {k: {**self.point(k), "bound_replicates": 2000, "overlap_refusals": 100 + k}
+                  for k in range(3)}
+        record = collector.merge_grid("id", points)
+        self.assertEqual([p["overlap_refusals"] for p in record["grid"]], [100, 101, 102])
+        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        points[0]["bound_replicates"] = 1999
+        with self.assertRaisesRegex(SystemExit, "bound interval"):
+            collector.merge_grid("id", points)
+        del points[0]["overlap_refusals"]
+        with self.assertRaisesRegex(SystemExit, "different coverage denominators"):
+            collector.merge_grid("id", points)
+
     def test_named_boundary_grid_point_retains_its_separate_boundary_role(self):
         points = {k: self.point(k) for k in range(3)}
         points[0] = _point(0, 0.8, "named_boundary", boundary=True)

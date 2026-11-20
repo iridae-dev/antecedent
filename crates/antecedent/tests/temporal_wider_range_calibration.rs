@@ -40,7 +40,8 @@
 //! These are design routes: they declare no graph and run no validation suite, so each record
 //! is keyed on the design axes (structure `design`, validation `not_applicable`) and a
 //! frequentist record without an interval binding in the runtime's key declares the interval
-//! it publishes. A replicate the route refuses is a skip, a miss.
+//! it publishes. The wide sequential studies measure coverage conditional on a returned interval
+//! and count positivity refusals separately. Other studies count skips as misses.
 //!
 //! The designs are `#[ignore]`d measurement designs run by `scripts/measure_calibration.sh`.
 //!
@@ -50,7 +51,7 @@ mod common;
 
 use std::sync::{Arc, OnceLock};
 
-use antecedent::{BayesianConfig, InferenceMode, Study, StudyResult};
+use antecedent::{BayesianConfig, InferenceMode, Study};
 use antecedent_core::{
     CausalQuery, ExecutionContext, SequentialContrastQuery, TemporalAssignment,
     TemporalDesignFunctional, TemporalDesignQuery, TemporalDoseTarget, VariableId,
@@ -750,16 +751,9 @@ fn sequential_query(n: usize) -> SequentialContrastQuery {
     }
 }
 
-/// The equal-tailed posterior interval of the effect column, as the posterior summarizes it.
-fn posterior_interval(result: &StudyResult) -> Option<(f64, f64)> {
-    let posterior = result.posterior.as_ref()?;
-    let column = posterior.effect_column()?;
-    Some((posterior.summaries.q025[column], posterior.summaries.q975[column]))
-}
-
 /// One wide-probability sequential-contrast replicate; the frequentist interval is the
 /// published Wald interval. A fitted probability outside `[0.05, 0.95]` is refused by the route
-/// and is a skip.
+/// before an interval exists.
 fn run_wide_sequential(seed: u64, bayesian: bool) -> Option<Replicate> {
     let n = grid_n(SEQUENTIAL_BASE_N);
     let data = wide_sequential_panel(n, seed);
@@ -785,12 +779,19 @@ fn run_wide_sequential(seed: u64, bayesian: bool) -> Option<Replicate> {
     };
     let contract = prepared.contract_for_result(&result).expect("reported sequential construction");
     let reported = constructions(&contract, &result);
-    let (interval, (mut construction, scope, _)) = if bayesian {
+    let (interval, (construction, scope, validation)) = if bayesian {
         let found = reported
             .into_iter()
-            .find(|(construction, _, _)| construction.interval_method == POSTERIOR_INTERVAL)
-            .expect("published posterior construction");
-        (posterior_interval(&result).expect("published posterior interval"), found)
+            .find(|(construction, _, _)| {
+                construction.interval_method == "posterior_absolute_deviation"
+            })
+            .expect("published symmetric posterior construction");
+        let [lo, hi] = result
+            .sequential_contrast()
+            .expect("sequential contrast")
+            .posterior_symmetric_interval
+            .expect("published symmetric posterior interval");
+        ((lo, hi), found)
     } else {
         let [lower, upper] = result
             .sequential_contrast()
@@ -799,40 +800,39 @@ fn run_wide_sequential(seed: u64, bayesian: bool) -> Option<Replicate> {
             .expect("published Wald interval");
         ((lower, upper), reported.into_iter().next().expect("published Wald construction"))
     };
-    if !bayesian {
-        construction.interval_method = NORMAL_INTERVAL.into();
-        construction.se_kind = "crossfit_score".into();
-        construction.dependence = "iid".into();
-        construction.reported_level = REPORTED_LEVEL;
-    }
-    // A design route has no graph and runs no validation suite.
-    construction.query = "SequentialContrast".into();
-    construction.structure = "design".into();
+    assert_eq!(construction.query, "SequentialContrast");
+    assert_eq!(construction.structure, "design");
+    assert!(construction.functional.is_empty());
+    assert_eq!(validation, "not_applicable");
     Some(Replicate { coordinate: String::new(), interval, construction, scope })
 }
 
 fn measure_wide_sequential(test: &'static str, bayesian: bool, seed: u64) {
-    let interval = if bayesian { POSTERIOR_INTERVAL } else { NORMAL_INTERVAL };
-    // Each grid point draws its own replicate data.
+    let interval = if bayesian { "posterior_absolute_deviation" } else { NORMAL_INTERVAL };
+    // Each independently seeded replicate supplies exactly one returned interval.
+    // A retry is allowed only for the typed positivity refusal in run_wide_sequential.
     let runs = map_replicates(n_sim(), |rep| {
-        run_wide_sequential(grid_seed(stream_seed(seed, rep)), bayesian)
+        let initial = grid_seed(stream_seed(seed, rep));
+        for refused in 0..1024 {
+            let panel_seed = if refused == 0 { initial } else { stream_seed(initial, refused) };
+            if let Some(run) = run_wide_sequential(panel_seed, bayesian) {
+                return (refused, run);
+            }
+        }
+        panic!("{test}: no interval after 1024 independent panels in replicate {rep}");
     });
-    let offered = runs.iter().flatten().count();
-    let covered = runs
-        .iter()
-        .flatten()
-        .filter(|run| {
-            let (lower, upper) = run.interval;
-            assert!(lower.is_finite() && upper.is_finite() && lower <= upper);
-            lower <= CONTRAST_TRUTH && CONTRAST_TRUTH <= upper
-        })
-        .count();
-    eprintln!(
-        "{test}: this batch covered {covered}/{offered} offered intervals and {covered}/{} attempts, with {} positivity refusals",
-        runs.len(),
-        runs.len() - offered
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: "sequential_panel_wide_probabilities", interval },
+        REPORTED_LEVEL,
     );
-    score(test, "sequential_panel_wide_probabilities", interval, CONTRAST_TRUTH, "", runs);
+    for (refused, run) in runs {
+        let (lo, hi) = run.interval;
+        assert!(lo.is_finite() && hi.is_finite() && lo <= hi, "{test}: invalid interval");
+        tally.track_overlap_refusals(refused);
+        tally.bind_validation(&run.construction, run.scope, "not_applicable");
+        tally.record(Some(run.interval), CONTRAST_TRUTH);
+    }
+    tally.assert();
 }
 
 // ----------------------------------------------------------- regime survival

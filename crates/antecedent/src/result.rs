@@ -508,6 +508,8 @@ pub struct SequentialContrastEstimate {
     pub standard_error: Option<f64>,
     /// Normal interval (normal-interval report).
     pub interval: Option<[f64; 2]>,
+    /// Symmetric posterior interval centered on the cross-fit contrast.
+    pub posterior_symmetric_interval: Option<[f64; 2]>,
     /// Nominal central coverage of the interval.
     pub coverage: f64,
     /// Cross-fit active score of each subject.

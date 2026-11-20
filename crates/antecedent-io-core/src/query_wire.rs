@@ -1096,6 +1096,21 @@ pub struct SequentialContrastQueryWire {
     pub min_probability: f64,
 }
 
+impl SequentialContrastQueryWire {
+    /// Design used by the interval studies conditional on passing the fitted overlap check.
+    #[must_use]
+    pub fn matches_wide_overlap_study(&self) -> bool {
+        self.active == [1, 1]
+            && self.control == [0, 0]
+            && self.baseline.len() == 1
+            && self.intermediate.len() == 1
+            && self.min_probability.to_bits() == 0.05_f64.to_bits()
+            && self.fold_count == 5
+            && self.fold_of_row.len() >= 5
+            && self.fold_of_row.iter().enumerate().all(|(i, &fold)| (i % 5) == fold as usize)
+    }
+}
+
 /// Subject-owned longitudinal histories and supplied sequential probabilities.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]

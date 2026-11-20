@@ -10,6 +10,8 @@ pub enum IntervalMethod {
     BootstrapSe,
     /// Posterior quantile interval.
     PosteriorQuantile,
+    /// Symmetric credible interval formed from posterior absolute deviations about the estimate.
+    PosteriorAbsoluteDeviation,
     /// Per-unit posterior quantile interval: equal-tailed quantiles of one
     /// observed unit's effect draws (counterfactual `unit_effect_intervals`).
     /// Kept apart from [`Self::PosteriorQuantile`] because it covers a
@@ -31,10 +33,11 @@ pub enum IntervalMethod {
 
 impl IntervalMethod {
     /// Closed set of methods. A new variant fails calibration tests until listed.
-    pub const ALL: [IntervalMethod; 9] = [
+    pub const ALL: [IntervalMethod; 10] = [
         Self::AnalyticSe,
         Self::BootstrapSe,
         Self::PosteriorQuantile,
+        Self::PosteriorAbsoluteDeviation,
         Self::UnitPosteriorQuantile,
         Self::IdentifiedSet,
         Self::CircularBlockSe,
@@ -50,6 +53,7 @@ impl IntervalMethod {
             Self::AnalyticSe => "analytic_se",
             Self::BootstrapSe => "bootstrap_se",
             Self::PosteriorQuantile => "posterior_quantile",
+            Self::PosteriorAbsoluteDeviation => "posterior_absolute_deviation",
             Self::UnitPosteriorQuantile => "unit_posterior_quantile",
             Self::IdentifiedSet => "identified_set",
             Self::CircularBlockSe => "circular_block_se",

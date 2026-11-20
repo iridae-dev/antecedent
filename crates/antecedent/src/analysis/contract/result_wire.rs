@@ -427,6 +427,7 @@ impl From<&SequentialContrastEstimate> for SequentialContrastWire {
             coverage: fit.coverage,
             active_scores: fit.active_scores.to_vec(),
             control_scores: fit.control_scores.to_vec(),
+            posterior_symmetric_interval: fit.posterior_symmetric_interval,
             contrast_scores: fit.contrast_scores.to_vec(),
             uncertainty: fit.uncertainty.to_string(),
             calibration: "not_measured".to_owned(),

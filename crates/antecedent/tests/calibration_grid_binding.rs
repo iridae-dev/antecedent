@@ -35,6 +35,7 @@ use common::static_dgp::linear_ate_data;
 
 const fn point(k: u8, n: u64, observed: f64, boundary: bool) -> CoverageGridPoint {
     CoverageGridPoint {
+        overlap_refusals: None,
         point: k,
         n_min: n,
         n_max: n,

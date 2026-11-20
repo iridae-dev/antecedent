@@ -123,6 +123,8 @@ pub struct CoverageRecord {
 /// the coverage it measured there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoverageGridPoint {
+    /// Additional panels refused by the fitted overlap check when coverage conditions on returned intervals.
+    pub overlap_refusals: Option<u64>,
     pub point: u8,
     pub n_min: u64,
     pub n_max: u64,
@@ -251,6 +253,7 @@ struct RawRecord {
 
 #[derive(Deserialize)]
 struct RawGrid {
+    overlap_refusals: Option<u64>,
     point: u8,
     n_min: u64,
     n_max: u64,
@@ -342,6 +345,7 @@ fn leak_grid(points: Vec<RawGrid>, id: &str) -> &'static [CoverageGridPoint] {
         points
             .into_iter()
             .map(|point| CoverageGridPoint {
+                overlap_refusals: point.overlap_refusals,
                 point: point.point,
                 n_min: point.n_min,
                 n_max: point.n_max,
@@ -359,6 +363,7 @@ fn interval_method(name: &str) -> IntervalMethod {
         "AnalyticSe" => IntervalMethod::AnalyticSe,
         "BootstrapSe" => IntervalMethod::BootstrapSe,
         "PosteriorQuantile" => IntervalMethod::PosteriorQuantile,
+        "PosteriorAbsoluteDeviation" => IntervalMethod::PosteriorAbsoluteDeviation,
         "UnitPosteriorQuantile" => IntervalMethod::UnitPosteriorQuantile,
         "IdentifiedSet" => IntervalMethod::IdentifiedSet,
         "CircularBlockSe" => IntervalMethod::CircularBlockSe,

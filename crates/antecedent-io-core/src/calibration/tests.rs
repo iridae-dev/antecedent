@@ -435,6 +435,7 @@ fn row_count_outside_the_measured_range_is_not_assessed() {
 
 const GRID: [CoverageGridPoint; 3] = [
     CoverageGridPoint {
+        overlap_refusals: None,
         point: 0,
         n_min: 250,
         n_max: 250,
@@ -444,6 +445,7 @@ const GRID: [CoverageGridPoint; 3] = [
         boundary: false,
     },
     CoverageGridPoint {
+        overlap_refusals: None,
         point: 1,
         n_min: 500,
         n_max: 500,
@@ -453,6 +455,7 @@ const GRID: [CoverageGridPoint; 3] = [
         boundary: false,
     },
     CoverageGridPoint {
+        overlap_refusals: None,
         point: 2,
         n_min: 1000,
         n_max: 1000,
@@ -712,6 +715,7 @@ fn attested_external_estimate_stays_uncalibrated_without_a_basis() {
 
 const fn grid_point(point: u8, n: u64, observed: f64, boundary: bool) -> CoverageGridPoint {
     CoverageGridPoint {
+        overlap_refusals: None,
         point,
         n_min: n,
         n_max: n,

@@ -542,6 +542,9 @@ class SequentialContrastEstimate:
         "nuisance_product_rate_o_n_minus_half",
     )
 
+    #: Symmetric credible interval around the contrast from the Bayesian-bootstrap draws.
+    posterior_symmetric_interval: tuple[float, float] | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class RegimeValue:

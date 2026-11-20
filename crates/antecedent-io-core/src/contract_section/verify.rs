@@ -1530,6 +1530,16 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                     || (validation == Some(key.validation.as_str())
                         && matches!(key.validation.as_str(), "none" | "cheap" | "full")))
         })
+        || contract.reasoning.support.value.as_ref().is_some_and(|_| {
+            matches!(&contract.target.query, crate::CausalQueryWire::SequentialContrast(q) if q.matches_wide_overlap_study())
+                && graphless_validation_ok && key.validation == "not_applicable"
+                && key.query == "SequentialContrast" && key.structure == "design"
+                && key.graph_class == "RandomizedTrial" && contract.graph_class == key.graph_class
+                && contract.structure_source == "randomized_trial"
+                && ((key.interval_method == "analytic_se" && key.inference == "Frequentist" && key.se_kind == "crossfit_score" && key.estimator == "sequential.crossfit_contrast.wald")
+                    || (matches!(key.interval_method.as_str(), "posterior_quantile" | "posterior_absolute_deviation") && key.inference == "Bayesian" && key.estimator == "bayesian.sequential_crossfit_contrast"))
+                && key.functional.is_empty()
+        })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Exact graphless DiD supports are bound to the executed result.
             // New bases name the measured graphless design; historical
@@ -1576,6 +1586,9 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && (key.interval_method == "none"
                     || (key.inference.eq_ignore_ascii_case("bayesian")
                         && key.interval_method == "posterior_quantile")
+                    || (matches!(contract.target.query, crate::CausalQueryWire::SequentialContrast(_))
+                        && ((key.inference == "Bayesian" && key.interval_method == "posterior_absolute_deviation")
+                            || (key.inference == "Frequentist" && key.interval_method == "analytic_se")))
                     || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
                         && key.interval_method == "analytic_se"
                         && key.dependence == "cluster"))

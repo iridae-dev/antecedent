@@ -257,6 +257,7 @@ GRID_POINTS = 3
 # Fields measured per grid point; every other emitted field is the construction
 # and provenance, which must be the same at every point.
 POINT_FIELDS = (
+    "overlap_refusals",
     "decision_protocol",
     "n_min",
     "n_max",
@@ -394,7 +395,9 @@ def validate_point_decision(
 
 
 def grid_fields_valid(point: dict) -> bool:
-    return set(point) in (set(GRID_ENTRY_FIELDS), set(GRID_ENTRY_FIELDS) | {"decision_protocol"})
+    if "overlap_refusals" in point and (type(point["overlap_refusals"]) is not int or point["overlap_refusals"] < 0):
+        return False
+    return set(point) - {"decision_protocol", "overlap_refusals"} == set(GRID_ENTRY_FIELDS)
 
 
 def grid_entry(payload: dict) -> dict:
@@ -405,6 +408,7 @@ def grid_entry(payload: dict) -> dict:
             if "decision_protocol" in payload
             else {}
         ),
+        **({"overlap_refusals": payload["overlap_refusals"]} if "overlap_refusals" in payload else {}),
         "point": int(payload["grid_point"]),
         "n_min": int(payload["n_min"]),
         "n_max": int(payload["n_max"]),
@@ -512,6 +516,15 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         )
     for payload in ordered:
         validate_point_decision(payload, final=True)
+    conditional = "overlap_refusals" in first
+    for payload in ordered:
+        if ("overlap_refusals" in payload) != conditional:
+            raise SystemExit(f"record {rid}: different coverage denominators across the grid")
+        if conditional and (
+            type(payload["overlap_refusals"]) is not int or payload["overlap_refusals"] < 0
+            or payload.get("bound_replicates") != payload["replicates"]
+        ):
+            raise SystemExit(f"record {rid}: conditional coverage requires a bound interval per replicate and a valid refusal count")
     for payload in ordered[1:]:
         differs = sorted(
             key

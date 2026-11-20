@@ -53,7 +53,7 @@ const BACKEND: &str = "bayesian_bootstrap.sequential_crossfit_contrast";
 const INTERVAL_UNCERTAINTY: &str = "normal_interval_calibration_not_measured";
 
 /// Uncertainty label of the modular posterior.
-const POSTERIOR_UNCERTAINTY: &str = "modular_bayesian_bootstrap_posterior_no_interval";
+const POSTERIOR_UNCERTAINTY: &str = "modular_bayesian_bootstrap_symmetric_credible_interval";
 
 /// Central coverage of the interval and of the posterior's equal-tailed interval.
 const COVERAGE: f64 = 0.95;
@@ -178,6 +178,25 @@ impl CheckedSequentialContrastOperation {
                     Some(self.posterior(&contrast, config, ctx)?),
                 ),
             };
+        let posterior_symmetric_interval = posterior
+            .as_ref()
+            .map(|posterior| {
+                let column = posterior
+                    .effect_column()
+                    .ok_or_else(|| EstimationError::stats_msg("missing contrast draws"))?;
+                let draws = posterior.draws.column(column).map_err(CausalError::from)?;
+                antecedent_stats::quantile::posterior_radius_interval(
+                    draws,
+                    contrast.contrast,
+                    COVERAGE,
+                )
+                .ok_or_else(|| {
+                    CausalError::from(EstimationError::stats_msg(
+                        "invalid contrast credible interval",
+                    ))
+                })
+            })
+            .transpose()?;
         let n_draws = posterior
             .as_ref()
             .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
@@ -234,6 +253,7 @@ impl CheckedSequentialContrastOperation {
                 active_scores: Arc::from(contrast.active_scores.as_slice()),
                 control_scores: Arc::from(contrast.control_scores.as_slice()),
                 contrast_scores: Arc::from(contrast.contrast_scores.as_slice()),
+                posterior_symmetric_interval,
                 uncertainty: Arc::from(uncertainty),
                 fits_computed: contrast.fits_computed,
                 fits_reused: contrast.fits_reused,
@@ -390,7 +410,8 @@ impl CheckedSequentialContrastOperation {
              means are held at their cross-fit values, so nuisance-fit uncertainty is omitted",
         ));
         let mut inference = InferenceDiagnostics::analytic(BACKEND);
-        let note = format!("draws={} interval=equal_tailed_95", config.n_draws);
+        let note =
+            format!("draws={} contrast_interval=posterior_absolute_deviation_95", config.n_draws);
         inference.notes = [note].iter().map(|text| Arc::<str>::from(text.as_str())).collect();
         assemble_posterior(&columns, &self.identification, assumptions, inference)
     }
