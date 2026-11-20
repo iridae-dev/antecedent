@@ -1264,7 +1264,7 @@
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "One source-fixed two-equation Gaussian feedback system with known covariance, one fitted cyclic weight and two hard-clamp worlds. The 120/240/480 training-row grid refits the joint MCMC posterior, draws population disturbances, solves both worlds and compiles utility each replicate; the ordinary-world 0.95 outcome interval is scored against an independent future equilibrium under the same model. Diagnostics and runtime basis are checked before coverage is seen."
+      "review": "One source-fixed two-equation Gaussian feedback system with known covariance, one fitted cyclic weight and two hard-clamp worlds. The 120/240/480 training-row grid refits the joint MCMC posterior, draws population disturbances, solves both worlds and compiles utility each replicate; the ordinary-world 0.95 outcome interval is scored against an independent future equilibrium under the same model. Diagnostics and runtime basis are checked before coverage is seen. The warmup-tuned random walk with dispersed chain starts replaced a fixed-step walk from one start after 9 of 400 replicates at the largest grid point failed the convergence gate."
     },
     {
       "path": "crates/antecedent/tests/derivative_calibration.rs",
@@ -1442,16 +1442,16 @@
     },
     {
       "path": "crates/antecedent/tests/event_count_calibration.rs",
-      "sha256": "fb02c5a2429eab84083ee0e091e6e4fbc585411e07cd0280863d5f8dc32d5172",
+      "sha256": "f8d8c9a34e543c1801ef4d42875b30ec205ac0634daccf0b1dca0a07a5bbfd66",
       "labelled_calls": [],
       "constructor_calls": [
         {
           "line": 22,
           "call": "CoverageTally::for_record(",
-          "argument": "RecordKey {\n            test: TEST,\n            dgp: \"hawkes_exponential_cluster_interior\",\n            interval: \"nearest_rank_90\",\n        },\n        0.90,"
+          "argument": "RecordKey {\n            test: TEST,\n            dgp: \"hawkes_exponential_cluster_interior\",\n            interval: \"smoothed_rank_90\",\n        },\n        0.90,"
         }
       ],
-      "review": "One source-fixed exponential-kernel Hawkes cluster process simulated independently of the fitted model. Each replicate refits the forecast (16 refits, 256 paths) and scores the 0.90 nearest-rank count interval on a fixed two-unit window against the simulated future count; the runtime basis is bound before coverage is seen."
+      "review": "One source-fixed exponential-kernel Hawkes cluster process simulated independently of the fitted model. Each replicate refits the forecast (16 refits, 256 paths) and scores the 0.90 smoothed-rank count interval on a fixed two-unit window against the simulated future count; the runtime basis is bound before coverage is seen. The smoothed-rank construction, separately keyed, replaced inclusive nearest-rank quantiles after a measured over-coverage traced to their always-included tied boundary counts."
     },
     {
       "path": "crates/antecedent/tests/evidence_synthesis_calibration.rs",
@@ -1559,16 +1559,16 @@
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_binary_cluster_calibration.rs",
-      "sha256": "aa82d3b87f6ea29c79ccc7143fb3d89f15feb1a53994b9e38b97275e853af0d8",
+      "sha256": "82c0eace042be2f9c249318fe5472e02dec9c430be13b4d360cf95fde2ebb054",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 166,
+          "line": 167,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         }
       ],
-      "review": "Two source-fixed binary-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, transport, fit and decision schedule and scores the 0.95 nearest-rank effect interval against known target-population truth; the runtime basis is bound before coverage is seen."
+      "review": "Two source-fixed binary-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, transport, fit and decision schedule, each on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic effect interval against known target-population truth; the runtime basis is bound before coverage is seen. The replicate order statistics over per-replicate streams replaced a forty-draw nearest-rank interval over one shared stream after measured under-coverage; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
@@ -1590,107 +1590,107 @@
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_kernel_cluster_calibration.rs",
-      "sha256": "02491e57ede2de7506e9b88c25605ecaeed152721bd393a8e10cfd7388107e3e",
+      "sha256": "856675ca525c2da78c6aa736dec6c6ddaa69ceabd728e23969289e97bb868b74",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 162,
+          "line": 166,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         }
       ],
-      "review": "Two source-fixed continuous-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, kernel transport, fit and decision schedule and scores the 0.95 nearest-rank effect interval against known target-population truth; the runtime basis is bound before coverage is seen."
+      "review": "Two source-fixed continuous-target graph-imputation designs (randomized and pretreatment-confounded assignment) with MAR source outcomes and independent two-row target clusters. The 60/120/240-row grid reruns 40 whole-cluster target resamples of the full graph, imputation, mean-calibrated kernel transport, fit and decision schedule, each on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic effect interval against known target-population truth; the runtime basis is bound before coverage is seen. The weakly informative prior (scale 10) replaced a scale-1 prior that shrank the effect, and the replicate order statistics over per-replicate streams replaced a forty-draw nearest-rank interval over one shared stream, after a measured coverage near one half; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_kernel_transport_calibration.rs",
-      "sha256": "b1e445c9c9111479803578ee37c9390576286a492c6b91c1d0114c25894943de",
+      "sha256": "4706785ef57286331c18979678f8f2b6cffa86b93a9857bf592e98926fc6b838",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 133,
+          "line": 137,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "One source-fixed design with continuous source and target covariate frames, randomized binary treatment, MAR Gaussian outcomes and known linear effect modification. The 60/120/240-row grid reruns imputation, graph selection, kernel target standardization, child posterior fit and utility, and scores the 0.95 nearest-rank target-frame interval against analytic truth conditional on the frame; the runtime basis is bound before coverage is seen."
+      "review": "One source-fixed design with continuous source and target covariate frames, randomized binary treatment, MAR Gaussian outcomes and known linear effect modification. The 60/120/240-row grid reruns imputation, graph selection, kernel target standardization calibrated to the frame's covariate means, child posterior fit and utility, and scores the 0.95 target-frame interval (Rubin's rules with Barnard-Rubin degrees of freedom across the completed tables) against analytic truth conditional on the frame; the runtime basis is bound before coverage is seen. The weakly informative prior (scale 10) replaced a scale-1 prior that shrank the effect toward zero, and the mean calibration and pooled interval replaced the fixed-bandwidth ratio and mixture order statistics, after a measured coverage near one half; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_mar_cluster_calibration.rs",
-      "sha256": "f8bee14ab9ebf3dd6229f1ced1e2e81276f5c99fe16c611ca9e116c1ea338851",
+      "sha256": "ab982a6b1447265a04f15df869836f55109a1c0f254f94659a4c4d88823bac40",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 193,
+          "line": 203,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         }
       ],
-      "review": "Four source-fixed declared-MAR target-cluster designs (binary or kernel target, randomized or confounded assignment) with a partially observed modifier whose known observation probability depends on an always-observed covariate. Each replicate refits the 40-resample graph-imputation transport and utility schedule and scores the 0.95 nearest-rank interval against the analytic target-population effect under the bound runtime scope; labels come from the four fixed test functions."
+      "review": "Four source-fixed declared-MAR target-cluster designs (binary or kernel target, randomized or confounded assignment) with a partially observed modifier whose known observation probability depends on an always-observed covariate. Each replicate refits the 40-resample graph-imputation transport and utility schedule, each resample on its own imputation and posterior streams, and scores the 0.95 replicate order-statistic interval against the analytic target-population effect under the bound runtime scope; labels come from the four fixed test functions. The selection targets covering every pretreatment covariate and the 100/200/400-row grid replaced a declaration every replicate refused as not S-admissible and a 60-row base point where a stratum could miss an arm; no coverage was scored under the old declaration."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_predictive_calibration.rs",
-      "sha256": "501471492fec2dc1ea6c0276c88797a4692c7a2339bc139f4e83ddac7ce9ec3d",
+      "sha256": "90eecdc3ee0544d7d8a57072a506bf88be84bf5d37b768a27ba74d08166062f9",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 171,
+          "line": 180,
           "call": "CoverageTally::for_record(",
-          "argument": "RecordKey {\n            test,\n            dgp: if binary {\n                \"mar_logit_binary_target_future\"\n            } else {\n                \"mar_gaussian_binary_target_future\"\n            },\n            interval,\n        },\n        REPORTED_LEVEL,"
+          "argument": "RecordKey {\n            test,\n            dgp: if binary {\n                \"mar_logit_binary_target_frame_success_probability\"\n            } else {\n                \"mar_gaussian_binary_target_future\"\n            },\n            interval,\n        },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Four source-fixed individual-outcome designs (Bernoulli or Gaussian outcome, control or active world) with MAR source outcomes and an independent binary target frame. Each replicate recompiles graph selection, imputation, transport, predictive worlds and the joint decision, checks the world-specific runtime basis and scores the 0.95 predictive interval against a generated future individual; labels come from the four fixed test functions."
+      "review": "Four source-fixed individual-outcome designs (Bernoulli or Gaussian outcome, control or active world) with MAR source outcomes and an independent binary target frame. Each replicate recompiles graph selection, imputation, transport, predictive worlds and the joint decision, checks the world-specific runtime basis and scores the 0.95 interval against a future individual drawn from the frame (its generated outcome when Gaussian, its known success probability when Bernoulli, pooled across the completed tables by Rubin's rules on the logit scale); labels come from the four fixed test functions. Scoring the success probability replaced scoring a future 0/1 outcome, which a [0,1] interval always covered, after a measured coverage of one, and a residual stream keyed by the execution seed replaced one fixed stream after measured under-coverage of the active world; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_predictive_cluster_calibration.rs",
-      "sha256": "d1f89886bac2ab7a84b308bdbb52e27cec210c09af7f915e5cfeaeb1f18dd09f",
+      "sha256": "c193f238e459bccce5d548ecbe05a09a57a133c1b7eaabbbca75ef345c60c04c",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 183,
+          "line": 187,
           "call": "CoverageTally::for_record(",
-          "argument": "RecordKey {\n            test,\n            dgp: if binary {\n                \"mar_logit_binary_target_future\"\n            } else {\n                \"mar_gaussian_binary_target_future\"\n            },\n            interval,\n        },\n        REPORTED_LEVEL,"
+          "argument": "RecordKey {\n            test,\n            dgp: if binary {\n                \"mar_logit_binary_target_population_success_probability\"\n            } else {\n                \"mar_gaussian_binary_target_future\"\n            },\n            interval,\n        },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Four source-fixed predictive designs (Bernoulli or Gaussian outcome, control or active world) under independent two-row target clusters and a known response law. Graph, imputation and target predictive fit rerun across 40 whole-cluster resamples; a future population outcome and the known-optimum decision are scored under their bound scopes; labels come from the four fixed test functions."
+      "review": "Four source-fixed predictive designs (Bernoulli or Gaussian outcome, control or active world) under independent two-row target clusters and a known response law. Graph, imputation and target predictive fit rerun across 40 whole-cluster resamples, each on its own imputation and posterior streams; a future population individual (its outcome when Gaussian, its success probability when Bernoulli) and the known-optimum decision are scored under their bound scopes; labels come from the four fixed test functions. Scoring the success probability replaced scoring a future 0/1 outcome after a measured coverage of one, and per-replicate streams replaced one shared stream; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_imputation_transport_calibration.rs",
-      "sha256": "f5e7e0e6d93d1677fd75e693a6299a63bb15adf9b366e56c465d840bbc67f910",
+      "sha256": "093178b01b1d7de2e73c4a5eee6260105615d124871ce135cbf4e97a69cc457b",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 140,
+          "line": 141,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "One source-fixed root-treatment, binary pretreatment modifier design with source MAR outcomes and an independently sampled target covariate frame. The 60/120/240 source-and-target grid redoes imputation, graph scoring, child target standardization, fit and utility in every replicate. The 0.95 nearest-rank target-effect interval is taken from the compiled route and scored against analytic truth conditional on its target frame; the runtime basis is bound before coverage is seen."
+      "review": "One source-fixed root-treatment, binary pretreatment modifier design with source MAR outcomes and an independently sampled target covariate frame. The 60/120/240 source-and-target grid redoes imputation, graph scoring, child target standardization, fit and utility in every replicate. The 0.95 target-effect interval (Rubin's rules with Barnard-Rubin degrees of freedom across the completed tables) is taken from the compiled route and scored against analytic truth conditional on its target frame; the runtime basis is bound before coverage is seen. The pooled interval replaced order statistics of the two-table draw mixture, and the target standardization dropped a source bootstrap of frame means its weights already reproduce, after measured under-coverage; the construction is keyed separately."
     },
     {
       "path": "crates/antecedent/tests/graph_narrow_cross_fitted_policy_calibration.rs",
-      "sha256": "e409616a4a2e7bdd6920bfde5e8016e4a8a9c05b0370015ff78dcdeacc0fc9ed",
+      "sha256": "2553655e2189068f31a2da30778a90b040f5390e3b8a0a64f31f4dd42f4e818d",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 103,
+          "line": 152,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "One source-fixed graph-checked three-fold policy learner uses binary x while nuisance adjustment uses x,w and known row-level assignment. The 500/1000/2000-row grid reruns the whole cross-fitting schedule and scores the distinct 0.95 candidate against the exact conditional outcome mean of its realized fold actions on the empirical scored-row frame, including unstable fold policies. No interval or hypothesis is chosen from observed coverage."
+      "review": "One source-fixed graph-checked three-fold policy learner uses binary x while nuisance adjustment uses x,w and known row-level assignment. The 500/1000/2000-row grid reruns the whole cross-fitting schedule and scores the distinct 0.95 candidate against the route's stated target, the population value of each realized fold policy weighted by its fold's share of the scored rows, including unstable fold policies. The target replaced the row-wise conditional means of the scored rows after a measured coverage of one showed those were not the quantity the influence-score interval estimates; the interval itself is unchanged. No interval or hypothesis is chosen from observed coverage."
     },
     {
       "path": "crates/antecedent/tests/graph_narrow_cross_fitted_subsampling_policy_calibration.rs",
-      "sha256": "8b3d88875708bf3a2370d5ca09eba794db2062b591fc77d8a1c1e18c4e66653b",
+      "sha256": "08449f76f3cb7e99fcbad5c2a1f062107d82a8ed5b99a2423cbaf4e750eb4c85",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 106,
+          "line": 155,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "The source-fixed graph-checked three-fold policy design of graph_narrow_cross_fitted_policy_calibration on a near-tie outcome law. The 500/1000/2000-row grid reruns all folds with 100 half-sample subsamples and scores the basic subsampling 0.95 interval against the exact conditional mean of the realized fold actions on the scored-row frame, after an independent replay. No label or target is chosen by observed coverage."
+      "review": "The source-fixed graph-checked three-fold policy design of graph_narrow_cross_fitted_policy_calibration on a near-tie outcome law. The 500/1000/2000-row grid reruns all folds with 100 half-sample subsamples and scores the basic subsampling 0.95 interval, with the finite-population sqrt(m/(n-m)) deviation scaling and (B + 1) p quantile positions, against the route's stated target, the population value of each realized fold policy weighted by its fold's share of the scored rows, after an independent replay. The target replaced the row-wise conditional means of the scored rows, and the scaling and positions replaced sqrt(m/n) and type-7 quantiles, after a measured coverage of one; the construction is keyed separately. No label or target is chosen by observed coverage."
     },
     {
       "path": "crates/antecedent/tests/graph_narrow_policy_calibration.rs",
@@ -2680,16 +2680,16 @@
     },
     {
       "path": "crates/antecedent/tests/sampled_temporal_path_transport_calibration.rs",
-      "sha256": "28c6b9e53b3f77a1978ff8cce79c6f45eaf93cdf9df3b2cf74ea9a379b925399",
+      "sha256": "6c8a5276e26208f83bd40b230f9227b68318ebfa612c270ef7567b26e2b4d3a7",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 191,
+          "line": 194,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "One source-fixed finite-SCM mediation design with covariate shift; every cited source and target regime is sampled independently. The 20000/40000/80000-unit-per-regime grid scores the clamped paired-delta 0.95 whole-contrast interval against the finite oracle and binds the runtime basis; refusals are counted."
+      "review": "One source-fixed finite-SCM mediation design with covariate shift; every cited source and target regime is sampled independently. The 20000/40000/80000-unit-per-regime grid scores the clamped paired-delta 0.95 whole-contrast interval against the finite oracle and binds the runtime basis; refusals are counted. One uniform draw per sampled unit replaced a sampler that redrew inside its binary search after most replicates were refused for unseen cells; no coverage was scored under the old sampler's law."
     },
     {
       "path": "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",

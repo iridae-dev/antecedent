@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "c5cc5119df52a3ed93ac74f5ff755717eb38b49344bafe33d200f930395e46b6",
+  "gate_sha256": "09da7580883088b65c3ef8d9dd8334e21174f05b269272941f3521c971414730",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "735c527b088109d8fbb08f4ff34c9c0c117a6b5056386df6619ff037211c58ce",
+  "label_audit_sha256": "89f5ee6e9716808056676326489d1b5858429ca55888ebcf01141f7fe5105db4",
   "groups": [
     {
       "index": 1,
