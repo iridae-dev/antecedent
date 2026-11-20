@@ -1614,24 +1614,18 @@ fn execute(
                     let mut prepared = fitter
                         .prepare_for_population(&data, &estimand, &query, Some(&registry))
                         .map_err(fit_error)?;
-                    // Calibrated kernel ratios and declared-MAR stratum ratios
-                    // reproduce the target frame's covariate means exactly, so
-                    // the interactions are centred at the frame's own means,
-                    // not at means estimated from the source rows. A source
-                    // Bayesian bootstrap of those means describes no
+                    // Every transport target's weights reproduce the target
+                    // frame's covariate means exactly: a stratum ratio gives
+                    // each stratum's source rows that stratum's frame mass, and
+                    // a kernel ratio is calibrated to the frame's means. The
+                    // interactions are therefore centred at the frame's own
+                    // means, not at means estimated from the source rows. A
+                    // source Bayesian bootstrap of those means describes no
                     // uncertainty of this estimate: given the frame they are
                     // fixed, and under target resampling the replicate spread
                     // carries their sampling variation. Kept, it widened every
                     // interval by a variance the estimate does not have.
-                    if matches!(
-                        target,
-                        TransportTarget::Kernel(_)
-                            | TransportTarget::ConfoundedKernel(_)
-                            | TransportTarget::MarKernel(..)
-                            | TransportTarget::MarBinary(..)
-                    ) {
-                        prepared.target_moments = None;
-                    }
+                    prepared.target_moments = None;
                     prepared
                 };
                 (prepared, weights)

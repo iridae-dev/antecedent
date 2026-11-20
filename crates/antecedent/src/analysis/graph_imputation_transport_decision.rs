@@ -178,8 +178,9 @@ pub struct GraphImputationTransportDecisionResult {
 pub struct GraphImputationTransportCalibrationCandidate {
     /// Full compiler execution, including the final decision.
     pub result: GraphImputationTransportDecisionResult,
-    /// Equal-tail 95% interval from the target effect draws: nearest-rank on
-    /// a fixed frame, replicate order statistics under target resampling.
+    /// 95% interval from the target effect draws: replicate order statistics
+    /// under target resampling, Rubin's rules across the completed tables on a
+    /// fixed frame.
     pub interval: (f64, f64),
     /// Runtime construction and scope for a prospective coverage record.
     pub basis: CalibrationBasis,
@@ -1041,18 +1042,25 @@ impl CompiledGraphImputationTransportDecision {
             ));
         }
         ordered.sort_by(f64::total_cmp);
-        // Under target resampling each draw is one independent replicate.
+        let source = GraphImputationSource::decode(&self.native_source)
+            .map_err(GraphImputationTransportDecisionError::Invalid)?;
+        let parts = source.parts();
+        // Under target resampling each draw is one independent replicate, each
+        // on its own completed tables. On a fixed frame the draws pool the
+        // declared tables, which Rubin's rules combine.
         let replicated = self.cluster_bootstrap.is_some() || self.target_bootstrap.is_some();
         let interval = if replicated {
             order_statistic_interval_95(&ordered)
         } else {
-            let rank =
-                |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
-            (ordered[rank(25)], ordered[rank(975)])
+            imputation_pooled_interval_95(
+                &result.producer.draws,
+                parts.imputations as usize,
+                transported_child_df(parts, &self.target.selection_targets),
+            )
+            .ok_or(GraphImputationTransportDecisionError::Invalid(
+                "target effect draws do not pool across completed tables",
+            ))?
         };
-        let source = GraphImputationSource::decode(&self.native_source)
-            .map_err(GraphImputationTransportDecisionError::Invalid)?;
-        let parts = source.parts();
         let mut functional = format!(
             "target_average_effect:graph_support={}:graphs={}:variables={}:domains={}:selected={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:target_columns={}",
             parts.support.as_str(),
@@ -1134,7 +1142,7 @@ impl CompiledGraphImputationTransportDecision {
                 "multi_env",
                 "Bayesian",
                 feature,
-                if replicated { REPLICATE_INTERVAL } else { "nearest_rank_95" },
+                if replicated { REPLICATE_INTERVAL } else { POOLED_INTERVAL },
                 "",
                 if self.cluster_bootstrap.is_some() {
                     "independent_source_units_and_target_clusters"

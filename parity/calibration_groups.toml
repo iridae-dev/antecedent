@@ -14891,8 +14891,9 @@ whole = true
 
 # One source-fixed root-treatment binary effect-modifier design with MAR outcomes, graph selection
 # repeated over two imputations, a separately sampled binary target frame and graph-specific target
-# standardization. The 60/120/240-source-row grid scores the route's own nearest-rank 95% interval
-# against analytic truth conditional on each target frame.
+# standardization. The 60/120/240-source-row grid scores the route's own 95% interval, Rubin's rules
+# with Barnard-Rubin degrees of freedom across the completed tables, against analytic truth
+# conditional on each target frame.
 [[group]]
 label = "graph_imputation_transport_calibration: graph_imputation_transport_target_frame_l95"
 package = "antecedent"
