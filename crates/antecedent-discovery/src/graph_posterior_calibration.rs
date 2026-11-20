@@ -630,6 +630,30 @@ fn rows_from_dag(
     cols
 }
 
+/// Preserve the bin sufficient statistics from each independent dataset, even when the
+/// reliability assertion fails. The numerical assertion itself still supplies the verdict.
+fn print_reliability_report(label: &str, replicates: &[BinCells], pooled: &BinCells, passed: bool) {
+    let bins: Vec<_> = pooled
+        .iter()
+        .enumerate()
+        .map(|(bin, &(cells, predicted, observed))| {
+            let cluster_residual_squares: f64 =
+                replicates.iter().map(|dataset| (dataset[bin].2 - dataset[bin].1).powi(2)).sum();
+            serde_json::json!({
+                "cells": cells, "predicted_sum": predicted, "observed_sum": observed,
+                "cluster_residual_squares": cluster_residual_squares,
+            })
+        })
+        .collect();
+    let report = serde_json::json!({
+        "design": label, "score": "GaussianBic", "variables": RELIABILITY_VARIABLES,
+        "rows_per_dataset": N_ROWS, "minimum_bin_cells": RELIABILITY_MIN_CELLS,
+        "maximum_abs_z": RELIABILITY_MAX_Z, "bins": bins,
+        "dataset_bins": replicates, "reliability_passed": passed,
+    });
+    println!("graph-reliability-report {report}");
+}
+
 /// Edge-marginal reliability under data drawn from the posterior's own prior.
 ///
 /// Each replicate draws a DAG from `prior`, simulates rows from it, computes the exact marginals
@@ -691,6 +715,7 @@ fn assert_edge_marginals_reliable_under_draws_from_the_prior(label: &str, prior:
             failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
         }
     }
+    print_reliability_report(label, &replicates, &pooled, failures.is_empty());
     assert!(
         failures.is_empty(),
         "{label}: edge marginals are not reliable under draws from the prior: {}",
@@ -872,6 +897,7 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
             failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
         }
     }
+    print_reliability_report(label, &replicates, &pooled, failures.is_empty());
     assert!(
         failures.is_empty(),
         "{label}: pooled edge marginals are not reliable under imputation: {}",
