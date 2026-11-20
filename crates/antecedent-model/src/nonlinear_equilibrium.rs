@@ -1082,6 +1082,14 @@ impl EquilibriumModel {
                     .map_err(|_| invalid("resource size"))?,
             )
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
+        // For legacy affine equations I - J is independent of observed values. Reuse
+        // one regime's factors within this model evaluation, never across proposals.
+        let affine = self
+            .equations
+            .iter()
+            .all(|eq| eq.expression.is_none() && eq.activation == Activation::Identity);
+        let mut cached: Option<RegimeLikelihoodFactors> = None;
+        let zero_noise = vec![0.0; n];
         let mut sum = 0.0;
         for row in rows {
             check_cancel(ctx)?;
@@ -1092,6 +1100,15 @@ impl EquilibriumModel {
                     return Err(invalid("observed value differs from known clamp"));
                 }
             }
+            if let Some(factors) = &cached
+                && factors.free == free
+            {
+                let residual = self.residual(&row.values, &zero_noise, &free);
+                sum += factors.contribution(residual);
+                continue;
+            }
+            // Release the previous regime's covariance factor before constructing another.
+            drop(cached.take());
             let blocks = self.blocks_from_reads(&free, &reads)?;
             for block in &blocks {
                 let bound = self.block_certificate(block, &reads, 200).bound;
@@ -1116,13 +1133,7 @@ impl EquilibriumModel {
                 .flat_map(|&i| free.iter().map(move |&j| self.noise_covariance[i * n + j]))
                 .collect();
             let l = cholesky(&cov, k)?;
-            let mut z = self.residual(&row.values, &vec![0.0; n], &free);
-            for i in 0..k {
-                for j in 0..i {
-                    z[i] -= l[i * k + j] * z[j];
-                }
-                z[i] /= l[i * k + i];
-            }
+            let residual = self.residual(&row.values, &zero_noise, &free);
             let noise_logdet = 2.0 * (0..k).map(|i| l[i * k + i].ln()).sum::<f64>();
             // The free Jacobian is block triangular in SCC order, so its determinant is the
             // product of the diagonal blocks' determinants; each block is factored sparsely.
@@ -1134,13 +1145,39 @@ impl EquilibriumModel {
                     .map_err(|e| factor_failure(e, f64::NAN, usize::MAX))?;
                 logdet += lu.log_abs_determinant();
             }
-            sum += logdet
-                - 0.5 * (dot(&z, &z) + noise_logdet + k as f64 * (2.0 * std::f64::consts::PI).ln());
+            let factors = RegimeLikelihoodFactors { free, lower: l, noise_logdet, logdet };
+            sum += factors.contribution(residual);
+            if affine {
+                cached = Some(factors);
+            }
         }
         if !sum.is_finite() {
             return Err(invalid("nonfinite likelihood"));
         }
         Ok(sum)
+    }
+}
+
+/// Gaussian factors at one row. They can be reused for legacy affine mechanisms
+/// while the free-variable set and the model parameters stay fixed.
+struct RegimeLikelihoodFactors {
+    free: Vec<usize>,
+    lower: Vec<f64>,
+    noise_logdet: f64,
+    logdet: f64,
+}
+
+impl RegimeLikelihoodFactors {
+    fn contribution(&self, mut z: Vec<f64>) -> f64 {
+        let k = z.len();
+        for i in 0..k {
+            for j in 0..i {
+                z[i] -= self.lower[i * k + j] * z[j];
+            }
+            z[i] /= self.lower[i * k + i];
+        }
+        self.logdet
+            - 0.5 * (dot(&z, &z) + self.noise_logdet + k as f64 * (2.0 * std::f64::consts::PI).ln())
     }
 }
 
@@ -1468,6 +1505,32 @@ mod tests {
             )
             .unwrap();
         assert!((ll + 0.5 * (1.0 + (2.0 * std::f64::consts::PI).ln())).abs() < 1e-12);
+    }
+    #[test]
+    fn likelihood_batches_match_individual_rows_across_clamp_sets() {
+        let ctx = ExecutionContext::for_tests(47);
+        for activation in [Activation::Identity, Activation::Tanh] {
+            let mut m = model(0.4, 0.5, activation);
+            m.noise_covariance = vec![1.0, 0.6, 0.6, 1.0];
+            let mut rows = Vec::new();
+            for mask in [0, 1, 2, 3, 1] {
+                for x in [-1.25, 0.5, 3.0] {
+                    let values = vec![x, 0.2 - x];
+                    let clamps = (0..2)
+                        .filter(|i| mask & (1 << i) != 0)
+                        .map(|i| Clamp { variable: i, value: values[i] })
+                        .collect();
+                    rows.push(RegimeRow { values, clamps });
+                }
+            }
+            let expected: f64 = rows
+                .iter()
+                .map(|row| m.log_likelihood(std::slice::from_ref(row), &ctx).unwrap())
+                .sum();
+            assert_eq!(m.log_likelihood(&rows, &ctx).unwrap().to_bits(), expected.to_bits());
+            rows.last_mut().unwrap().clamps[0].value += 1.0;
+            assert!(matches!(m.log_likelihood(&rows, &ctx), Err(EquilibriumError::Invalid(_))));
+        }
     }
     #[test]
     fn nonlinear_equilibrium_multiroots_do_not_gain_density_support() {
