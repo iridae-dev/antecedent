@@ -35,19 +35,8 @@ each suite's grid points the last measurement rechecked.
 refuses a dirty tree, runs `run`, collects the records and prints the
 calibration status.
 
-Selection with `--owed` is exactly `calibration_status.py status --owed`: the groups that
-measure an owed record, and the groups named for an interval route that has no record.
-No pass/fail gate and no other group is added.
-
-Selection without `--all` or `--owed`:
-
-* every group that measures a record that is not current
-  (`scripts/calibration_status.py`);
-* every group in a record-emitting suite file that has no record in the
-  registry yet (a new coverage cell), whether or not anything else is owed;
-* when anything above runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC): nothing attests them, so
-  they run alongside every re-measurement rather than never.
+The default selection and --owed consume the same status items. Missing-only
+checks for the expected type of evidence without considering input drift.
 """
 
 from __future__ import annotations
@@ -63,6 +52,7 @@ import sys
 import threading
 import time
 import uuid
+from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
@@ -153,6 +143,9 @@ class Group:
     long: bool
     grid: bool  # measured over the sample-size grid
     spec: object | None = None  # calibration_runner.GroupSpec: what the group runs
+    evidence: str = "coverage"
+    claim: str = ""
+    required_records: tuple[str, ...] = ()
 
     @property
     def head(self) -> str:
@@ -182,6 +175,28 @@ def gate_groups() -> list[Group]:
     from calibration_runner import load_groups
     groups = [Group(spec.index, spec.label, is_long(spec.label), spec.grid, spec)
               for spec in load_groups(ROOT)]
+    obligations = load_toml(ROOT / "parity/calibration_obligations.toml")
+    by_label = {group.label: group for group in groups}
+    assigned = set()
+
+    def assign(label: str, evidence: str, claim: str = "") -> None:
+        if label not in by_label or label in assigned:
+            raise ValueError(f"unknown or repeated calibration obligation: {label}")
+        assigned.add(label)
+        by_label[label].evidence = evidence
+        by_label[label].claim = claim
+
+    for kind in ("gate", "prospective"):
+        for label in obligations[kind]:
+            assign(label, kind)
+    for claim, labels in obligations["claims"].items():
+        for label in labels:
+            assign(label, "coverage", claim)
+    for label, record_ids in obligations.get("required_records", {}).items():
+        group = by_label[label]
+        if group.evidence != "coverage" or not record_ids:
+            raise ValueError(f"invalid required coverage records for {label}")
+        group.required_records = tuple(record_ids)
     if not groups:
         raise SystemExit("parity/calibration_groups.toml lists no calibration group")
     return groups
@@ -206,6 +221,10 @@ def measures_current_protocol(group: Group, record: dict) -> bool:
     """Normal measurements target published defaults; replay still maps old protocols."""
     if not measures(group.head, group.test_filter, record):
         return False
+    if group.spec and group.spec.tests:
+        function = record["test"].rpartition("::")[2]
+        if not any(name.rsplit("::", 1)[-1] == function for name in group.spec.tests):
+            return False
     if group.head == "evidence_synthesis_calibration" and group.test_filter.startswith(
         "pooled_random_effects_"
     ):
@@ -341,14 +360,6 @@ def _suite_features(root: Path, package: str, suite: str) -> tuple[str, ...]:
     return ()
 
 
-def _suite_file(head: str) -> bool:
-    return _suite_owner(ROOT, head) is not None
-
-
-def _package(head: str) -> bool:
-    return any(package == head for package, _ in _workspace_packages(ROOT))
-
-
 @dataclass
 class Selection:
     groups: list[Group]
@@ -356,82 +367,70 @@ class Selection:
     reasons: dict[int, str]  # group index -> why it runs
 
 
+def group_items(groups: list[Group], records: list[dict], *, missing_only: bool = False) -> list[dict]:
+    """Each required study needs its own evidence, even if its route has a measured sibling."""
+    import gate_carry
+
+    by_head = defaultdict(list)
+    for record in records:
+        path = record["test"].partition("::")[0]
+        stem = Path(path).stem
+        by_head[stem].append(record)
+        if path.startswith("crates/") and "/src/" in path:
+            by_head[path.split("/")[1]].append(record)
+        elif stem == "counterfactual_transport_sampled":
+            by_head["antecedent-estimate"].append(record)
+
+    ledger = gate_carry.gate_rows(GATE_REGISTRY)
+    items = []
+    for group in groups:
+        if group.evidence == "prospective":
+            continue
+        if group.evidence == "gate":
+            rows = gate_carry.rows_of(group.safe, group.points, ledger)
+            protocol = current_group_protocol(group)
+            if not all(
+                row and row.get("passed", 0) > 0
+                and (protocol is None or row.get("protocol") == protocol)
+                for row in rows
+            ):
+                reason, detail = "missing_gate", "missing passing receipt for the required protocol"
+            elif missing_only:
+                continue
+            else:
+                carried, detail = gate_carry.group_carried(rows)
+                if carried:
+                    continue
+                reason = "stale_gate"
+        else:
+            matches = (r for r in by_head[group.head] if measures_current_protocol(group, r))
+            reason = "no_record"
+            if group.required_records:
+                missing = set(group.required_records).difference(r["id"] for r in matches)
+                if not missing:
+                    continue
+                detail = "missing coverage: " + ", ".join(sorted(missing))
+            elif next(matches, None) is None:
+                detail = "no coverage record for the registered study"
+            else:
+                continue
+        items.append({"kind": group.evidence, "id": f"{group.evidence}:{group.label}",
+                      "reason": reason, "detail": detail, "claim": group.claim,
+                      "groups": [group.label]})
+    return items
+
+
 def select(groups: list[Group], everything: bool, missing_only: bool = False) -> Selection:
-    """The groups to run; see the module docstring for the rule."""
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
-    ensure_scripts_on_path()
+    if not missing_only:
+        return select_owed(groups)
     import calibration_status as status
 
-    records = status.load_records()
-    if missing_only:
-        ledger = (
-            load_toml(GATE_REGISTRY)
-            if GATE_REGISTRY.is_file()
-            else {}
-        )
-        passed = {
-            str(row["group"]): row
-            for row in ledger.get("gate", [])
-            if int(row.get("passed", 0)) > 0
-        }
-        chosen = []
-        reasons = {}
-        for group in groups:
-            if any(measures_current_protocol(group, rec) for rec in records):
-                continue
-            names = [group.safe + ("" if point is None else f".p{point}") for point in group.points]
-            # A repeated test name does not prove a revised construction. Parent
-            # and weighted record emitters must carry their current identity;
-            # recordless KNN must have emitted its explicit protocol marker.
-            protocol = current_group_protocol(group)
-            record_required = group.head in {
-                "sample_split_parent_set_effect_calibration",
-                "sample_split_weighted_effect_calibration",
-            } or (group.head == "weighted_interval_calibration" and protocol is not None)
-            record_required = record_required or (
-                group.head == "discovered_transport_calibration"
-                and group.test_filter
-                == "discovered_pag_transport_contrast_complete_procedure_coverage"
-            )
-            if not record_required and all(
-                name in passed and (protocol is None or passed[name].get("protocol") == protocol)
-                for name in names
-            ):
-                continue
-            chosen.append(group)
-            reasons[group.index] = "no coverage record or complete passed gate ledger"
-        return Selection(chosen, 0, reasons)
-    verdicts = status.classify(
-        records, status.load_attestations(), status.tree_fingerprints(records)
-    )
-    wanted = [rec for rec in records if verdicts[str(rec["id"])].status != status.CURRENT]
-    reasons: dict[int, str] = {}
-    matched: set[str] = set()
-    recordless: list[Group] = []
-    for group in groups:
-        if not any(measures_current_protocol(group, rec) for rec in records):
-            if _suite_file(group.head):
-                reasons[group.index] = "no record in the registry"
-            else:
-                recordless.append(group)
-            continue
-        owing = [rec for rec in wanted if measures(group.head, group.test_filter, rec)]
-        if owing:
-            matched.update(str(rec["id"]) for rec in owing)
-            reasons[group.index] = f"{len(owing)} record(s) owed"
-    if reasons:
-        import gate_carry
-
-        gate_rows = gate_carry.gate_rows(GATE_REGISTRY)
-        for group in recordless:
-            carried, why = gate_carry.group_carried(gate_carry.rows_of(group.safe, group.points, gate_rows))
-            if not carried:
-                reasons[group.index] = f"pass/fail gate, no record; {why}"
-    for test in sorted({str(r["test"]) for r in wanted if str(r["id"]) not in matched}):
-        print(f"warning: no gate group measures {test}", file=sys.stderr)
-    chosen = [g for g in groups if g.index in reasons]
-    return Selection(chosen, len({str(r["id"]) for r in wanted}), reasons)
+    items = group_items(groups, status.load_records(), missing_only=True)
+    by_label = {item["groups"][0]: item["detail"] for item in items}
+    chosen = [g for g in groups if g.label in by_label]
+    return Selection(chosen, len(items), {g.index: by_label[g.label] for g in chosen})
 
 
 def route_group_matches(group: Group, spec: tuple[str, str]) -> bool:
@@ -452,26 +451,22 @@ GROUPED_KINDS = ("route", "ledger")
 
 
 def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection:
-    """Exactly the owed work, nothing alongside it.
-
-    The owed list is `scripts/calibration_status.py status --owed`: a coverage record whose
-    fingerprint is not the tree's (or whose probe does not cover it), and an interval
-    route with no measured record. A record selects the groups that measure it; a route
-    selects the groups `parity/calibration_routes.toml` names for it. No pass/fail gate and no
-    unrelated group in a record-emitting suite is added.
-
-    `only` (substring or glob patterns) keeps the groups whose label matches, or that
-    measure an owed record (by id or test) or route that matches; no match is an error."""
+    """Map status items to runnable groups, optionally filtered by label, claim, route or record."""
     ensure_scripts_on_path()
     import calibration_status as status
 
     items, _statuses, _counts = status.current_owed()
-    records = {str(rec["id"]): rec for rec in status.load_records()}
+    direct = {i["groups"][0]: i for i in items if i["kind"] in ("coverage", "gate")}
     owed_ids = {i["id"] for i in items if i["kind"] == "record"}
+    records = {}
+    if owed_ids:
+        records = {rec["id"]: rec for rec in status.load_records() if rec["id"] in owed_ids}
+    routed_items = [item for item in items if item["kind"] in GROUPED_KINDS]
     reasons: dict[int, str] = {}
     matched: set[str] = set()
     for group in groups:
-        why = []
+        item = direct.get(group.label)
+        why = [item["detail"]] if item else []
         owing = [
             rid
             for rid in owed_ids
@@ -482,9 +477,8 @@ def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection
             why.append(f"{len(owing)} record(s) owed")
         routed = [
             i
-            for i in items
-            if i["kind"] in GROUPED_KINDS
-            and any(
+            for i in routed_items
+            if any(
                 route_group_matches(group, status.split_group(spec)) for spec in i["groups"]
             )
         ]
@@ -496,6 +490,8 @@ def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection
                 why.append(f"{len(routed) - len(routes)} open ledger row(s) with no record")
         if only:
             names = [group.label]
+            if item:
+                names.extend((item["id"], item["claim"]))
             names += [rid for rid in owing] + [str(records[rid].get("test", "")) for rid in owing]
             names += [i["id"] for i in routed]
             if not any(only_matches(pattern, *names) for pattern in only):
@@ -627,7 +623,7 @@ def print_plan(selection: Selection, groups: list[Group], jobs: int) -> None:
     longest_task = 0.0
     unknown = 0
     if selection.owed_records:
-        print(f"records owing a re-measurement: {selection.owed_records}")
+        print(f"owed calibration items: {selection.owed_records}")
     print(
         f"groups to run: {len(selection.groups)} of {len(groups)} "
         f"(parallel jobs: {jobs}, worker threads per job: {threads}, cores: {CORES}; first-pass replicates: {FIRST_NSIM})"

@@ -102,7 +102,10 @@ def group_carried(rows: list[dict | None], changed: dict[str, frozenset[str]] | 
         if not files:
             return False, f"{row['group']}: pass is bound to a commit only (no executed_files)"
         sha = str(row["calibration_sha"])
-        stale = stale_inputs(list(files), sha, None if changed is None else changed.get(sha))
+        try:
+            stale = stale_inputs(list(files), sha, None if changed is None else changed.get(sha))
+        except subprocess.CalledProcessError:
+            return False, f"{row['group']}: cannot verify changes since {sha}"
         if stale:
             return False, f"{row['group']}: executed input changed since {sha[:10]}: {stale[0]}"
     return True, "carried"

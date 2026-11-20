@@ -1,0 +1,353 @@
+# The runner roster defines coverage obligations by default. These exact groups
+# produce passing test receipts instead. Claims below name the individual range
+# studies that exercise each support row or prepared-response construction.
+gate = [
+  "effect_constancy_calibration: known_gaussian_null_power_and_holm",
+  "bayesian_recalc_calibration: gaussian_adapter_posterior_summary_precision",
+  "bayesian_basis_prior_precision: quadratic_basis_nig_adapter_summary_precision",
+  "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision",
+  "posterior_summary_calibration: posterior_type7_quantile_precision",
+  "scenario_covariance_calibration: shared_row_mean_covariance_precision",
+  "evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision",
+  "evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision",
+  "evsi_precision_calibration: evsi_fixed_rank_selection_and_tie_precision",
+  "evsi_precision_calibration: paired_crn_adaptive_rank_selection_precision",
+  "design_ar_precision_calibration: checked_design_iv_ar_full_method_error_rate_and_weak_boundaries",
+  "generic_aipw_precision: generic_aipw_five_fold_known_target_score_precision",
+  "observational_effects_calibration: survival_difference_covariate_censoring_n1000_l95",
+  "observational_effects_calibration: survival_difference_covariate_censoring_n3000_l95",
+  "observational_effects_calibration: rmst_difference_covariate_censoring_n1000_l95",
+  "observational_effects_calibration: rmst_difference_covariate_censoring_n3000_l95",
+  "observational_effects_calibration: survival_difference_independent_censoring_n1000_l95",
+  "observational_effects_calibration: survival_difference_independent_censoring_n3000_l95",
+  "observational_effects_calibration: policy_prespecified_n1000_l95",
+  "observational_effects_calibration: policy_prespecified_n3000_l95",
+  "observational_effects_calibration: policy_held_out_n1000_l95",
+  "observational_effects_calibration: policy_held_out_n3000_l95",
+  "observational_effects_calibration: policy_cross_fitted_learning_n3000_l95",
+  "adaptive_inference_calibration: group_sequential_overall_type_one_error_is_alpha",
+  "adaptive_inference_calibration: group_sequential_power_matches_the_numerical_integration",
+  "adaptive_inference_calibration: anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95",
+  "decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased",
+  "choice_inference_calibration: posterior_probability_best_is_calibrated",
+  "choice_inference_calibration: sequential_selection_is_correct_at_least_at_the_threshold",
+  "choice_inference_calibration: study_value_matches_realized_gain",
+  "choice_inference_calibration: hierarchical_study_value_matches_importance_sampling",
+  "choice_inference_calibration: procedure_law_matches_simulation",
+  "choice_inference_calibration: conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten",
+  "retained_score_precision: retained_dml_weighted_score_precision",
+  "retained_score_precision: retained_dr_weighted_score_precision",
+  "retained_score_precision: retained_cell_weighted_score_precision",
+  "mechanism_discrepancy_calibration: independent_mechanism_full_coefficient_diagnostic",
+  "mechanism_discrepancy_calibration: independent_mechanism_slope_mdd_diagnostic",
+  "knn_matching_calibration: knn_matching_interval_ci_coverage",
+  "bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se",
+  "bootstrap_effect_precision: latent_class_whole_method_bootstrap_se",
+  "treatment_inference_calibration: vector_full_fit_homoskedastic",
+  "treatment_inference_calibration: vector_full_fit_heteroskedastic",
+  "treatment_inference_calibration: categorical_full_fit_homoskedastic",
+  "treatment_inference_calibration: categorical_full_fit_heteroskedastic",
+  "treatment_inference_calibration: categorical_monotonicity_homoskedastic",
+  "treatment_inference_calibration: categorical_monotonicity_heteroskedastic",
+  "antecedent-estimate: wald_iv_hc1_ci_coverage",
+  "antecedent-estimate: iv_2sls_hc1_heteroskedastic_ci_coverage",
+  "antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe",
+  "antecedent-estimate: bayesian_pulse_conjugate_nominal_90_coverage",
+  "antecedent-estimate: bayesian_sustained_single_step_conjugate_nominal_90_coverage",
+  "antecedent-estimate: bayesian_sustained_multi_step_conjugate_nominal_90_coverage",
+  "antecedent-estimate: bayesian_panel_hierarchical_nominal_90_coverage",
+  "mixture_interval_calibration: bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage",
+  "mixture_interval_calibration: bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage",
+  "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion",
+  "temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion",
+  "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity",
+  "derivative_calibration: ade_skewed_heteroskedastic_treatment_probe",
+  "static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage",
+  "static_calibration: response_curve_dag_frequentist_weak_overlap_probe",
+  "static_calibration: mediation_confounded_mediator_probe",
+  "antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform",
+  "antecedent-stats: robust_parcorr_calibration_gate",
+  "antecedent-stats: weighted_parcorr_calibration_gate",
+  "antecedent-stats: gsquared_calibration_gate",
+  "antecedent-stats: knn_dependence_calibration_gate",
+  "antecedent-stats: parcorr_perm_pvalue_uniformity_gate",
+  "antecedent-stats: knn_perm_pvalue_uniformity_gate",
+  "antecedent-stats: multivariate_block_calibration_gate",
+  "antecedent-stats: multivariate_block_shuffle_calibration_gate",
+  "antecedent-stats: gpdc_block_shuffle_autocorrelated_type_i_gate",
+  "antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate",
+  "antecedent-stats: parcorr_conditional_null_gate",
+  "antecedent-stats: robust_parcorr_conditional_null_gate",
+  "antecedent-stats: weighted_parcorr_conditional_null_gate",
+  "antecedent-stats: gsquared_conditional_null_gate",
+  "antecedent-stats: symbolic_cmi_conditional_null_gate",
+  "antecedent-stats: knn_conditional_null_gate",
+  "antecedent-stats: gpdc_conditional_null_gate",
+  "antecedent-stats: gpdc_nystrom_conditional_null_gate",
+  "antecedent-stats: gpdc_nystrom_conditional_null_large_n_gate",
+  "antecedent-stats: gpdc_nystrom_conditional_power_gate",
+  "antecedent-stats: conditional_gpdc_beyond_4k_8000_rows",
+  "antecedent-stats: conditional_gpdc_beyond_4k_20000_rows",
+  "antecedent-stats: scalable_gpdc_replacement_validated_separately",
+  "antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows",
+  "antecedent-validate: scalable_sensitivity_replacement_validated_separately",
+  "antecedent-stats: parcorr_block_shuffle_conditional_autocorrelated_type_i_gate",
+  "antecedent-stats: weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate",
+  "antecedent-discovery: pc_null_fpr_near_alpha",
+  "antecedent-discovery: pcmci_null_fpr_near_alpha",
+  "antecedent-discovery: pcmci_planted_lag1_power",
+  "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_at_ten_variables",
+  "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_at_twelve_variables",
+  "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_at_ten_variables",
+  "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables",
+  "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps",
+  "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps",
+  "sample_split_effect_calibration: sample_split_cancelling_edge_boundary_95",
+  "learned_continuous_calibration: learned_trial_aipw_weak_overlap_boundary",
+  "learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases",
+  "smoothed_dose_calibration: smoothed_dose_transport_grid_points",
+  "smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary",
+  "adjusted_recalc_precision: adjusted_ols_retained_covariance_precision",
+  "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision",
+  "learner_ate_known_truth: coverage",
+  "joint_panel_calibration: joint_panel_selection_false_change_frequentist",
+  "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect",
+  "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target",
+  "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect",
+  "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target",
+  "refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target",
+  "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target",
+  "conjugate_prior_calibration: beta_binomial_posterior_covers_under_the_stated_prior",
+  "conjugate_prior_calibration: gamma_poisson_posterior_covers_under_the_stated_prior",
+  "conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage",
+  "conjugate_prior_calibration: gamma_poisson_misspecified_prior_matches_its_exact_coverage",
+  "conjugate_prior_calibration: selected_alpha_beta_binomial_covers_across_discrepancy",
+  "conjugate_prior_calibration: selected_alpha_uniform_interval_covers_at_every_discrepancy",
+  "conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound",
+  "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors",
+  "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors",
+  "antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior",
+  "antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior",
+  "antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior",
+  "antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column",
+  "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors",
+  "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior",
+  "count_conjugate_calibration: count_rate_route_covers_under_the_stated_prior",
+  "sequential_policy_choice_calibration: sequential_known_law_action_choice",
+  "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice",
+  "cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice",
+]
+
+# The published Student reference law ends at 49 clusters per arm. The
+# Dirichlet law at 50+ has no graphless support row. Keep its study in --all.
+prospective = [
+  "graphless_wider_range_calibration: cluster_bayesian_bootstrap_dirichlet_law_from_fifty_arms_credible_interval",
+]
+
+[claims]
+"association / cross_section_linear_slope / bootstrap_row" = [
+  "graphless_wider_range_calibration: association_static_bootstrap_spread_slope_interval_upper_rows",
+]
+"association / cross_section_linear_slope / conjugate_normal_inverse_gamma" = [
+  "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_six",
+  "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_one_thousand",
+  "graphless_wider_range_calibration: bayesian_association_static_slope_credible_interval_upper_rows",
+]
+"association / cross_section_linear_slope / sandwich_leverage_student" = [
+  "graphless_wider_range_calibration: association_static_sandwich_slope_interval_upper_rows",
+]
+"association / series_linear_slope / bayesian_bootstrap" = [
+  "graphless_wider_range_calibration: bayesian_association_temporal_slope_credible_interval_upper_rows",
+]
+"association / series_linear_slope / bootstrap_circular_block" = [
+  "graphless_wider_range_calibration: association_temporal_block_bootstrap_spread_slope_interval_upper_rows",
+]
+"association / series_linear_slope / sandwich_newey_west" = [
+  "graphless_wider_range_calibration: association_temporal_newey_west_slope_interval_upper_rows",
+]
+"difference_in_differences / augmented_panel / whole_cluster_bootstrap_supplied_nuisance_held_fixed" = [
+  "graphless_wider_range_calibration: augmented_panel_true_nuisance_bootstrap_interval_upper_subjects",
+]
+"difference_in_differences / panel_2x2 / normal_inverse_gamma_change_score_posterior_prior_scale_100" = [
+  "panel_did_range_calibration: bayesian_two_period_posterior_interval_from_the_row_floor",
+  "graphless_wider_range_calibration: bayesian_two_period_posterior_interval_upper_group_sizes",
+]
+"difference_in_differences / staggered_heterogeneity_robust / callaway_santanna_never_treated_cluster_bootstrap_refit" = [
+  "graphless_wider_range_calibration: rollout_callaway_santanna_never_treated_bootstrap_interval_upper_units",
+]
+"difference_in_differences / staggered_heterogeneity_robust / callaway_santanna_not_yet_treated_cluster_multiplier_refit" = [
+  "graphless_wider_range_calibration: rollout_callaway_santanna_not_yet_treated_multiplier_interval_upper_units",
+]
+"difference_in_differences / staggered_heterogeneity_robust / imputation_not_yet_treated_cluster_multiplier_refit" = [
+  "graphless_wider_range_calibration: rollout_imputation_multiplier_interval_upper_units",
+]
+"difference_in_differences / staggered_heterogeneity_robust / sun_abraham_never_treated_cluster_multiplier_refit" = [
+  "graphless_wider_range_calibration: rollout_sun_abraham_multiplier_interval_upper_units",
+]
+"interference / cluster_randomization_total / cluster_student_reference_posterior" = [
+  "graphless_wider_range_calibration: cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval",
+]
+"iv_bounds / binary_instrument / imbens_manski_row_bootstrap" = [
+  "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_lower_bound_upper_rows",
+  "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_upper_bound_upper_rows",
+]
+"iv_bounds / binary_instrument / posterior_endpoint_quantiles" = [
+  "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_lower_bound_upper_rows",
+  "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound_upper_rows",
+]
+"joint_response.gaussian_linear / contrast_of_world_means / analytic_se" = [
+  "joint_panel_calibration: prepared_joint_response_contrast_frequentist_l95",
+]
+"joint_response.gaussian_linear / contrast_of_world_means / posterior_quantile" = [
+  "joint_panel_calibration: prepared_joint_response_contrast_bayesian_l95",
+]
+"local_polynomial_ratio / temporal_fuzzy_jump / local_quadratic_cubic_rbc_prewhitened_block_bayesian_bootstrap" = [
+  "local_designs_statements_calibration: bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors",
+]
+"local_polynomial_ratio / temporal_regression_kink / local_quartic_slope_rbc_prewhitened_block_bayesian_bootstrap" = [
+  "local_designs_statements_calibration: bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors",
+]
+"sequential_contrast / two_decision_always_versus_never / crossfit_augmented_scores_bayesian_bootstrap" = [
+  "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage",
+  "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage",
+  "temporal_wider_range_calibration: bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage",
+]
+"sequential_contrast / two_decision_always_versus_never / crossfit_augmented_scores_wald" = [
+  "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_ten_folds_coverage",
+  "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage",
+  "temporal_wider_range_calibration: sequential_crossfit_contrast_wald_interval_wide_probability_coverage",
+]
+"synthetic_control / single_treated_unit / simplex_dirichlet_donor_weight_posterior" = [
+  "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_twenty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_forty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_one_post_period",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_three_post_periods",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_upper_pre_periods",
+]
+"synthetic_control / single_treated_unit / simplex_dirichlet_posterior_predictive_path" = [
+  "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_average_interval",
+  "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_period_interval",
+  "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_average_interval",
+  "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval",
+  "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_twenty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_forty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods",
+  "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods",
+]
+"synthetic_control / single_treated_unit / simplex_donor_weights_conformal_test_inversion" = [
+  "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_period_set",
+  "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_constant_effect_set",
+  "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_forty_donors",
+  "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_forty_donors",
+  "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_forty_donors",
+]
+"temporal_design / categorical / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_floor_probability_interval",
+]
+"temporal_design / categorical / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_categorical_step_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_categorical_step_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_categorical_step_floor_probability_interval",
+]
+"temporal_design / continuous_dose / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_three_interval",
+]
+"temporal_design / continuous_dose / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_three_interval",
+]
+"temporal_design / dose_grid / bayesian_bootstrap_local_quadratic_projection" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval",
+]
+"temporal_design / dose_grid / cluster_robust_local_quadratic_bias_aware" = [
+  "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_three_interval",
+]
+"temporal_design / factorial / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_floor_probability_interval",
+]
+"temporal_design / factorial / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_factorial_main_effect_floor_probability_interval",
+]
+"temporal_design / interference / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_floor_probability_interval",
+]
+"temporal_design / interference / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_interference_direct_effect_floor_probability_interval",
+]
+"temporal_design / multi_arm / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_floor_probability_interval",
+]
+"temporal_design / multi_arm / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_floor_probability_interval",
+]
+"temporal_design / quantile / bayesian_bootstrap_over_units_weighted_quantile" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_floor_probability_interval",
+]
+"temporal_design / quantile / whole_procedure_cluster_bootstrap_percentile" = [
+  "temporal_design_statements_calibration: temporal_design_quantile_arm_median_bootstrap_intervals",
+  "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_floor_probability_interval",
+]
+"temporal_design / regime_survival / joint_likelihood_parametric_g_formula_posterior" = [
+  "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_one_interval",
+  "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_low_overlap_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_heavy_censoring_interval",
+]
+"temporal_design / regime_survival / whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models" = [
+  "temporal_design_range_calibration: temporal_design_regime_survival_horizon_one_bootstrap_interval",
+  "temporal_design_range_calibration: temporal_design_regime_survival_horizon_two_bootstrap_interval",
+  "temporal_wider_range_calibration: temporal_design_regime_survival_low_overlap_bootstrap_interval",
+  "temporal_wider_range_calibration: temporal_design_regime_survival_heavy_censoring_bootstrap_interval",
+]
+"temporal_design / smoothed_dose / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_three_interval",
+]
+"temporal_design / smoothed_dose / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_three_interval",
+]
+"temporal_design / two_arm / bayesian_bootstrap_over_clusters" = [
+  "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_two_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_three_interval",
+  "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_floor_probability_interval",
+]
+"temporal_design / two_arm / cluster_robust_ratio_normal" = [
+  "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_two_interval",
+  "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_three_interval",
+  "temporal_wider_range_calibration: temporal_design_two_arm_excursion_floor_probability_interval",
+]
+
+# This study scores both arm medians against their own known truths.
+[required_records]
+"temporal_design_statements_calibration: temporal_design_quantile_arm_median_bootstrap_intervals" = [
+  "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.treated_quantile",
+  "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.control_quantile",
+]

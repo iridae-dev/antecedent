@@ -20,7 +20,7 @@ A record without a manifest is never current through its measurement.
 What is owed, and why, is the one list the measurement queue runs
 (`bash scripts/measure_calibration.sh --owed`). An owed item has one reason:
 
-* `no_record`           an interval route has no coverage record of its own: a supported
+* `no_record`           a registered coverage study lacks its own record, or an interval route has no coverage record of its own: a supported
                         interval route with no measured record, whether the record is
                         allocated to it or the group that will measure it is named in
                         `parity/calibration_routes.toml`; and an open ledger row
@@ -28,6 +28,8 @@ What is owed, and why, is the one list the measurement queue runs
                         or a supported coordinate whose estimator grid is not measured) whose
                         named gate groups have produced no record yet, so the owed run
                         executes them (a row that names no group is owed and `unwired`);
+* `missing_gate`        a pass/fail study lacks a passing receipt for its protocol;
+* `stale_gate`          a recorded pass cannot be carried to the working tree;
 * `inputs_changed`      a coverage record whose manifest no longer matches the tree (or
                         that has none);
 * `probe_mismatch`      a coverage record with a probe attestation that does not cover the
@@ -352,7 +354,7 @@ def cmd_intervals(args: argparse.Namespace) -> int:
 NO_RECORD = "no_record"
 INPUTS_CHANGED = "inputs_changed"
 PROBE_MISMATCH = "probe_mismatch"
-OWED_REASONS = (NO_RECORD, INPUTS_CHANGED, PROBE_MISMATCH)
+OWED_REASONS = (NO_RECORD, INPUTS_CHANGED, PROBE_MISMATCH, "missing_gate", "stale_gate")
 ROUTE_PREFIX = "route:"
 
 
@@ -487,6 +489,8 @@ def ledger_items(rows: list[dict], records: list[dict]) -> list[dict]:
 
 
 def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
+    import calibration_groups as runner
+
     records = load_records()
     attestations = load_attestations()
     fingerprints = tree_fingerprints(records)
@@ -495,6 +499,7 @@ def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     route_rows = interval_routes(capability, records, load_route_map())
     items = owed_items(records, attestations, fingerprints, route_rows)
     items += ledger_items(ledger_rows() + backlog_rows(), records)
+    items += runner.group_items(runner.gate_groups(), records)
     return items, statuses, summary(statuses)
 
 

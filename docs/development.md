@@ -517,13 +517,17 @@ as a whole, with reasons; its logs stay available. The wrapper still exits with 
 failure after saving the completed evidence. Replacement IDs belonging to skipped
 groups are deferred, leaving their original evidence intact.
 
-Without `--all`, the selection has three parts:
+The default runner and `--owed` both use the checker's owed list. Each coverage
+study needs a record from its own test and current protocol. A sibling study
+on the same route can measure a different range or interval. The checker also
+includes missing routes, open ledger rows and stale coverage records.
 
-- the groups behind records that are not current;
-- any group in a calibration suite that has no record in the registry yet;
-- when anything else runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC). No record describes
-  those gates, so they run with every re-measurement.
+`parity/calibration_obligations.toml` maps the range studies to their graphless
+support row (family, design and method) or prepared joint-response construction.
+It names pass/fail groups explicitly. A gate owes a run when any configured grid
+point lacks a passing receipt for its protocol or the earlier pass can no longer
+be carried against its executed inputs. A prospective study outside published
+support remains runnable with `--all`.
 
 Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
 family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`

@@ -1,9 +1,7 @@
 """A pass/fail calibration gate pass is carried while nothing it executed changed."""
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import calibration_groups as groups
@@ -85,22 +83,14 @@ class SelectSkipsCarriedGates(unittest.TestCase):
             unbound = groups.Group(2, "crate: other", False, False)
             carried = groups.Group(3, "crate: t", False, False)
             suite = groups.Group(1, "suite_calibration: s", False, False)
-            facets = SimpleNamespace(
-                load_records=lambda: [],
-                load_attestations=lambda: [],
-                tree_fingerprints=lambda rows: {},
-                classify=lambda rows, att, fps: {},
-                CURRENT="current",
-            )
+            for group in [unbound, carried]:
+                group.evidence = "gate"
             with (
-                patch.dict(sys.modules, {"calibration_status": facets}),
                 patch.object(groups, "GATE_REGISTRY", ledger),
-                patch.object(groups, "_suite_file", lambda head: head == "suite_calibration"),
-                patch.object(groups, "measures_current_protocol", lambda g, r: False),
-                patch.object(carry, "changed_since", lambda sha, root=carry.ROOT: frozenset()),
+                patch.object(carry, "changed_since", return_value=frozenset()),
             ):
-                selection = groups.select([suite, unbound, carried], False)
-        self.assertEqual([g.index for g in selection.groups], [1, 2])
+                items = groups.group_items([suite, unbound, carried], [])
+        self.assertEqual([i["groups"] for i in items], [[suite.label], [unbound.label]])
 
 
 class Collector(unittest.TestCase):

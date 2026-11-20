@@ -121,6 +121,7 @@ class CommandTests(unittest.TestCase):
             patch.object(status, "load_attestations", return_value=[]),
             patch.object(status, "ledger_rows", return_value=[]),
             patch.object(status, "backlog_rows", return_value=[]),
+            patch("calibration_groups.gate_groups", return_value=[]),
             patch.object(status, "tree_fingerprinter"),
             patch.object(status, "tree_fingerprints", return_value={"a": "manifest:" + NOW, "b": "manifest:" + NOW}),
             redirect_stdout(out),
@@ -157,7 +158,8 @@ class CommandTests(unittest.TestCase):
     def test_json_lists_the_owed_items_with_their_reasons(self):
         routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file: f"])]
         data = json.loads(self.run_status("--json", routes=routes)[1])
-        self.assertEqual(data["owed_by_reason"], {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0})
+        self.assertEqual(data["owed_by_reason"], {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0,
+                                                    "missing_gate": 0, "stale_gate": 0})
         self.assertEqual(
             [(i["id"], i["reason"]) for i in data["owed"]],
             [("b", "inputs_changed"), ("route:r/mapped", "no_record")],
@@ -230,7 +232,8 @@ class OwedItemTests(unittest.TestCase):
 
     def test_the_counts_cover_every_reason(self):
         items = self.owed([record("a", fingerprint=OLD)], routes=[route_row("c", "n", NOT_MEASURED, groups=["f"])])
-        self.assertEqual(status.owed_counts(items), {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0})
+        self.assertEqual(status.owed_counts(items), {"no_record": 1, "inputs_changed": 1, "probe_mismatch": 0,
+                                                    "missing_gate": 0, "stale_gate": 0})
 
 
 class RouteMapTests(unittest.TestCase):

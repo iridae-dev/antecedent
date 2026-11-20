@@ -133,6 +133,22 @@ class OwedSelectionTest(unittest.TestCase):
         self.assertIn("route:cap/lost names no gate group", text)
         self.assertIn("no gate group 'nobody: x' for route:cap/typo", text)
 
+    def test_graphless_claim_keys_resolve_to_published_design_methods(self):
+        support = groups.load_toml(groups.ROOT / "parity/support_graphless.toml")["support"]
+        keys = {" / ".join(row[key] for key in ("family", "design", "method")) for row in support}
+        for group in groups.gate_groups():
+            if group.claim and group.head != "joint_panel_calibration":
+                self.assertIn(group.claim, keys, group.label)
+
+    def test_both_arm_median_records_are_required(self):
+        group = next(group for group in groups.gate_groups()
+                     if group.test_filter == "temporal_design_quantile_arm_median_bootstrap_intervals")
+        records = [{"id": rid, "test": f"crates/antecedent/tests/{group.head}.rs::{group.test_filter}"}
+                   for rid in group.required_records]
+        self.assertEqual(len(records), 2)
+        self.assertEqual(groups.group_items([group], records), [])
+        self.assertIn(records[1]["id"], groups.group_items([group], records[:1])[0]["detail"])
+
     def test_owed_is_exclusive_with_all_and_missing_only(self):
         with (
             patch.object(sys, "argv", ["calibration_groups.py", "plan", "--owed", "--all"]),
@@ -191,32 +207,26 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             )
         ]
 
-    def test_missing_io_estimate_and_facade_records_selected_when_all_existing_current(
-        self,
-    ) -> None:
-        records = [{"id": "current", "test": "crates/antecedent/tests/facade_current.rs::existing"}]
-        facets = SimpleNamespace(
-            load_records=lambda records=records: records,
-            load_attestations=lambda: [],
-            tree_fingerprinter=lambda: None,
-            tree_fingerprints=lambda rows: {},
-            classify=lambda rows, att, fps: {
-                str(r["id"]): SimpleNamespace(status="current") for r in rows
-            },
-            CURRENT="current",
-        )
+    def test_coverage_receipt_cannot_replace_measurement_or_a_sibling_study(self):
+        group = groups.Group(1, "suite: effect", False, False,
+                             SimpleNamespace(tests=("effect",)))
+        sibling = {"test": "crates/a/tests/suite.rs::effect_wide"}
+        with patch("gate_carry.gate_rows", return_value={group.safe: {"passed": 1}}):
+            items = groups.group_items([group], [sibling])
+            self.assertEqual([i["groups"] for i in items], [[group.label]])
+            self.assertEqual(groups.group_items([group], [{"test": "crates/a/tests/suite.rs::effect"}]), [])
+
+    def test_stale_gate_is_owed_even_when_all_coverage_is_current(self):
+        group = groups.Group(1, "suite: effect", False, False, evidence="gate")
+        record = {"id": "cov.effect", "test": "crates/a/tests/suite.rs::effect"}
+        ledger = {group.safe: {"group": group.safe, "passed": 1}}
+        with patch("gate_carry.gate_rows", return_value=ledger):
+            items = groups.group_items([group], [record])
+        self.assertEqual([item["reason"] for item in items], ["stale_gate"])
+        facets = SimpleNamespace(current_owed=lambda: (items, {}, {}), load_records=lambda: [record])
         with patch.dict(sys.modules, {"calibration_status": facets}):
-            selection = groups.select(self.candidates(), False)
-        self.assertEqual(selection.owed_records, 0)
-        self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5, 6, 7])
-        for index in (2, 3, 4, 5):
-            self.assertEqual(selection.reasons[index], "no record in the registry")
-        self.assertTrue(selection.reasons[6].startswith("pass/fail gate, no record"))
-        # If the missing cells disappear, current registry rows do not trigger gates.
-        with patch.dict(sys.modules, {"calibration_status": facets}):
-            self.assertEqual(
-                groups.select([self.candidates()[0], self.candidates()[5]], False).groups, []
-            )
+            self.assertEqual(groups.select([group], False), groups.select_owed([group]))
+            self.assertEqual(groups.select_owed([group]).groups, [group])
 
     def test_missing_only_preserves_stale_records_and_skips_drift_and_recordless_gates(
         self,
@@ -232,7 +242,10 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             patch.dict(sys.modules, {"calibration_status": facets}),
             patch.object(groups, "GATE_REGISTRY", ledger),
         ):
-            selection = groups.select(self.candidates(), False, missing_only=True)
+            candidates = self.candidates()
+            for group in candidates[5:]:
+                group.evidence = "gate"
+            selection = groups.select(candidates, False, missing_only=True)
         self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5])
         narrowed = groups.filter_selection(selection, ["nested_*: missing"])
         self.assertEqual([g.index for g in narrowed.groups], [3, 4])
@@ -544,7 +557,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
 
     def test_recordless_knn_requires_protocol_marker_at_every_grid_point(self) -> None:
         group = groups.Group(
-            1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True
+            1, "knn_matching_calibration: knn_matching_interval_ci_coverage", False, True, evidence="gate"
         )
         ledger = self.root / "knn-gates.toml"
         for markers, expected in ((0, [group]), (2, [group]), (3, [])):

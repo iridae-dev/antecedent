@@ -2,7 +2,7 @@
 # Measure statistical calibration on this machine, before upload.
 #
 # CI never measures: it runs `scripts/calibration_status.py --check`, which fails while
-# any record is owed (a changed or missing fingerprint, or a route with no record).
+# a coverage record, study, route, ledger entry or pass/fail gate owes evidence.
 # Calibration status never changes support. Calibration is measured here, from a clean
 # checkout of the commit being uploaded (`bash scripts/test.sh calibration` runs the owed part):
 #
@@ -25,7 +25,7 @@
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
 #   bash scripts/measure_calibration.sh --owed         # exactly the list `calibration_status.py status --owed`
-#                                                      # prints (owed records, interval routes with no record),
+#                                                      # prints (coverage, route, ledger and pass/fail obligations),
 #                                                      # and no other group; --dry-run shows it
 #   bash scripts/measure_calibration.sh --owed --only PATTERN
 #                                                      # iterate: only owed work whose group label, record id/test
