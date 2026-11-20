@@ -1202,7 +1202,62 @@ fn exponential_tilt(log_weights: &[f64], offsets: &[f64], dims: usize) -> Option
             }
         }
     }
+    if dims == 2
+        && let Some(step) = interior_planar_tilt_step(&shares, offsets)
+        && dual(&[lambda[0] - step[0], lambda[1] - step[1]], &mut trial).is_finite()
+        && trial.iter().all(|share| share.is_finite() && *share > 0.0)
+        && planar_tilt_mean(&trial, offsets)
+            .iter()
+            .all(|value| value.abs() <= CALIBRATION_TOLERANCE)
+    {
+        return Some(trial);
+    }
     None
+}
+
+fn planar_tilt_mean(shares: &[f64], offsets: &[f64]) -> [f64; 2] {
+    let mut mean = [0.0; 2];
+    for (&share, xy) in shares.iter().zip(offsets.chunks_exact(2)) {
+        mean[0] += share * xy[0];
+        mean[1] += share * xy[1];
+    }
+    mean
+}
+
+/// A full-rank Newton step exists at a strictly interior planar target. The
+/// caller accepts it only when both weighted means meet the original tolerance.
+fn interior_planar_tilt_step(shares: &[f64], offsets: &[f64]) -> Option<[f64; 2]> {
+    if !encloses_origin(offsets) {
+        return None;
+    }
+    let gradient = planar_tilt_mean(shares, offsets);
+    let mut covariance = [0.0; 4];
+    for (&share, xy) in shares.iter().zip(offsets.chunks_exact(2)) {
+        let x = xy[0] - gradient[0];
+        let y = xy[1] - gradient[1];
+        covariance[0] += share * x * x;
+        covariance[2] += share * y * x;
+        covariance[3] += share * y * y;
+    }
+    let mut step = gradient;
+    cholesky_solve_lower(&mut covariance, &mut step, 2).then_some(step)
+}
+
+/// Zero is strictly interior to a planar convex hull exactly when its nonzero
+/// directions fit in no closed half-plane. Refuse angular gaps within roundoff of π.
+fn encloses_origin(offsets: &[f64]) -> bool {
+    let mut angles: Vec<_> = offsets
+        .chunks_exact(2)
+        .filter(|p| p[0] != 0.0 || p[1] != 0.0)
+        .map(|p| p[1].atan2(p[0]))
+        .collect();
+    if angles.len() < 3 {
+        return false;
+    }
+    angles.sort_unstable_by(f64::total_cmp);
+    let limit = std::f64::consts::PI - 8.0 * f64::EPSILON;
+    angles[0] + std::f64::consts::TAU - angles[angles.len() - 1] < limit
+        && angles.windows(2).all(|pair| pair[1] - pair[0] < limit)
 }
 
 /// Solve `A x = b` in place for a symmetric positive definite `A` given by its
@@ -3021,6 +3076,50 @@ mod tests {
         assert!(mean.abs() <= super::CALIBRATION_TOLERANCE);
         assert!((shares.iter().sum::<f64>() - 1.0).abs() <= super::CALIBRATION_TOLERANCE);
         assert!(super::exponential_tilt(&logs, &offsets.map(f64::abs), 1).is_none());
+    }
+
+    #[test]
+    fn planar_tilt_recovers_two_interior_means_at_objective_roundoff() {
+        let logs = [
+            -0.821_618_183_356_453_5,
+            -1.048_585_060_860_663_3,
+            -0.373_975_694_153_660_66,
+            -0.214_752_548_673_874_8,
+            -0.840_324_846_695_653_4,
+            -2.686_988_718_938_708_5,
+        ];
+        let offsets = [
+            -0.180_157_398_654_861_58,
+            -0.3,
+            -0.262_714_033_087_679_27,
+            0.7,
+            -0.306_595_144_066_198_26,
+            -0.3,
+            0.353_082_181_078_657_96,
+            0.7,
+            0.385_255_101_156_589_56,
+            -0.3,
+            -0.063_585_951_293_650_41,
+            0.7,
+        ];
+        let shares = super::exponential_tilt(&logs, &offsets, 2).unwrap();
+        assert!(shares.iter().all(|share| *share > 0.0));
+        assert!((shares.iter().sum::<f64>() - 1.0).abs() <= super::CALIBRATION_TOLERANCE);
+        for mean in super::planar_tilt_mean(&shares, &offsets) {
+            assert!(mean.abs() <= super::CALIBRATION_TOLERANCE);
+        }
+    }
+
+    #[test]
+    fn planar_tilt_refuses_boundary_and_exterior_targets_at_roundoff() {
+        let shares = [0.25; 4];
+        for offsets in [
+            [-1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.5, 1.0],
+            [-1.0, 0.2, 1.0, 0.2, 0.0, 1.0, 0.5, 1.0],
+            [-1.0, -1.0, 1.0, 1.0, 2.0, 2.0, 0.0, 0.0],
+        ] {
+            assert!(super::interior_planar_tilt_step(&shares, &offsets).is_none());
+        }
     }
 
     #[test]
