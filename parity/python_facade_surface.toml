@@ -3526,8 +3526,8 @@ python = "antecedent.composition_bundle.compile_predictive_fit_decision_bundle"
 [[entry]]
 rust = "antecedent::analysis::composition::compile_sequential_reliability_node_bundle"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.composition_bundle.compile_sequential_reliability_node_bundle"
 
 [[entry]]
 rust = "antecedent::analysis::composition::compile_trial_ipw_node_bundle_recomputation"
@@ -3586,8 +3586,8 @@ python = "antecedent.composition_bundle.consume_bundle_recomputation"
 [[entry]]
 rust = "antecedent::analysis::composition::consume_portable_sequential_reliability_node_bundle"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.composition_bundle.consume_portable_sequential_reliability_node_bundle"
 
 [[entry]]
 rust = "antecedent::analysis::composition::consume_portable_trial_ipw_node_bundle_recomputation"
@@ -3976,122 +3976,122 @@ python = "antecedent.latent_soft_intervention.replay_forecast"
 [[entry]]
 rust = "antecedent::analysis::observational_policy::compile_observational_policy"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.observational_policy.ObservationalPolicyValue.export"
 
 [[entry]]
 rust = "antecedent::analysis::observational_policy::compile_policy_subsampling"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.observational_policy.compile_policy_subsampling"
 
 [[entry]]
 rust = "antecedent::analysis::observational_policy::consume_compiled_observational_policy"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.observational_policy.consume_compiled_observational_policy"
 
 [[entry]]
 rust = "antecedent::analysis::observational_policy::consume_policy_subsampling"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.observational_policy.consume_policy_subsampling"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_cluster_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_iid_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_moving_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_panel_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_stratified_cluster_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::compile_stratified_moving_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_cluster_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_iid_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_moving_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_panel_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_stratified_cluster_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sampling_assumption_union::consume_stratified_moving_block_sampling_assumption_union"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.sampling_assumption_union.consume_sampling_assumption_union"
 
 [[entry]]
 rust = "antecedent::analysis::sequential_policy_reliability::compile_sequential_policy_reliability"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that compiles a sequential policy reliability result; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.decision_reliability.sequential_policy_reliability"
 
 [[entry]]
 rust = "antecedent::analysis::sequential_policy_reliability::consume_sequential_policy_reliability"
 kind = "fn"
-status = "missing"
-reason = "Rust entry that consumes a sequential policy reliability result; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+status = "bound"
+python = "antecedent.decision_reliability.consume_sequential_policy_reliability"
 
 [[entry]]
 rust = "antecedent::analysis::temporal_path_transport::compile_continuous_chain_transport"
