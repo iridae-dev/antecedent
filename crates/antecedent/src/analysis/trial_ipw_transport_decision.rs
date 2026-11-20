@@ -480,10 +480,11 @@ impl CompiledTrialIpwTransportDecision {
         let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
         let interval = (ordered[rank(25)], ordered[rank(975)]);
         let rows = &self.request.rows;
-        let trial_count = rows.trial.iter().filter(|&&trial| trial).count();
-        let mut design =
-            CanonicalWriter::new("antecedent.trial_ipw_transport.calibration_design.v1");
-        design
+        // The construction is the graph, selection diagram and query; the rows,
+        // their known probabilities, their count and the seed are not.
+        let mut construction =
+            CanonicalWriter::new("antecedent.trial_ipw_transport.calibration_construction.v1");
+        construction
             .bytes(&antecedent_io::to_cbor(&self.graph)?)
             .words(
                 &self
@@ -495,17 +496,10 @@ impl CompiledTrialIpwTransportDecision {
                     .collect::<Vec<_>>(),
             )
             .bytes(&antecedent_io::to_cbor(&self.query)?);
-        for ((&trial, &selection), &treatment) in
-            rows.trial.iter().zip(&rows.selection_probability).zip(&rows.treatment_probability)
-        {
-            design.word(u64::from(trial)).word(selection.to_bits()).word(treatment.to_bits());
-        }
-        let design = SemanticDigest::from_bytes(design.finish()).to_hex();
+        let construction = SemanticDigest::from_bytes(construction.finish()).to_hex();
         let functional = format!(
-            "target_average_effect:design={design}:trial_n={trial_count}:target_n={}:draws={}:seed={}:known_probabilities:fixed_target_frame",
-            rows.trial.len() - trial_count,
+            "target_average_effect:construction={construction}:draws={}:known_probabilities:fixed_target_frame",
             rows.draws,
-            rows.seed,
         );
         let basis = CalibrationBasis::new(
             [

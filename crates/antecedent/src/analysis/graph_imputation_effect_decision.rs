@@ -1290,14 +1290,14 @@ impl CompiledGraphImputationWorldDecision {
             .as_ref()
             .ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?;
         let parts = source.parts();
+        // Source and target row counts reach the record through the scope's
+        // row count; target cluster counts and sizes are not construction.
         let mut study =
-            CanonicalWriter::new("antecedent.graph_imputation.predictive_study_design.v1");
+            CanonicalWriter::new("antecedent.graph_imputation.predictive_construction.v1");
         study
             .text(parts.support.as_str())
             .word(parts.atoms.len() as u64)
             .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
-            .word(parts.rows() as u64)
-            .word(target.rows() as u64)
             .word(u64::from(parts.imputations))
             .word(u64::from(parts.iterations))
             .word(u64::from(parts.posterior_draws))
@@ -1310,13 +1310,7 @@ impl CompiledGraphImputationWorldDecision {
                 "independent_source_target_units:source_outcome_mar:fixed_empirical_target_frame"
             });
         if let Some(policy) = &self.cluster_bootstrap {
-            let groups = policy.groups(target.rows()).map_err(|_| {
-                GraphImputationEffectDecisionError::Invalid("invalid predictive target clusters")
-            })?;
-            study.word(groups.len() as u64).word(u64::from(policy.replicates));
-            let mut sizes: Vec<u64> = groups.iter().map(|group| group.len() as u64).collect();
-            sizes.sort_unstable();
-            study.words(&sizes);
+            study.word(u64::from(policy.replicates));
         }
         if let Some(policy) = self.gaussian {
             study
@@ -1327,7 +1321,7 @@ impl CompiledGraphImputationWorldDecision {
             study.text("bernoulli_logit_laplace_joint_normal_coefficients_independent_residuals");
         }
         let functional = format!(
-            "{}_target_predictive_worlds:design={}",
+            "{}_target_predictive_worlds:construction={}",
             if self.gaussian.is_some() { "gaussian" } else { "binary" },
             SemanticDigest::from_bytes(study.finish()).to_hex()
         );
@@ -1486,11 +1480,41 @@ impl CompiledGraphImputationWorldDecision {
             });
         let rows = (parts.rows() as u64)
             .saturating_add(self.target.as_ref().map_or(0, |target| target.rows() as u64));
+        // The interval's construction: the action-choice study above also binds
+        // seeds, row counts and the decision, which the coverage key must not.
+        let mut construction = CanonicalWriter::new(
+            "antecedent.graph_imputation_paired_world.calibration_construction.v1",
+        );
+        construction
+            .text(parts.support.as_str())
+            .word(parts.atoms.len() as u64)
+            .word(u64::from(parts.treatment))
+            .word(u64::from(parts.outcome))
+            .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
+            .word(u64::from(parts.imputations))
+            .word(u64::from(parts.iterations))
+            .word(u64::from(parts.posterior_draws))
+            .word(parts.prior_scale.to_bits());
+        if let Some(target) = &self.target {
+            construction
+                .text("binary_target_frame_s_admissible_v2")
+                .words(&target.columns.iter().map(|(id, _)| u64::from(*id)).collect::<Vec<_>>())
+                .words(
+                    &target.selection_targets.iter().map(|id| u64::from(*id)).collect::<Vec<_>>(),
+                );
+        } else {
+            construction.text("source_frame_v1");
+        }
+        if let Some(policy) = self.bootstrap {
+            construction
+                .text("iid_target_rows_paired_bootstrap_unbiased_pool_v2")
+                .word(u64::from(policy.replicates));
+        }
+        let construction = SemanticDigest::from_bytes(construction.finish()).to_hex();
         let coverage_bases = std::array::from_fn(|world| {
             let functional = format!(
-                "paired_{}_mean_world={world}:study={}",
+                "paired_{}_mean_world={world}:construction={construction}",
                 if self.target.is_some() { "target" } else { "source" },
-                action_choice_basis.to_hex()
             );
             let dependence = if self.target.is_some() {
                 "independent_source_target_units"

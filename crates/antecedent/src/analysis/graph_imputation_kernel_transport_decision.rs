@@ -790,14 +790,11 @@ impl CompiledGraphImputationKernelTransportDecision {
             parts.posterior_draws,
             parts.prior_scale.to_bits(),
         );
+        // Source and target row counts reach the record through the scope's
+        // row count; cluster sizes and seeds are not part of the construction.
         let (feature, model, draws) = if let Some(bootstrap) = &self.cluster_bootstrap {
-            let mut sizes: Vec<_> =
-                bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
-            sizes.sort_unstable();
             functional = format!(
-                "{functional}:source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}:cluster_sizes={sizes:?}",
-                parts.rows(),
-                self.target.rows(),
+                "{functional}:target_bootstrap=independent_clusters:replicates={}",
                 bootstrap.replicates
             );
             (
@@ -807,11 +804,8 @@ impl CompiledGraphImputationKernelTransportDecision {
             )
         } else if let Some(bootstrap) = self.target_bootstrap {
             functional = format!(
-                "{functional}:source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
-                parts.rows(),
-                self.target.rows(),
+                "{functional}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}",
                 bootstrap.replicates,
-                bootstrap.seed,
             );
             (
                 if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
@@ -823,22 +817,14 @@ impl CompiledGraphImputationKernelTransportDecision {
                 bootstrap.replicates,
             )
         } else if self.confounded {
-            functional = format!(
-                "{functional}:source_n={}:target_n={}:arm_overlap=v1",
-                parts.rows(),
-                self.target.rows()
-            );
+            functional.push_str(":arm_overlap=v1");
             (
                 CONFOUNDED_FEATURE,
                 "mar_confounded_graph_mixture_kernel_target_v1",
                 parts.posterior_draws.saturating_mul(parts.imputations),
             )
         } else {
-            functional = format!(
-                "{functional}:source_n={}:target_n={}:s_admissibility=v2",
-                parts.rows(),
-                self.target.rows()
-            );
+            functional.push_str(":s_admissibility=v2");
             (
                 FEATURE,
                 "mar_graph_mixture_kernel_target_v2",

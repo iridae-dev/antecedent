@@ -999,18 +999,14 @@ impl CompiledGraphImputationTransportDecision {
             parts.prior_scale.to_bits(),
             self.target.columns.len(),
         );
+        // Source and target row counts reach the record through the scope's
+        // row count; cluster sizes and seeds are not part of the construction.
         let (feature, model, draws) = if let Some(bootstrap) = &self.cluster_bootstrap {
-            let mut sizes: Vec<_> =
-                bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
-            sizes.sort_unstable();
             let _ = write!(
                 functional,
-                ":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
-                parts.rows(),
-                self.target.rows(),
+                ":target_bootstrap=independent_clusters:replicates={}",
                 bootstrap.replicates
             );
-            let _ = write!(functional, ":cluster_sizes={sizes:?}");
             (
                 if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
                 "mar_graph_mixture_binary_target_cluster_bootstrap_v1",
@@ -1019,11 +1015,8 @@ impl CompiledGraphImputationTransportDecision {
         } else if let Some(bootstrap) = self.target_bootstrap {
             let _ = write!(
                 functional,
-                ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
-                parts.rows(),
-                self.target.rows(),
+                ":target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}",
                 bootstrap.replicates,
-                bootstrap.seed,
             );
             (
                 if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
@@ -1035,24 +1028,14 @@ impl CompiledGraphImputationTransportDecision {
                 bootstrap.replicates,
             )
         } else if self.confounded {
-            let _ = write!(
-                functional,
-                ":source_n={}:target_n={}:s_admissibility=v2",
-                parts.rows(),
-                self.target.rows()
-            );
+            functional.push_str(":s_admissibility=v2");
             (
                 CONFOUNDED_FEATURE,
                 "mar_graph_mixture_confounded_target_standardization_v2",
                 parts.posterior_draws.saturating_mul(parts.imputations),
             )
         } else {
-            let _ = write!(
-                functional,
-                ":source_n={}:target_n={}:s_admissibility=v2",
-                parts.rows(),
-                self.target.rows()
-            );
+            functional.push_str(":s_admissibility=v2");
             (
                 FEATURE,
                 "mar_graph_mixture_target_standardization_v2",

@@ -1607,13 +1607,21 @@ impl CompiledAssessedBridgePosteriorDecision {
         let result = self.execute(ctx)?;
         let active_draws =
             self.lowered.statistical().posterior.as_ref().map_or(0, PosteriorPlan::draws);
+        // The assessed program identity also binds the trials, so the key takes
+        // only the assessment's construction and the decision contract; the
+        // target trial count is the record's scope.
+        let mut construction = CanonicalWriter::new(
+            "antecedent.assessed_bridge_posterior_decision.calibration_construction.v1",
+        );
+        construction
+            .bytes(self.assessed.assessment.calibration_construction().as_bytes())
+            .text(&self.assessed.bridge.decision.identity()?);
         let functional = format!(
-            "predictive_expected_regret:assessed={}:design={}:source_draws={}:active_draws={}:target_trials={}",
-            self.assessed.lowered.identity().to_hex(),
+            "predictive_expected_regret:construction={}:design={}:source_draws={}:active_draws={}",
+            SemanticDigest::from_bytes(construction.finish()).to_hex(),
             self.premises.validation_design,
             self.assessed.bridge.source.n_draws(),
             active_draws,
-            self.assessed.assessment.target_trial_count()
         );
         let basis = antecedent_core::CalibrationBasis::new(
             [
@@ -1632,7 +1640,7 @@ impl CompiledAssessedBridgePosteriorDecision {
             .map(Arc::from),
             0.95,
             Arc::from("point"),
-            active_draws as u64,
+            self.assessed.assessment.target_trial_count() as u64,
             None,
             None,
             0.0,

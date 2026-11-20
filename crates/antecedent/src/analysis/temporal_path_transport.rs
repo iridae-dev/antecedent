@@ -1614,7 +1614,8 @@ pub fn consume_continuous_chain_transport(
 pub struct ContinuousChainCalibrationCandidate {
     /// Complete compiler execution with unmeasured interval.
     pub result: ContinuousChainTransportResult,
-    /// Exact method, sample sizes and chain horizon for a future calibration record.
+    /// Exact method and chain structure for a future calibration record; the
+    /// source sample size is its row count.
     pub basis: CalibrationBasis,
 }
 
@@ -1629,8 +1630,8 @@ impl CompiledContinuousChainTransport {
         ctx: &ExecutionContext,
     ) -> Result<ContinuousChainCalibrationCandidate, TemporalPathTransportError> {
         let result = self.execute(ctx)?;
-        let n0 = self.request.source.iter().filter(|row| !row.treated).count();
-        let n1 = self.request.source.len() - n0;
+        // The edge structure is the construction; the arm and target sample
+        // sizes are data, and the source size is the scope's row count.
         let mut writer =
             CanonicalWriter::new("antecedent.continuous_edge_dag.calibration_scope.v2");
         writer
@@ -1638,10 +1639,7 @@ impl CompiledContinuousChainTransport {
             .bytes(&antecedent_io::to_cbor(&self.request.treatment_edges)?)
             .bytes(&antecedent_io::to_cbor(&self.request.active_treatment_edges)?);
         let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!(
-            "sequential_edge_dag:scope={scope}:source_control={n0}:source_active={n1}:target={}",
-            self.request.target_baseline.len()
-        );
+        let functional = format!("sequential_edge_dag:scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "PathSpecific",
