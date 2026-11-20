@@ -18,7 +18,10 @@ changed since `calibration_sha`:
 File granularity is deliberately conservative: a changed file the group executed re-plans
 it, whatever the hunk. Inputs the test reads at run time that no line coverage can name
 (fixture files outside the crates) are not seen by this check; the report counts the
-changed ones so the reader can judge them.
+changed ones so the reader can judge them. A reviewed carry in
+`parity/calibration_gate_carries.toml` binds the original complete receipt set
+and test selection to a reviewed source tree. Subsequent relevant changes are
+checked against that tree. The original measurement SHA and counts stay in the ledger.
 
     python3 scripts/gate_carry.py report            # which recorded passes are carried now
     python3 scripts/gate_carry.py attach --logs DIR   # dry run: rows that gain executed_files
@@ -28,6 +31,7 @@ changed ones so the reader can judge them.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -90,10 +94,58 @@ def stale_inputs(files: list[str], sha: str, changed: frozenset[str] | None = No
     return stale
 
 
+@cache
+def reviewed_receipts() -> dict[tuple[str, str], tuple[str, frozenset[str]]]:
+    """Map an exact gate and evidence digest to the tree where its changes were reviewed."""
+    path = ROOT / "parity/calibration_gate_carries.toml"
+    reviewed = {}
+    for review in load_toml(path)["review"]:
+        sha = review["reviewed_at"]
+        if not re.fullmatch(r"[0-9a-f]{40}", sha) or not review["basis"].strip():
+            raise ValueError(f"invalid calibration gate review at {sha!r}")
+        for label, digest in review["receipts"].items():
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError(f"invalid gate receipt digest for {label}")
+            if (label, digest) in reviewed:
+                raise ValueError(f"duplicate gate carry for {label}")
+            reviewed[label, digest] = sha, frozenset(review["inputs"])
+    return reviewed
+
+
+@cache
+def gate_definitions() -> dict[str, dict]:
+    rows = load_toml(ROOT / "parity/calibration_groups.toml")["group"]
+    return {row["label"].translate(str.maketrans(" /:", "___")): row for row in rows}
+
+
+def receipt_digest(definition: dict, rows: list[dict]) -> str:
+    """Bind exact test selection and every original grid receipt, including decisions and files."""
+    data = json.dumps([definition, rows], sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(data).hexdigest()
+
+
+# Inputs shared by the reviewed measurement jobs beyond the recorded Rust footprints.
+# Each review also checked the literal conformance fixtures read by its test sources.
+REVIEW_INPUTS = {
+    "flake.nix", "flake.lock", "scripts/calibration_groups.py", "scripts/calibration_runner.py",
+    "scripts/calibration_shards.py",
+    "scripts/calibration_decision.py", "scripts/calibration_family_manifest.json",
+    "parity/acceptance_manifest.toml",
+}
+
+
 def group_carried(rows: list[dict | None], changed: dict[str, frozenset[str]] | None = None) -> tuple[bool, str]:
     """Is every grid point of a group a passing row whose executed inputs are unchanged?"""
     if not rows or any(row is None for row in rows):
         return False, "no recorded pass for every grid point"
+    first = rows[0]
+    assert first is not None
+    name = re.sub(r"\.p[012]$", "", first["group"])
+    definition = gate_definitions().get(name)
+    review = None
+    if definition is not None:
+        digest = receipt_digest(definition, rows)
+        review = reviewed_receipts().get((definition["label"], digest))
     for row in rows:
         assert row is not None
         if int(row.get("passed", 0)) <= 0:
@@ -101,14 +153,18 @@ def group_carried(rows: list[dict | None], changed: dict[str, frozenset[str]] | 
         files = row.get("executed_files")
         if not files:
             return False, f"{row['group']}: pass is bound to a commit only (no executed_files)"
-        sha = str(row["calibration_sha"])
+        sha = review[0] if review else str(row["calibration_sha"])
         try:
-            stale = stale_inputs(list(files), sha, None if changed is None else changed.get(sha))
+            paths = changed[sha] if changed is not None and sha in changed else changed_since(sha)
+            stale = stale_inputs(list(files), sha, paths)
+            if review:
+                stale.extend(sorted(paths.intersection(REVIEW_INPUTS | review[1])))
+                stale.extend(sorted(p for p in paths if p.startswith("nix/")))
         except subprocess.CalledProcessError:
             return False, f"{row['group']}: cannot verify changes since {sha}"
         if stale:
-            return False, f"{row['group']}: executed input changed since {sha[:10]}: {stale[0]}"
-    return True, "carried"
+            return False, f"{row['group']}: input changed since {sha[:10]}: {stale[0]}"
+    return True, f"carried by review at {review[0][:10]}" if review else "carried"
 
 
 def gate_rows(path: Path = GATES) -> dict[str, dict]:

@@ -72,6 +72,26 @@ class GroupCarried(unittest.TestCase):
         self.assertIn(FILES[1], stale[1])
 
 
+    def test_review_carries_only_the_original_receipts_and_reviewed_inputs(self):
+        receipt = [row("g.p0"), row("g.p1")]
+        definition = {"label": "g", "tests": ["original"]}
+        sha = "b" * 40
+        fixture = "conformance/science/fixture.json"
+        reviews = {("g", carry.receipt_digest(definition, receipt)): (sha, frozenset({fixture}))}
+        changes = {SHA: frozenset(FILES), sha: frozenset({"docs/notes.md"})}
+        with (
+            patch.object(carry, "gate_definitions", return_value={"g": definition}),
+            patch.object(carry, "reviewed_receipts", return_value=reviews),
+        ):
+            self.assertTrue(carry.group_carried(receipt, changes)[0])
+            for path in (FILES[0], "Cargo.lock", fixture, "scripts/calibration_family_manifest.json"):
+                self.assertFalse(carry.group_carried(receipt, changes | {sha: frozenset({path})})[0])
+            self.assertFalse(carry.group_carried(receipt[:1], changes)[0])
+            self.assertFalse(carry.group_carried([receipt[0], row("g.p1", passed=2)], changes)[0])
+            definition["tests"] = ["different"]
+            self.assertFalse(carry.group_carried(receipt, changes)[0])
+
+
 class SelectSkipsCarriedGates(unittest.TestCase):
     def test_a_carried_recordless_group_is_not_planned(self):
         with tempfile.TemporaryDirectory() as tmp:

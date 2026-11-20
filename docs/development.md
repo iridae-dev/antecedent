@@ -529,6 +529,13 @@ point lacks a passing receipt for its protocol or the earlier pass can no longer
 be carried against its executed inputs. A prospective study outside published
 support remains runnable with `--all`.
 
+A reviewed pass/fail carry in `parity/calibration_gate_carries.toml` records the
+source revision reviewed and the reason the changes preserve those gates. Each
+digest binds the exact group definition and the complete original grid receipts.
+The checker compares the reviewed tree with the working tree on subsequent
+runs, including the listed fixtures and calibration protocol inputs. The gate
+ledger retains the measurement revision, counts and decisions.
+
 Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
 family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`
 and `scripts/calibration_family_labels.json`. Its exact binomial coverage decisions
