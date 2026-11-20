@@ -71,7 +71,7 @@ def test_complete_exact_score_matches_independent_quadrature_and_composes() -> N
             refute=False,
             execution=antecedent.Execution(seed=1),
         )
-        bound = prepared._engine.contract().get("structure_provenance.graph_score")
+        bound = prepared._engine._native.contract().get("structure_provenance.graph_score")
         assert bound == (label if configured else None)
         fit = require_success(prepared.estimate())
         assert fit.posterior is not None
