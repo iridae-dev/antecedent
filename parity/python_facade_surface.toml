@@ -1827,42 +1827,6 @@ python = "antecedent.design.evidence.EvidencePlan.variable_unlocks"
 reason = "Python derives the unlock list from the verified studies of an evidence plan (EvidencePlan.variable_unlocks) and ranks through the native rank_designs, whose structure-prior inputs are the declared or derived graph weights (StructurePrior.from_graphs)"
 
 [[entry]]
-rust = "antecedent::discovery::discover_pooled_ci_screened_posterior"
-kind = "fn"
-status = "internal"
-reason = "The CI-screened search pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (CiScreenedPosterior.run)"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pooled_dbn_posterior"
-kind = "fn"
-status = "internal"
-reason = "The bounded-lag DBN posterior pooled over completed series: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (DbnPosterior.run)"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pooled_exact_dag_marginals"
-kind = "fn"
-status = "internal"
-reason = "Exact DAG edge marginals pooled over imputations: the native discover_pooled_exact_dag_marginals (python/src/bayesian.rs) runs the per-table search and pools with ExactDagMarginals::pooled_over_imputations without calling this facade function; Python reaches it through antecedent.discovery.ExactDagPosterior.run(imputations=...) above six variables"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pooled_exact_dag_posterior"
-kind = "fn"
-status = "internal"
-reason = "Exact DAG posterior pooled over imputations: the native discover_pooled_exact_dag_posterior (python/src/bayesian.rs) runs the per-table search and pools with GraphPosterior::pooled_over_imputations without calling this facade function; Python reaches it through antecedent.discovery.ExactDagPosterior.run(imputations=...) and antecedent.discovery.pool_search_over_imputations"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pooled_order_mcmc"
-kind = "fn"
-status = "internal"
-reason = "Order MCMC pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (OrderMcmc.run)"
-
-[[entry]]
-rust = "antecedent::discovery::discover_pooled_structure_mcmc"
-kind = "fn"
-status = "internal"
-reason = "Structure MCMC pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (StructureMcmc.run)"
-
-[[entry]]
 rust = "antecedent::discovery::pag_definite_directed_edge_count"
 kind = "fn"
 status = "bound"
@@ -3408,3 +3372,783 @@ rust = "antecedent::CompiledRobustDecision"
 kind = "type"
 status = "bound"
 python = "antecedent.decision_robust.CompiledRobustDecision"
+
+[[entry]]
+rust = "antecedent::analysis::PreparedComponentFeedback"
+kind = "type"
+status = "missing"
+reason = "Rust handle for the prepared component-feedback handle of a cyclic component composition; Python has no wrapper or native class that holds it, because this composition route is not exposed to Python."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::compile_assessed_bridge_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::compile_assessed_bridge_robust_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::compile_assessed_bridge_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::compile_bridge_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::consume_assessed_bridge_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::consume_assessed_bridge_robust_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::consume_assessed_bridge_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_decision::consume_bridge_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a bridge transport decision (including the assessed posterior and robust variants); no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_premise_assessment::compile_bridge_transport_premise_assessment"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a bridge transport premise assessment; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::bridge_transport_premise_assessment::consume_bridge_transport_premise_assessment"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a bridge transport premise assessment; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::compile_action_world_chain_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a paired action-world decision over propagation chains; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::compile_chain_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a decision over a propagation chain's output law; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::compile_chain_robust_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a robust maximin decision over a propagation chain's output law; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::compile_transported_law_chain_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a decision over a transported law carried as a propagation chain; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_assessed_bridge_posterior_node_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_bridge_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_chain_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_cyclic_posterior_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_cyclic_posterior_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_cyclic_target_feedback_node_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_graph_imputation_predictive_node_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_graph_imputation_transport_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_joint_transport_effect_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_joint_transport_predictive_node_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_sequential_reliability_node_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_trial_ipw_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::compile_trial_ipw_predictive_node_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_bridge_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_chain_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_cyclic_posterior_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_cyclic_posterior_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_graph_imputation_transport_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_joint_transport_effect_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_predictive_fit_decision_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_sequential_reliability_node_bundle"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_portable_trial_ipw_node_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a native fitted-node composition bundle recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::cyclic_posterior_bundle_consumer"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that builds a bundle consumer that refits native fitted nodes under an execution context; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::graph_imputation_transport_bundle_consumer"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that builds a bundle consumer that refits native fitted nodes under an execution context; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::joint_transport_effect_bundle_consumer"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that builds a bundle consumer that refits native fitted nodes under an execution context; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::native_fit_bundle_consumer"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that builds a bundle consumer that refits native fitted nodes under an execution context; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition::trial_ipw_bundle_consumer"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that builds a bundle consumer that refits native fitted nodes under an execution context; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition_decision_terminal::compile_decision_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a composition bundle decision terminal recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition_decision_terminal::compile_posterior_decision_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a composition bundle decision terminal recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition_decision_terminal::consume_portable_decision_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a composition bundle decision terminal recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::composition_decision_terminal::consume_portable_posterior_decision_bundle_recomputation"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a composition bundle decision terminal recomputation; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::consume_chain_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a decision over a propagation chain's output law; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::consume_chain_robust_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a robust maximin decision over a propagation chain's output law; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_action_world_decision::compile_cyclic_action_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic action-world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_action_world_decision::consume_cyclic_action_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic action-world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::compile_bounded_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::compile_joint_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::compile_joint_vector_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::consume_bounded_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::consume_joint_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::consume_joint_vector_component_posterior_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic component-feedback posterior decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::prepare_component_feedback"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that prepares the component feedback of a cyclic component composition; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::prepare_component_feedback_with_ledger"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that prepares the component feedback of a cyclic component composition; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::prepare_vector_component_feedback"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that prepares the component feedback of a cyclic component composition; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_component_composition::prepare_vector_component_feedback_with_ledger"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that prepares the component feedback of a cyclic component composition; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_posterior_action_decision::compile_cyclic_posterior_action_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic posterior action decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic posterior action decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_target_feedback_decision::compile_cyclic_target_feedback_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a cyclic target-feedback decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::cyclic_target_feedback_decision::consume_cyclic_target_feedback_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a cyclic target-feedback decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedEventForecast"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedEventLikelihood"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedEventStudy"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedEventUpdate"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedEventWorlds"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::PreparedForecastAssessment"
+kind = "type"
+status = "bound"
+python = "antecedent.events.PreparedEventProgram"
+
+[[entry]]
+rust = "antecedent::analysis::events::external_execution_contract"
+kind = "fn"
+status = "internal"
+reason = "builds the external-provider execution contract inside the event forecast compile of python/src/events_api.rs; Python reaches it through antecedent.events.prepare when the request names a provider source"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_bernoulli_predictive_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_effect_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_gaussian_target_predictive_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_predictive_cluster_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_transport_world_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_transport_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::compile_graph_imputation_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::consume_graph_imputation_effect_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_effect_decision::consume_graph_imputation_world_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a graph-imputation effect or world decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_kernel_transport_decision::compile_graph_imputation_confounded_kernel_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation kernel transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_kernel_transport_decision::compile_graph_imputation_kernel_transport_cluster_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation kernel transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_kernel_transport_decision::compile_graph_imputation_kernel_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation kernel transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_kernel_transport_decision::compile_graph_imputation_kernel_transport_target_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation kernel transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_kernel_transport_decision::consume_graph_imputation_kernel_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a graph-imputation kernel transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_mar_transport_decision::compile_graph_imputation_mar_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation MAR transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_mar_transport_decision::compile_graph_imputation_mar_transport_with_cluster"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation MAR transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_mar_transport_decision::consume_graph_imputation_mar_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a graph-imputation MAR transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::compile_graph_imputation_confounded_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::compile_graph_imputation_confounded_transport_target_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::compile_graph_imputation_transport_cluster_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::compile_graph_imputation_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::compile_graph_imputation_transport_target_bootstrap_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation_transport_decision::consume_graph_imputation_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a graph-imputation transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::joint_transport_effect_decision::compile_joint_transport_effect_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a joint transport effect decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::joint_transport_effect_decision::consume_joint_transport_effect_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a joint transport effect decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::joint_transport_predictive_decision::compile_joint_transport_predictive_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a joint transport predictive decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::joint_transport_predictive_decision::consume_joint_transport_predictive_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a joint transport predictive decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::latent_soft_intervention::PreparedLatentSoftIntervention"
+kind = "type"
+status = "bound"
+python = "antecedent.latent_soft_intervention.PreparedLatentSoftIntervention"
+
+[[entry]]
+rust = "antecedent::analysis::latent_soft_intervention::replay_forecast"
+kind = "fn"
+status = "bound"
+python = "antecedent.latent_soft_intervention.replay_forecast"
+
+[[entry]]
+rust = "antecedent::analysis::observational_policy::compile_observational_policy"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::observational_policy::compile_policy_subsampling"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::observational_policy::consume_compiled_observational_policy"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::observational_policy::consume_policy_subsampling"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes an observational policy value or policy subsampling candidate; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_cluster_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_iid_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_moving_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_panel_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_stratified_cluster_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::compile_stratified_moving_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_cluster_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_iid_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_moving_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_panel_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_stratified_cluster_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sampling_assumption_union::consume_stratified_moving_block_sampling_assumption_union"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sampling-assumption union; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sequential_policy_reliability::compile_sequential_policy_reliability"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a sequential policy reliability result; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::sequential_policy_reliability::consume_sequential_policy_reliability"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a sequential policy reliability result; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::compile_continuous_chain_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::compile_sampled_temporal_path_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::compile_temporal_path_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::consume_continuous_chain_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::consume_sampled_temporal_path_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::temporal_path_transport::consume_temporal_path_transport"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a temporal path or continuous chain transport; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::trial_ipw_predictive_decision::compile_trial_ipw_predictive_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a trial inverse-probability-weighted predictive decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::trial_ipw_predictive_decision::consume_trial_ipw_predictive_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a trial inverse-probability-weighted predictive decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::trial_ipw_transport_decision::compile_trial_ipw_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that compiles a trial inverse-probability-weighted transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
+
+[[entry]]
+rust = "antecedent::analysis::trial_ipw_transport_decision::consume_trial_ipw_transport_decision"
+kind = "fn"
+status = "missing"
+reason = "Rust entry that consumes a trial inverse-probability-weighted transport decision; no python/src function calls it and no python/antecedent wrapper reaches it, so Python has no path to this composition capability yet."
