@@ -9391,11 +9391,11 @@
   },
   {
    "deviations": [
-    "Refits are predictive inputs to independent conditional future paths. Inclusive nearest-rank 0.05 and 0.95 sample quantiles define a discrete central 90 percent count interval.",
+    "Refits are predictive inputs to independent conditional future paths. A future count exchangeable with the path counts has a uniform tie-randomized rank among them (the smoothed conformal rank). Each count enters with the share of its tied rank positions inside the central 0.05 to 0.95 band, counts wholly inside always and the boundary counts by one seeded uniform draw shared by both ends, so the discrete central 90 percent count interval covers with probability 0.90 instead of the at-least-0.90 of inclusive nearest-rank quantiles. An inclusive interval cannot be empty: when the draw keeps no count, possible only when no count lies wholly inside the band, the count with the largest share is reported, which only adds coverage.",
     "The prospective calibration test generates training and future count truth with an independently implemented branching-cluster model. A failed fit or refit counts against coverage.",
     "The candidate is available under the calibration-internal feature before release support is earned. Publication requires a current matching coverage slot and separate release support."
    ],
-   "digest": "cd9a578707ed686c39515bd25e397ef206b008de1e2a8be6adec400db4a5f73c",
+   "digest": "370e083098ef532837e7836621c9bd4d945cd2a6694a8461cf43d957274b7cae",
    "id": "forecast.event_count_interval",
    "review": "none",
    "scope_limits": [],
