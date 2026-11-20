@@ -12690,4 +12690,138 @@ def graph_imputation_transport_bundle_consume(
 ) -> tuple[str | None, str | None]: ...
 def graph_imputation_fit_bundle_consume(
     data: bytes, expected_identity: str, supplied_json: str | None = None, seed: int = 1
+
+# Cyclic decisions: connected feedback components, paired action worlds and bundle refits.
+class _PreparedComponentFeedback:
+    def component_order(self) -> list[str]: ...
+    def composition_identity(self) -> str: ...
+    def identity(self) -> str: ...
+    def multi_output(self) -> bool: ...
+    def system(self) -> _PreparedCyclicSystem: ...
+
+class _CyclicDecisionResult:
+    def summary_json(self) -> str: ...
+    def draws(self) -> list[list[float]]: ...
+    def posterior_samples(self) -> list[list[float]] | None: ...
+    def chain_artifact(self) -> bytes: ...
+    def export(
+        self,
+        artifact_id: str,
+        *,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class _CompiledCyclicDecision:
+    def identity(self) -> str: ...
+    def route(self) -> str: ...
+    def kind(self) -> str: ...
+    def seed(self) -> int: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _CyclicDecisionResult: ...
+    def logistic(self, quantities_json: str, contract_json: str) -> _CompiledCyclicDecision: ...
+
+class _CyclicBundleReceipt:
+    def receipt_json(self) -> str: ...
+    def export(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class _CompiledCyclicBundle:
+    def identity(self) -> str: ...
+    def kind(self) -> str: ...
+    def execute(
+        self, *, max_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> _CyclicBundleReceipt: ...
+
+def cyclic_component_feedback_prepare(
+    declaration_json: str,
+    ledger: EvidenceLedgerHandle | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedComponentFeedback: ...
+def cyclic_action_world_decision_compile(
+    system: _PreparedCyclicSystem,
+    outputs_json: str,
+    contract_json: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_posterior_decision_compile(
+    system: _PreparedCyclicSystem,
+    outputs_json: str,
+    contract_json: str,
+    prior_sd: float,
+    chains: int,
+    warmup: int,
+    draws: int,
+    proposal_scale: float,
+    target_json: str | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_component_decision_compile(
+    feedback: _PreparedComponentFeedback,
+    schedule_json: str,
+    outputs_json: str,
+    contract_json: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicDecision: ...
+def cyclic_decision_consume(
+    data: bytes,
+    expected_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicDecisionResult: ...
+def cyclic_bundle_add_posterior_fit(
+    builder: CompositionBundleBuilder,
+    node_id: str,
+    artifact: bytes,
+    producer_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
+def cyclic_bundle_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    producer: bytes | None = None,
+    producer_identity: str | None = None,
+    producer_node: str | None = None,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CompiledCyclicBundle: ...
+def cyclic_bundle_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CyclicBundleReceipt: ...
+def cyclic_bundle_consume_refitting(
+    data: bytes,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    cyclic: bool = False,
+    *,
+    seed: int,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...

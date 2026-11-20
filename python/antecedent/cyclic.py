@@ -14,6 +14,10 @@ world id. :func:`prepare_experimental_recovery` recovers a linear law from clamp
 under a declared draw origin, and ``infer`` on :class:`OdeSystem`,
 :class:`OrnsteinUhlenbeck` and :class:`OuMechanisms` attaches bootstrap, observed-information
 or posterior uncertainty to a dynamic fit.
+
+Decisions between paired hard-clamp action worlds, feedback components checked port by port
+and bundles whose terminal a refitted posterior regenerates live in
+:mod:`antecedent.cyclic_decisions` and are re-exported here.
 """
 
 from __future__ import annotations
@@ -76,6 +80,31 @@ from ._cyclic_typed import (
 from ._cyclic_typed import EvidenceVariable as EvidenceVariable
 from ._freeze import freeze, thaw
 from ._scientific import ScientificResult
+from .cyclic_decisions import (
+    BundleDependency,
+    BundleRecomputationReceipt,
+    CompiledBundleRecomputation,
+    CompiledCyclicDecision,
+    CyclicDecision,
+    CyclicDecisionResult,
+    DecisionOutput,
+    FeedbackComponent,
+    FeedbackConnection,
+    FeedbackOutput,
+    LogisticOutputs,
+    MultiOutputComponent,
+    PreparedComponentFeedback,
+    TargetFrame,
+    add_posterior_fit,
+    compile_action_world_decision,
+    compile_bundle_recomputation,
+    compile_component_decision,
+    compile_posterior_decision,
+    consume_bundle_recomputation,
+    consume_bundle_refitting,
+    consume_decision,
+    prepare_component_feedback,
+)
 from .errors import CausalError, CausalValueError, StructuredRefusal
 from .execution import Execution
 from .intervention import Set, Shift, Soft
@@ -3415,6 +3444,12 @@ __all__ = [
     "AdamPolicy",
     "AsymptoticNormal",
     "BipartiteCausalGraph",
+    "BundleDependency",
+    "BundleRecomputationReceipt",
+    "CompiledBundleRecomputation",
+    "CompiledCyclicDecision",
+    "CyclicDecision",
+    "CyclicDecisionResult",
     "CyclicEvidence",
     "CyclicGraph",
     "CyclicInterventions",
@@ -3422,6 +3457,7 @@ __all__ = [
     "CyclicRefusal",
     "CyclicResult",
     "RecoveredCyclicLaw",
+    "DecisionOutput",
     "DynamicBootstrap",
     "DynamicMethod",
     "DynamicPosterior",
@@ -3431,6 +3467,9 @@ __all__ = [
     "EquilibriumModel",
     "ExperimentRegime",
     "ExperimentalFitOptions",
+    "FeedbackComponent",
+    "FeedbackConnection",
+    "FeedbackOutput",
     "FitOptions",
     "FlatCoefficients",
     "IdentifiedCyclicFunctional",
@@ -3440,6 +3479,8 @@ __all__ = [
     "LinearCyclicModel",
     "LocalCyclicModel",
     "LocalMechanism",
+    "LogisticOutputs",
+    "MultiOutputComponent",
     "NormalCoefficients",
     "ObservedInformation",
     "OdePolicy",
@@ -3462,6 +3503,7 @@ __all__ = [
     "PolynomialObservation",
     "PolynomialSystem",
     "PolynomialWorld",
+    "PreparedComponentFeedback",
     "PreparedCyclicFamily",
     "PreparedCyclicSystem",
     "RecoveredDrawSelector",
@@ -3488,12 +3530,21 @@ __all__ = [
     "Shift",
     "Soft",
     "SolvePolicy",
+    "TargetFrame",
     "World",
     "WorldAnswer",
     "WorldSelector",
     "action_worlds",
+    "add_posterior_fit",
     "bootstrap_responses",
+    "compile_action_world_decision",
+    "compile_bundle_recomputation",
+    "compile_component_decision",
+    "compile_posterior_decision",
     "consume_artifact",
+    "consume_bundle_recomputation",
+    "consume_bundle_refitting",
+    "consume_decision",
     "consume_evidence",
     "consume_family_artifact",
     "discover_cyclic",
@@ -3502,6 +3553,7 @@ __all__ = [
     "learn_structure",
     "partial_counterfactual",
     "posterior_responses",
+    "prepare_component_feedback",
     "prepare_experimental_recovery",
     "prepare_recovered_linear",
 ]

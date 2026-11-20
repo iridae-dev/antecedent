@@ -1172,7 +1172,8 @@ fn recovered_metadata(
 
 #[pyclass(name = "_PreparedCyclicSystem")]
 pub(crate) struct PyPreparedCyclicSystem {
-    inner: antecedent::analysis::PreparedStudy<antecedent::analysis::cyclic::CyclicPreparedState>,
+    pub(crate) inner:
+        antecedent::analysis::PreparedStudy<antecedent::analysis::cyclic::CyclicPreparedState>,
 }
 
 #[pymethods]
