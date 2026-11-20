@@ -3998,11 +3998,11 @@ dependency_manifest = "04555ce032948e3c2e2b641bbf6f83773c296c4ae0c0d5f6f067b86c6
 test = "antecedent-io::lib::measured_inference::graph_candidate::paired_worlds_share_each_graph_and_coefficient_draw"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "3e501145c21973b793aadbce1a7389eb277b29a20823ec748a53a4a53fbe0bc2"
-recorded_at = "2026-11-20T00:12:52Z"
-dependency_manifest = "9c20df6202073ca3ff6f4c0895609801dfa592b96bbcc3a3338ba108d29bfdb2"
+fingerprint = "7fd7eeda6933432e3d11542fb5f73da0f3d9b020f149418bf63f2c460136677d"
+recorded_at = "2026-11-20T13:47:33Z"
+dependency_manifest = "4ece64194f990e52174238516a37273a124167e720fc318c1d4caa33a90de0cc"
 
 [[record]]
 test = "antecedent-io::lib::measured_inference::mnar_candidate::declared_shifts_and_unbalanced_arms_match_the_reference_derivation"
@@ -6568,11 +6568,11 @@ dependency_manifest = "d3ffa00f146720f1c0c6a5b2ba234fa3c11efdfb8815c8943fc25d63b
 test = "antecedent::graph_imputation_known_truth::a_two_variable_design_has_the_ridge_posterior_mean_of_the_treatment_coefficient"
 roles = ["scientific"]
 passed = true
-commit = "d695c91dc1752052b36d30d784c3deec7e798b26"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "8b75f60fcf6e65e4a61de1714870869183781281b6e3504015f1560c6606278c"
-recorded_at = "2026-11-19T08:17:28Z"
-dependency_manifest = "5d13fa8abe660071d29e95a90e3e0c7b30ed4d7b9abc7fdaeccc3792f821a62b"
+fingerprint = "02d651100060493b1ab554ded1db443417a8b5dc68f56d2780466d241551c283"
+recorded_at = "2026-11-20T13:47:47Z"
+dependency_manifest = "77cbd468581c32ed78ddcb62d93978a2916bc110be7943c170575f22ed8da3af"
 
 [[record]]
 test = "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
@@ -6958,31 +6958,31 @@ dependency_manifest = "4c9f8fefa21ada89151cd47485203bc6de5e65da5948c8fb52592bcb6
 test = "antecedent::lib::analysis::composition_cyclic_bundle_tests::cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "de870b098c8d9be76fd9f855a54933f5eddfde427c7e76a53468bc54ed39c171"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "98ee52c2b31406427ce587d2a13b47dac15e5bf818b1421b1cc659b62763934b"
+fingerprint = "6ce0cc0112f078bb2381c33d1d0d134f9804340b8fc1d978ace2a4a41de81ee8"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "36bea9935eb276eac3a1bacc4c64fd846ef9f25c15a13ca0e4650839bd7d56fa"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_cyclic_bundle_tests::embedded_fit_node_is_refitted_by_the_bundle_consumer"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "de870b098c8d9be76fd9f855a54933f5eddfde427c7e76a53468bc54ed39c171"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "e55a8385a7e4f6471d15916c61d11b67c41f3664a1ca048ab6c996ba6d9085e6"
+fingerprint = "6ce0cc0112f078bb2381c33d1d0d134f9804340b8fc1d978ace2a4a41de81ee8"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "1ba69f1d4a2906104957c85bd72ac30bccde39af2eaa34c529bd444b43ca71f6"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_cyclic_bundle_tests::embedded_graph_transport_fit_replays_raw_evidence_and_chain"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "de870b098c8d9be76fd9f855a54933f5eddfde427c7e76a53468bc54ed39c171"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "f4cca9f42a92e130b29c2af6d5c5719d3ea332da6818a71f19e291ab680ae41e"
+fingerprint = "6ce0cc0112f078bb2381c33d1d0d134f9804340b8fc1d978ace2a4a41de81ee8"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "7316054dcb360906b4ae60d1add722e3639a38d6758b3a7d51991f4376efce05"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_cyclic_bundle_tests::embedded_trial_fit_is_refitted_and_matches_the_live_chain"
@@ -6998,11 +6998,11 @@ dependency_manifest = "986382835e5471d0a8e5c1cc1235c8ccb24b9801cc4a544f5d010333b
 test = "antecedent::lib::analysis::composition_cyclic_bundle_tests::native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation"
 roles = ["scientific"]
 passed = true
-commit = "335b1932b862dae5025078ff7f953ddb9d1026f2"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "9a13c2b2740f7bdfa31151c1858239468bd4f26d372cedac8309464b8919ddf8"
-recorded_at = "2026-11-20T05:30:23Z"
-dependency_manifest = "689a1f68f8f14e46085d836ec785592451c2bee00e8299bd93cc683c92b786a3"
+fingerprint = "6ce0cc0112f078bb2381c33d1d0d134f9804340b8fc1d978ace2a4a41de81ee8"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "63b5ff67a4802dbe92a68e1089135b59a18f4dc5357084fc2d3181266b323629"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_joint_transport_bundle_tests::joint_transport_fit_node_refits_and_matches_live_chain"
@@ -7018,41 +7018,41 @@ dependency_manifest = "da164a023f00dd36b968adc6da85c1870383ac2dcca45d0854f37eeea
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::cyclic_target_feedback_fit_chain_and_decision_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d23ecb47350a6f3ea72913d39df4faddd01b05e937b3231a3e9d41b5b8e19325"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "63af4d99126e6d0d7e613563574be3667efb477e1169498d29e935b2ae83b147"
+fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "ad65658bb7bd515cc9086346d1f797ba5ed1c80ca9498ef5557ca90c9c160f78"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::graph_predictive_fit_chain_and_decision_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d23ecb47350a6f3ea72913d39df4faddd01b05e937b3231a3e9d41b5b8e19325"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "da14d40450dd42d2244624fd1b12cb12d17a2f21afe7f707834fcd704b1b6c93"
+fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "43071d533acec715e3d3f032959b77b9751939ed81cba80d40dd06a73b6775ce"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::joint_predictive_fit_chain_and_decision_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d23ecb47350a6f3ea72913d39df4faddd01b05e937b3231a3e9d41b5b8e19325"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "33a9b55dacb24c964bcea957020dc9168b654e2fa30e36d929f815ea927a1d6e"
+fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "c1a5dcdb239e5dae62dc6f224ee98728b17018d4c68f2c3198c6f79e51ee29c0"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::trial_predictive_fit_chain_and_decision_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d23ecb47350a6f3ea72913d39df4faddd01b05e937b3231a3e9d41b5b8e19325"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "b9f14fbb352c3e4b8a34b8f76317c6b644ea4f50e681bd5c23166f24242d58d0"
+fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "7ee140c9b452cefca976873d9c0d6609c00884cadd75738c9e30e793c6fba292"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_sequential_bundle::producer_carrier_and_diagnostic_recompute_portably"
@@ -7078,71 +7078,71 @@ dependency_manifest = "7e5940966cce16b77c6cb28f6005c10e881f768c91dabf6c872ca8765
 test = "antecedent::lib::analysis::cyclic_component_composition::bounded_component_worlds_replay_after_joint_fit"
 roles = ["scientific"]
 passed = true
-commit = "335b1932b862dae5025078ff7f953ddb9d1026f2"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "51d46f16929e4de362e55b1161aa03ec5fe53e5890386147545a0f8982c4171f"
-recorded_at = "2026-11-20T05:30:23Z"
-dependency_manifest = "4a68661376b5e950f094056761e6b3c368aae06187cd040e6121075c34c7864f"
+fingerprint = "f885e54304abd46b4705da3ce71ae0eba9fc6d7620ba4035b0528932b7b1f212"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "8aca617654a039138b5f11fcc42a83c16d640bcf6e7a9fcbd3fe0673a5bd90ae"
 
 [[record]]
 test = "antecedent::lib::analysis::cyclic_component_composition::common_training_rows_refit_and_replay_the_connected_action_decision"
 roles = ["scientific"]
 passed = true
-commit = "335b1932b862dae5025078ff7f953ddb9d1026f2"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "51d46f16929e4de362e55b1161aa03ec5fe53e5890386147545a0f8982c4171f"
-recorded_at = "2026-11-20T05:30:23Z"
-dependency_manifest = "3766ebc28323d58eba63023b42a5c63649ad4422f803e7f947bdf1e10cf8ffd4"
+fingerprint = "f885e54304abd46b4705da3ce71ae0eba9fc6d7620ba4035b0528932b7b1f212"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "9c4af0ac704fdc308d5eeefa98d3ec3df6010d4ecf1fc635e8e2720bb1b99d5f"
 
 [[record]]
 test = "antecedent::lib::analysis::cyclic_component_composition::vector_components_fit_joint_worlds_and_replay"
 roles = ["scientific"]
 passed = true
-commit = "335b1932b862dae5025078ff7f953ddb9d1026f2"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "51d46f16929e4de362e55b1161aa03ec5fe53e5890386147545a0f8982c4171f"
-recorded_at = "2026-11-20T05:30:23Z"
-dependency_manifest = "012e300513c449859f4d5cfb5f69920db6145a3f8bb6eea578a7b3a0d48c2d24"
+fingerprint = "f885e54304abd46b4705da3ce71ae0eba9fc6d7620ba4035b0528932b7b1f212"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "f1807f4c9c7c45ecddca0ee021ec20db0856fb878aa6311d47a54ae84dc4d00b"
 
 [[record]]
 test = "antecedent::lib::analysis::cyclic_posterior_action_decision::joint_cyclic_parameter_and_disturbance_worlds_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "f384edc213fc7cfea4fb26298d88254a35cab8bf542cec83d5cb30fda9387c17"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "34a30153df90016290b4ecffce51e09c38cff05f9ef528c67174a7682598dc6c"
+fingerprint = "7bcfba4cb7a58e7e1f0dd22ae02ae5f60955d0f7c3a362c51addcc4eeba6540e"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "4d1835fe8c3112a75c1fba365ae970507c65d2467ea78452d42a524713a55690"
 
 [[record]]
 test = "antecedent::lib::analysis::cyclic_posterior_action_decision::prospective_action_selection_grid_keeps_failures_and_design_scope"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "f384edc213fc7cfea4fb26298d88254a35cab8bf542cec83d5cb30fda9387c17"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "8b637b5bdae4da732781d1f27621232725edf9822c2ded76c1dbba685871b01c"
+fingerprint = "7bcfba4cb7a58e7e1f0dd22ae02ae5f60955d0f7c3a362c51addcc4eeba6540e"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "0785ad719e43a19b9c9f77806df23e4b5b73a70cb3be9e79284ae3d95201cced"
 
 [[record]]
 test = "antecedent::lib::analysis::cyclic_target_feedback_decision::paired_target_worlds_refit_and_replay"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "fce3b4d87fbfa981785df0865013de37ed4906304e9b730bd95cc18708745f67"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "98d09187375df4d7a1ed8bbe11fc4220381c19af1b71a7d2543a07202b797f20"
+fingerprint = "e67b9e37a51ab45b52f66f142ed5fa9303df7d93da6b43cac368a33422d43f36"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "bbfc92022c4eb095d001bdcd736e03012017521e0b35dad7b8d5905c37676473"
 
 [[record]]
 test = "antecedent::lib::analysis::events::assessment::count_interval_matches_hand_ranked_discrete_tails"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "f5a503e51bbd0372b9e9c97016af749554aae0dc2173f692d29280b757d307f7"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "c2673b1cd4e6675ce3c9bfc15a4fd6e522717b26bdd78758ed61149cc1d81386"
+fingerprint = "e894b5697927c650839f2a2cfcfca5b68ce8d182b0a1868d804eb72a77645c45"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "7590d220283a655f38472f7a6b0fac90a24ac565e1f7d06bab88fa93844c01dd"
 
 [[record]]
 test = "antecedent::lib::analysis::events::study::finite_same_stream_observation_changes_choice"
@@ -7188,71 +7188,71 @@ dependency_manifest = "8923a839f32984526e285bc5be55317313c3769611d4209abbd12fb22
 test = "antecedent::lib::analysis::graph_imputation::graph_imputation_effect_decision_replays_known_positive_effect"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "849d4ce9768b9e11fdb4de1a489e9d328940fd7275f5018063094d0e95247cb5"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "d7f21178882416cc678d49ad9508eb8a729d938a7c54360a8b181953f5cbb3f6"
+fingerprint = "ecd5b240c52e59dfd05674545696efdfe5dc3a173d064193f927b524d774a173"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "280476be6376cef19251041fbf635d038db5c7c37417aa7e39de7c0e2f8b2a52"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_effect_decision::bernoulli_predictive_worlds_replay_and_bind_model"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "5a292f5567d72172ad7e21f5868c997836d7f836aec960cee08a12ea2ead9936"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "e47e0fd75b0fca2d207f6a4df6dcbf8171d7606588ac046ca1d3063e09f4a894"
+fingerprint = "1aa59b3f2400ac9534d0fe23748a3a366a2ebac1ba077b12447defa4db7aed8f"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "681af19db774ddc39891a1e1243b4dca1f85f8a1410ad0ff5a05f9dc7078becb"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_effect_decision::paired_world_decision_replays"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "5a292f5567d72172ad7e21f5868c997836d7f836aec960cee08a12ea2ead9936"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "dd520ac20356991588bb52c40dc4f50288422b682fe2e761cdd7770fb60e2104"
+fingerprint = "1aa59b3f2400ac9534d0fe23748a3a366a2ebac1ba077b12447defa4db7aed8f"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "fa7accc7cf6b8abaf1c27c99e71e91d1cc10c66e799a49597b015498de2e84dd"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_kernel_transport_decision::confounded_binary_continuous_target_replays_both_policies"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d05fd391e5a68cf73478e77665d3e4c317372f6aebefa08658f6058d73907f5a"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "46e829495dfb883ce41741db6a0a38d2d597a1f1707377e5d49301bc94cfe8a8"
+fingerprint = "a2e553eaf1daf28f46f7a24fb2c0d1a9109d5ba75300a46f0f69d629f1ea1330"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "930e85b6964b9bef2cd6a730f5259a7e63e901c7eda629118c16bc9203eb8d91"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_kernel_transport_decision::continuous_target_modifier_replays_graph_imputation_and_utility"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d05fd391e5a68cf73478e77665d3e4c317372f6aebefa08658f6058d73907f5a"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "17c50d1c162d14f8b885aab45e8d241c911aa6001a7dfd4bb1c6d50caa111a1e"
+fingerprint = "a2e553eaf1daf28f46f7a24fb2c0d1a9109d5ba75300a46f0f69d629f1ea1330"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "142f395f49b647345ae48b060fc8c7754015eebacbaa53999c91168c9ba00b9d"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_mar_transport_decision::binary_kernel_and_confounding_replay_weighted_raw_frame"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "23d24004083469cdafec25b3f93ca0d6bed1ddd68c9f409e2019af014c9699f5"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "b0b60daa8f424ab6d2be6ca13fa5d169fe58223f81ac3249781d5bbf9a0d068e"
+fingerprint = "dff5e0cd7d419f1fa36e3618e2fc5480b8de7a9e0f19d159741de23009d0b8da"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "1fea0c98e4b234067df1d4ae99e9abca28ab4f34fe9f8574a65d618686fad90f"
 
 [[record]]
 test = "antecedent::lib::analysis::graph_imputation_transport_decision::missing_source_graph_mixture_transports_to_target_and_replays"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "ce5a4fb3b8632a4ace715ef829d863706ca6de0e0b10e85fa50d6f40924f0f02"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "487d16638d4ddc85cd7266480ea78142765e0d6c2232599a2cc8fc0e41a560c1"
+fingerprint = "411d97354072187758ac1df65da6b443fc00f5d0cb51b022f6bf6b01e6f67077"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "17e75b58a791f6366ac65452162cc4212dce75f00f5f225efed34394c614531d"
 
 [[record]]
 test = "antecedent::lib::analysis::inverse_outcome::forward_inverse_round_trip_matches_the_analytic_inverse"
@@ -7308,11 +7308,11 @@ dependency_manifest = "dd3fd24aa07d89c01aa3f3f4658a71a30a722e34cfed3420511f7b1c4
 test = "antecedent::lib::analysis::sampling_assumption_union::dependent_unit_pairs_are_resampled_as_complete_clusters"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "b9e03926abbeb8263b512f07d6b89ccbdcae26ff2e1737a54d461f91f4fbd801"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "90cb74e5c929412d49a3bfb4fd0dc5567f5217ec8f42b91ffb9f991133515776"
+fingerprint = "9183db7b680d70dbaf83cab230f3e4c8bd7dac71c5ac0b11f549aa551c86ce9c"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "5752184844fc6fb23ff08379e2dc3ba8cfedff7f6f598656a995ec171b704add"
 
 [[record]]
 test = "antecedent::lib::analysis::sampling_assumption_union::iid_raw_units_are_resampled_and_whole_chain_replayed"
@@ -7328,41 +7328,41 @@ dependency_manifest = "95b6c9c7b192455068c6e755498930f6e7f00509552d2b28c07dd58dd
 test = "antecedent::lib::analysis::sampling_assumption_union::moving_blocks_replay_and_bind_the_declared_design"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "b9e03926abbeb8263b512f07d6b89ccbdcae26ff2e1737a54d461f91f4fbd801"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "1e85612ebb41319c35ebd741896589de762ba031cc7bb7e6cf5088d52862fee9"
+fingerprint = "9183db7b680d70dbaf83cab230f3e4c8bd7dac71c5ac0b11f549aa551c86ce9c"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "b33600377d421af54f1834fab58d2bd91b0567c59bec60068f1223ee029da6c3"
 
 [[record]]
 test = "antecedent::lib::analysis::sampling_assumption_union::resampled_panels_keep_one_source_panel_and_consecutive_blocks"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "b9e03926abbeb8263b512f07d6b89ccbdcae26ff2e1737a54d461f91f4fbd801"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "99124857f09155ecc66bb60bc9c3b9841b02d260231c941da93d538801002a5e"
+fingerprint = "9183db7b680d70dbaf83cab230f3e4c8bd7dac71c5ac0b11f549aa551c86ce9c"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "a9ef7ea8c279fca2ce5514a0154a0bba1a185fdc56cd6257ef04076f9f053ccd"
 
 [[record]]
 test = "antecedent::lib::analysis::sampling_assumption_union::stratified_clusters_are_kept_complete_and_replayed"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "b9e03926abbeb8263b512f07d6b89ccbdcae26ff2e1737a54d461f91f4fbd801"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "2c11e79366a1ed5c69dbc9a8862d332c4f4b8431d16808879d0dbb579bf3e812"
+fingerprint = "9183db7b680d70dbaf83cab230f3e4c8bd7dac71c5ac0b11f549aa551c86ce9c"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "1b52b0001b8ea758aa03af7fc6d9dea6aeb29a327da953cd9d12218dd70629d7"
 
 [[record]]
 test = "antecedent::lib::analysis::sampling_assumption_union::stratified_moving_blocks_stay_within_interleaved_series_and_replay"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "b9e03926abbeb8263b512f07d6b89ccbdcae26ff2e1737a54d461f91f4fbd801"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "4bf57c39f349daa4c07c97f7ff025cff5c0bbea29c448607cd3aa55e085b5773"
+fingerprint = "9183db7b680d70dbaf83cab230f3e4c8bd7dac71c5ac0b11f549aa551c86ce9c"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "cde27279db388055af509fd5a9853e64ab912039ffb29a308ef2ac80443afe39"
 
 [[record]]
 test = "antecedent::lib::analysis::sampling_assumption_union::whole_chain_bootstrap_union_replays_at_the_final_coordinate"
@@ -7378,11 +7378,11 @@ dependency_manifest = "7cd4f37bd86089ef7c5c8baf11cc8a0161c3cc637064700c9e4d63c2d
 test = "antecedent::lib::analysis::scientific_bridge_distribution_tests::independent_target_posterior_and_source_innovation_replay_together"
 roles = ["scientific"]
 passed = true
-commit = "335b1932b862dae5025078ff7f953ddb9d1026f2"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "2483ddb712687f2fd17edef888d7b9e6b1c000f55fe5ee2ef4429183900423bb"
-recorded_at = "2026-11-20T05:30:23Z"
-dependency_manifest = "4f6035bc245d5afb0fcb2d41edfdfbe9e5def71687c0ae7d187c3f722fda737a"
+fingerprint = "4e3a48d12f912566bd4ebbdaf7c826be1971fdfb9aed8ee26b9f07487fa5e07e"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "f4af57e05de1b5588f0b6c0eacb234b1827ab625ed2b1cd6e56e4b40fa255999"
 
 [[record]]
 test = "antecedent::lib::analysis::scientific_bridge_distribution_tests::matched_trial_validation_and_bridge_decision_replay_together"
@@ -7438,31 +7438,31 @@ dependency_manifest = "59c266eb082a479324d870b1e5e0026cd7153db71ca0a9b1a269f504e
 test = "antecedent::lib::analysis::temporal_path_transport::continuous_chain_shared_schedule_replays"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "d30df53c6d04344305dcfebcd099cc497c7be06661ba3ef25bde639f5c698eb9"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "32cb877204c82658e49ccc85004c420674057efdbaac62c1793dde6db00e5082"
+fingerprint = "f84f77ab2401094577b45e08e9d628cd0272deb14b43bcd564a61ec883374a34"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "1782b239dea10ab334b41192ef14dccc8abe2c6cb8719a3a747672197a26f6c3"
 
 [[record]]
 test = "antecedent::lib::analysis::trial_ipw_predictive_decision::predictive_worlds_refit_and_replay_raw_evidence"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "7a9b8ae5b0a44b9585c58518d562beb7754a0bbd0c28f5bbef1d6a64a5016546"
-recorded_at = "2026-11-20T00:16:41Z"
-dependency_manifest = "5d16febe2277f5cb67330c51d4adde2e2801f562cf364fda1f7650c25a573572"
+fingerprint = "9bab394b6ea24cb12d45166c0ded80800e1134bed0296d54312dee250fed4532"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "80dc8107a0305a4de72c7b9a56a2dce90685686dc359d7b6d8eddb4204ba0d28"
 
 [[record]]
 test = "antecedent::lib::analysis::trial_ipw_transport_decision::trial_effect_is_refit_and_replayed_from_raw_rows"
 roles = ["scientific"]
 passed = true
-commit = "7353fa2f04263616935c1767638e384746c1662d"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "92756157114cf9bee669ab0d99e87f39171e7c49393f7c6077612ec18472786f"
-recorded_at = "2026-11-20T04:09:42Z"
-dependency_manifest = "a1c18ef8e95d32dbc7c8151c06971eb149ea6bddeeddeeb072190cbd67fc5d6c"
+fingerprint = "aceea1bce3be212165f587afdefcef85d71871f0a24998de3650d169907a0c17"
+recorded_at = "2026-11-20T13:51:48Z"
+dependency_manifest = "a3eb21e546ecca080fcbd0c0a8693bbedd2f58657f4f98d2531a63bbd7b18c37"
 
 [[record]]
 test = "antecedent::lib::cross_world::tests::the_closed_form_recomputation_matches_the_structural_truth"
@@ -8078,11 +8078,11 @@ dependency_manifest = "cb70ddc0612ca43336bc67a7def71f9c2e385333f229e556253b12edc
 test = "antecedent::observational_survival_policy_routes::cross_fitted_policy_subsampling_compiles_its_schedule_and_independently_replays"
 roles = ["scientific"]
 passed = true
-commit = "1ceb40af3f37beaa3df25c2e1030fc3baa52676c"
+commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
-fingerprint = "f4b5e733a4a3bde0eb7732cebcfe6edaf7e1a73cf8578cd292f95e6fd41591a9"
-recorded_at = "2026-11-20T00:13:40Z"
-dependency_manifest = "a7d6958c9898a16b6dac42a622b9ad824c17b7a27e458a440bdd3c60c8031e54"
+fingerprint = "bf7624db32713acff948cfa7179c93e4152c7fece822580a3fbaf89472c288a1"
+recorded_at = "2026-11-20T13:47:41Z"
+dependency_manifest = "a570d8cfe319db2d98a26ed2e50eede28f213afd783b0d0df4ebb6737b259c31"
 
 [[record]]
 test = "antecedent::observational_survival_policy_routes::graph_policy_can_learn_on_less_information_than_nuisance_adjustment"
