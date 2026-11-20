@@ -1,7 +1,8 @@
 //! Target-population coverage under independent two-row target clusters. Every
 //! replicate generates new source rows and target clusters, recompiles the
 //! complete cluster-bootstrap graph, imputation, transport and decision
-//! schedule, and compares its interval with analytic population truth.
+//! schedule, and compares its replicate order-statistic interval with analytic
+//! population truth.
 
 mod common;
 
@@ -26,7 +27,7 @@ use common::calibration::{
 const ROOT_TEST: &str = "graph_imputation_kernel_cluster_target_l95";
 const CONFOUNDED_TEST: &str = "graph_imputation_confounded_kernel_cluster_target_l95";
 const DGP: &str = "mar_continuous_modifier_independent_target_clusters";
-const INTERVAL: &str = "nearest_rank_95";
+const INTERVAL: &str = "replicate_order_statistic_95";
 
 #[allow(clippy::too_many_lines, reason = "one replicate builds the whole simulated study")]
 fn replicate(seed: u64, n: usize, confounded: bool) -> Option<((f64, f64), f64, CalibrationBasis)> {

@@ -1,7 +1,8 @@
 //! Individual target-outcome and action-choice studies. Each replicate fits new
 //! MAR source rows and an independent binary target frame. A Gaussian interval
 //! is scored against one independent future individual drawn from that exact
-//! frame; a Bernoulli interval is scored against that individual's success
+//! frame; a Bernoulli interval, pooled across the completed tables by Rubin's
+//! rules on the logit scale, is scored against that individual's success
 //! probability, the frame mean of the known unit probabilities, because the
 //! interval of a 0/1 outcome is its support and covers every outcome.
 
@@ -171,8 +172,11 @@ fn replicate(seed: u64, n: usize, binary: bool, world: usize) -> Option<Observat
 
 fn run_grid(test: &'static str, binary: bool, world: usize) {
     let n = grid_n(120);
-    let interval =
-        if binary { "predictive_binary_success_probability" } else { "predictive_gaussian_worlds" };
+    let interval = if binary {
+        "predictive_binary_success_probability_rubin_logit"
+    } else {
+        "predictive_gaussian_worlds"
+    };
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,

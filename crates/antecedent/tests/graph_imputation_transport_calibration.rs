@@ -1,7 +1,8 @@
 //! Whole-route target-frame effect coverage. Each replicate draws fresh source
 //! units with MAR outcomes and fresh target covariate units, then reruns graph
 //! selection, source imputation, target standardization, child fitting and
-//! decision through one compiled program. Truth is conditional on that
+//! decision through one compiled program, and scores the route's interval,
+//! Rubin's rules across the completed tables. Truth is conditional on that
 //! replicate's observed empirical target frame.
 
 mod common;
@@ -25,7 +26,7 @@ use common::calibration::{
 
 const TEST: &str = "graph_imputation_transport_target_frame_l95";
 const DGP: &str = "root_treatment_binary_modifier_mar_target_shift";
-const INTERVAL: &str = "nearest_rank_95";
+const INTERVAL: &str = "rubin_barnard_t_95";
 
 fn quantity() -> ScientificQuantity {
     ScientificQuantity {

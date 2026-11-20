@@ -39,7 +39,9 @@ use super::graph_imputation::{
     GraphImputationPoint, consume as consume_graph_imputation,
 };
 use super::graph_imputation_transport_decision::{
-    TargetClusterBootstrap, TargetFrameBootstrap, order_statistic_interval_95,
+    POOLED_INTERVAL, POOLED_PROBABILITY_INTERVAL, REPLICATE_INTERVAL, TargetClusterBootstrap,
+    TargetFrameBootstrap, imputation_pooled_interval_95, imputation_pooled_probability_interval_95,
+    order_statistic_interval_95, source_child_df, transported_child_df,
 };
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
@@ -1171,7 +1173,9 @@ pub struct GraphImputationWorldReliabilityCandidate {
     /// Exact source/design and action-contract study coordinate. External
     /// truth is needed to score choices; this is not a reliability record.
     pub action_choice_basis: SemanticDigest,
-    /// Nearest-rank equal-tail 95% intervals for control and active means.
+    /// 95% intervals for control and active means: replicate order statistics
+    /// under target resampling, Rubin's rules across the completed tables
+    /// otherwise.
     pub world_intervals: [(f64, f64); 2],
     /// Separate prospective coverage coordinates for the two mean worlds.
     pub coverage_bases: [CalibrationBasis; 2],
@@ -1181,10 +1185,12 @@ pub struct GraphImputationWorldReliabilityCandidate {
 pub struct GraphImputationPredictiveCalibrationCandidate {
     /// Complete predictive execution.
     pub result: GraphImputationWorldDecisionResult,
-    /// Equal-tail 95% order-statistic intervals, one per action. Gaussian
-    /// worlds bound a future target unit's outcome. Bernoulli worlds bound the
-    /// probability that a future target unit succeeds: the outcome itself is
-    /// 0 or 1, and an interval of it is that support, true of any law.
+    /// 95% intervals, one per action. Gaussian worlds bound a future target
+    /// unit's outcome by order statistics. Bernoulli worlds bound the
+    /// probability that a future target unit succeeds (the outcome itself is
+    /// 0 or 1, and an interval of it is that support, true of any law): by
+    /// replicate order statistics under target clusters, and on a fixed frame
+    /// by Rubin's rules across the completed tables on the logit scale.
     pub world_intervals: [(f64, f64); 2],
     /// Separate exact prospective coverage scopes for those outcomes.
     pub coverage_bases: [CalibrationBasis; 2],
@@ -1331,7 +1337,7 @@ impl CompiledGraphImputationWorldDecision {
                 else { "graph_imputation_bernoulli_target_predictive_cluster_bootstrap_decision_v1" } }
                 else if self.gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision_v1" }
                 else { "graph_imputation_bernoulli_logit_target_predictive_world_decision_v1" },
-            if self.gaussian.is_some() { "predictive_gaussian_worlds" } else { "predictive_binary_success_probability" }, "", if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
+            if self.gaussian.is_some() { "predictive_gaussian_worlds" } else if self.cluster_bootstrap.is_some() { "predictive_binary_success_probability" } else { POOLED_PROBABILITY_INTERVAL }, "", if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
                 else { "independent_source_target_units" },
             if self.gaussian.is_some() { "correlated_gaussian_individual_residuals_v1" }
                 else { "laplace_joint_normal_prior_independent_potential_outcome_innovations_given_graph_and_coefficients_v1" }, &functional,
@@ -1365,6 +1371,27 @@ impl CompiledGraphImputationWorldDecision {
             }
             &result.producer.probabilities
         };
+        // A fixed frame's success probabilities pool the declared completed
+        // tables. Their order statistics read a plain mixture of the tables,
+        // which carries (m - 1) B / m of between-table variance where Rubin's
+        // total at a finite m is (1 + 1/m) B; Rubin's rules pool them on the
+        // logit instead. Resampled frames hold one independent replicate per
+        // row, and a Gaussian individual's predictive spread is its residual.
+        let pooled = if self.gaussian.is_none() && self.cluster_bootstrap.is_none() {
+            let source = GraphImputationSource::decode(self.producer.source_bytes())
+                .map_err(GraphImputationEffectDecisionError::Invalid)?;
+            let target = self
+                .target
+                .as_ref()
+                .ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?;
+            let parts = source.parts();
+            Some((
+                parts.imputations as usize,
+                transported_child_df(parts, &target.selection_targets),
+            ))
+        } else {
+            None
+        };
         let mut intervals = [(0.0, 0.0); 2];
         for (world, interval) in intervals.iter_mut().enumerate() {
             let mut values: Vec<_> = rows.iter().map(|row| row[world]).collect();
@@ -1373,8 +1400,16 @@ impl CompiledGraphImputationWorldDecision {
                     "predictive interval needs forty finite draws",
                 ));
             }
-            values.sort_by(f64::total_cmp);
-            *interval = order_statistic_interval_95(&values);
+            *interval = if let Some((tables, df_complete)) = pooled {
+                imputation_pooled_probability_interval_95(&values, tables, df_complete).ok_or(
+                    GraphImputationEffectDecisionError::Invalid(
+                        "success probabilities do not pool across completed tables",
+                    ),
+                )?
+            } else {
+                values.sort_by(f64::total_cmp);
+                order_statistic_interval_95(&values)
+            };
         }
         let coverage_bases = std::array::from_fn(|world| {
             let mut basis = base.clone();
@@ -1453,18 +1488,31 @@ impl CompiledGraphImputationWorldDecision {
                 .word(policy.seed);
         }
         let action_choice_basis = SemanticDigest::from_bytes(writer.finish());
+        // Under target resampling each pair is one independent replicate, each
+        // on its own completed tables. Otherwise the pairs pool the declared
+        // tables, which Rubin's rules combine: a plain mixture of m tables
+        // carries (m - 1) B / m of the (1 + 1/m) B between-table variance.
+        let df_complete = match &self.target {
+            Some(target) => transported_child_df(parts, &target.selection_targets),
+            None => source_child_df(parts),
+        };
         let mut intervals = [(0.0, 0.0); 2];
         for (i, interval) in intervals.iter_mut().enumerate() {
-            let mut ordered: Vec<f64> = result.producer.worlds.iter().map(|pair| pair[i]).collect();
-            if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
+            let mut values: Vec<f64> = result.producer.worlds.iter().map(|pair| pair[i]).collect();
+            if values.len() < 40 || values.iter().any(|value| !value.is_finite()) {
                 return Err(GraphImputationEffectDecisionError::Invalid(
                     "world interval needs finite paired draws",
                 ));
             }
-            ordered.sort_by(f64::total_cmp);
-            let rank =
-                |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
-            *interval = (ordered[rank(25)], ordered[rank(975)]);
+            *interval = if self.bootstrap.is_some() {
+                values.sort_by(f64::total_cmp);
+                order_statistic_interval_95(&values)
+            } else {
+                imputation_pooled_interval_95(&values, parts.imputations as usize, df_complete)
+                    .ok_or(GraphImputationEffectDecisionError::Invalid(
+                        "paired worlds do not pool across completed tables",
+                    ))?
+            };
         }
         let feature = if self.bootstrap.is_some() {
             "graph_imputation_transport_paired_world_bootstrap_decision_v2"
@@ -1529,7 +1577,7 @@ impl CompiledGraphImputationWorldDecision {
                     "multi_env",
                     "Bayesian",
                     feature,
-                    "nearest_rank_95",
+                    if self.bootstrap.is_some() { REPLICATE_INTERVAL } else { POOLED_INTERVAL },
                     "",
                     dependence,
                     "mar_graph_mixture_paired_mean_worlds",

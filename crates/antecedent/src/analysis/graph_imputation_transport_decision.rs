@@ -19,7 +19,7 @@ use antecedent_contract::propagation_chain::{
     ChainReading, LawMeaning, StageKind, TableConstruction,
 };
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
-use antecedent_core::graph_imputation_contract::GraphImputationSource;
+use antecedent_core::graph_imputation_contract::{GraphImputationParts, GraphImputationSource};
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest, VariableId,
@@ -27,6 +27,7 @@ use antecedent_core::{
 use antecedent_data::{ImputationSpec, TabularData};
 use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_estimate::multiple_imputation::rubin_pool;
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, TransportStandardization, replay_confounded_transport_point,
@@ -64,7 +65,7 @@ const CONFOUNDED_CLUSTER_FEATURE: &str =
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 /// Interval method of a draw table with one draw per resampling replicate
 /// ([`order_statistic_interval_95`]).
-const REPLICATE_INTERVAL: &str = "replicate_order_statistic_95";
+pub(crate) const REPLICATE_INTERVAL: &str = "replicate_order_statistic_95";
 
 /// Refusal of the bound source, target, decision or portable replay.
 #[derive(Debug, thiserror::Error)]
@@ -177,8 +178,9 @@ pub struct GraphImputationTransportDecisionResult {
 pub struct GraphImputationTransportCalibrationCandidate {
     /// Full compiler execution, including the final decision.
     pub result: GraphImputationTransportDecisionResult,
-    /// Equal-tail 95% interval from the target effect draws: nearest-rank on
-    /// a fixed frame, replicate order statistics under target resampling.
+    /// 95% interval from the target effect draws: replicate order statistics
+    /// under target resampling, Rubin's rules across the completed tables on a
+    /// fixed frame.
     pub interval: (f64, f64),
     /// Runtime construction and scope for a prospective coverage record.
     pub basis: CalibrationBasis,
@@ -694,6 +696,107 @@ pub(crate) fn order_statistic_interval_95(ordered: &[f64]) -> (f64, f64) {
     (ordered[lower - 1], ordered[upper - 1])
 }
 
+/// Interval method of a fixed frame's draws pooled across completed tables
+/// ([`imputation_pooled_interval_95`]).
+pub(crate) const POOLED_INTERVAL: &str = "rubin_barnard_t_95";
+
+/// 95% interval of a fixed frame's posterior draws pooled from `tables`
+/// completed tables, held in their execution order as equal consecutive
+/// blocks, by Rubin's rules: `Q ± t_v sqrt(W + (1 + 1/m) B)` from the table
+/// posterior means and variances, with the Barnard-Rubin degrees of freedom at
+/// the complete-data `df_complete` (large-sample when `None`).
+///
+/// A plain mixture of `m` tables' posteriors has variance `W + (m - 1) B / m`,
+/// with `W` the mean within-table variance and `B` the variance of the table
+/// means: it is the posterior only as `m` grows. At the two tables a study
+/// commonly declares, the mixture carries `B / 2` of the `3 B / 2` Rubin's
+/// total assigns a finite `m`, and with a tenth of the outcomes missing its
+/// nearest-rank interval covers about 0.93. `B` then rests on one degree of
+/// freedom, which the `t` reference carries and a quantile of the mixture
+/// cannot. `None` unless the draws split into `tables >= 2` equal blocks of at
+/// least two finite draws.
+pub(crate) fn imputation_pooled_interval_95(
+    draws: &[f64],
+    tables: usize,
+    df_complete: Option<f64>,
+) -> Option<(f64, f64)> {
+    if tables < 2 || draws.len() % tables != 0 || draws.len() / tables < 2 {
+        return None;
+    }
+    let block = draws.len() / tables;
+    let mut means = Vec::with_capacity(tables);
+    let mut variances = Vec::with_capacity(tables);
+    for table in draws.chunks_exact(block) {
+        let mean = table.iter().sum::<f64>() / block as f64;
+        means.push(mean);
+        variances.push(
+            table.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / (block - 1) as f64,
+        );
+    }
+    let pooled = rubin_pool(&means, &variances, df_complete).ok()?;
+    let interval = pooled.interval(0.95);
+    (interval.0.is_finite() && interval.1.is_finite()).then_some(interval)
+}
+
+/// Interval method of a fixed frame's Bernoulli success probabilities pooled
+/// across completed tables ([`imputation_pooled_probability_interval_95`]).
+pub(crate) const POOLED_PROBABILITY_INTERVAL: &str =
+    "predictive_binary_success_probability_rubin_logit";
+
+/// [`imputation_pooled_interval_95`] for probability draws, pooled on their
+/// logit and mapped back. Rubin's rules rest on near-normal table posteriors;
+/// a probability posterior is bounded and skewed near either bound, its
+/// logit is not, and the back-transformed interval stays inside `(0, 1)`.
+/// `None` also when a draw is not strictly between 0 and 1.
+pub(crate) fn imputation_pooled_probability_interval_95(
+    probabilities: &[f64],
+    tables: usize,
+    df_complete: Option<f64>,
+) -> Option<(f64, f64)> {
+    let logits = probabilities
+        .iter()
+        .map(|&p| (p > 0.0 && p < 1.0).then(|| (p / (1.0 - p)).ln()))
+        .collect::<Option<Vec<f64>>>()?;
+    let (lower, upper) = imputation_pooled_interval_95(&logits, tables, df_complete)?;
+    let logistic = |value: f64| 1.0 / (1.0 + (-value).exp());
+    Some((logistic(lower), logistic(upper)))
+}
+
+/// Complete-data degrees of freedom of a transported child fit: the source
+/// rows less the coefficients of the widest retained design, an intercept,
+/// the treatment, and each adjusted or selected covariate with its centred
+/// treatment interaction. `None` when no degree remains.
+pub(crate) fn transported_child_df(
+    parts: &GraphImputationParts,
+    selections: &[u32],
+) -> Option<f64> {
+    child_df(parts, selections, 2)
+}
+
+/// Complete-data degrees of freedom of a source-frame child fit: the source
+/// rows less the coefficients of the widest retained design, an intercept,
+/// the treatment and each adjusted covariate. `None` when no degree remains.
+pub(crate) fn source_child_df(parts: &GraphImputationParts) -> Option<f64> {
+    child_df(parts, &[], 1)
+}
+
+fn child_df(parts: &GraphImputationParts, selections: &[u32], per_covariate: usize) -> Option<f64> {
+    let widest = parts
+        .atoms
+        .iter()
+        .map(|atom| {
+            let mut covariates: Vec<u32> =
+                atom.adjustment.iter().chain(selections).copied().collect();
+            covariates.sort_unstable();
+            covariates.dedup();
+            covariates.len()
+        })
+        .max()
+        .unwrap_or(selections.len());
+    let coefficients = 2 + per_covariate * widest;
+    (parts.rows() > coefficients).then(|| (parts.rows() - coefficients) as f64)
+}
+
 pub(crate) fn bootstrap_cluster_rows(state: &mut u64, groups: &[Vec<usize>]) -> Vec<usize> {
     let mut rows = Vec::new();
     for _ in 0..groups.len() {
@@ -974,18 +1077,25 @@ impl CompiledGraphImputationTransportDecision {
             ));
         }
         ordered.sort_by(f64::total_cmp);
-        // Under target resampling each draw is one independent replicate.
+        let source = GraphImputationSource::decode(&self.native_source)
+            .map_err(GraphImputationTransportDecisionError::Invalid)?;
+        let parts = source.parts();
+        // Under target resampling each draw is one independent replicate, each
+        // on its own completed tables. On a fixed frame the draws pool the
+        // declared tables, which Rubin's rules combine.
         let replicated = self.cluster_bootstrap.is_some() || self.target_bootstrap.is_some();
         let interval = if replicated {
             order_statistic_interval_95(&ordered)
         } else {
-            let rank =
-                |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
-            (ordered[rank(25)], ordered[rank(975)])
+            imputation_pooled_interval_95(
+                &result.producer.draws,
+                parts.imputations as usize,
+                transported_child_df(parts, &self.target.selection_targets),
+            )
+            .ok_or(GraphImputationTransportDecisionError::Invalid(
+                "target effect draws do not pool across completed tables",
+            ))?
         };
-        let source = GraphImputationSource::decode(&self.native_source)
-            .map_err(GraphImputationTransportDecisionError::Invalid)?;
-        let parts = source.parts();
         let mut functional = format!(
             "target_average_effect:graph_support={}:graphs={}:variables={}:domains={}:selected={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:target_columns={}",
             parts.support.as_str(),
@@ -1050,7 +1160,7 @@ impl CompiledGraphImputationTransportDecision {
                 "multi_env",
                 "Bayesian",
                 feature,
-                if replicated { REPLICATE_INTERVAL } else { "nearest_rank_95" },
+                if replicated { REPLICATE_INTERVAL } else { POOLED_INTERVAL },
                 "",
                 if self.cluster_bootstrap.is_some() {
                     "independent_source_units_and_target_clusters"
@@ -1332,6 +1442,57 @@ mod tests {
             // likely gaps; `upper - lower` of them lie inside the interval.
             assert!(f64::from(upper - lower) / f64::from(draws + 1) >= 0.95);
         }
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "refusals compare as None")]
+    fn pooled_interval_combines_completed_tables_by_rubin_rules() {
+        // Two tables of a hundred draws at -1 and +1, each spread 0.5 about its mean.
+        let draws: Vec<f64> = (0..200)
+            .map(|i| {
+                let table = if i < 100 { -1.0 } else { 1.0 };
+                table + if i % 2 == 0 { -0.5 } else { 0.5 }
+            })
+            .collect();
+        let within = 25.0 / 99.0;
+        let expected =
+            rubin_pool(&[-1.0, 1.0], &[within, within], Some(60.0)).unwrap().interval(0.95);
+        let (lower, upper) = imputation_pooled_interval_95(&draws, 2, Some(60.0)).unwrap();
+        assert!((lower - expected.0).abs() < 1e-12 && (upper - expected.1).abs() < 1e-12);
+        // The between-table variance 2 enters at (1 + 1/2) 2 = 3, not at the
+        // plain mixture's 2 / 2 = 1, and on a t reference with few degrees.
+        assert!(lower < -1.96 * (within + 3.0).sqrt() && upper > 1.96 * (within + 3.0).sqrt());
+        // Identical tables leave the within-table variance on the complete-data t.
+        let same: Vec<f64> = (0..200).map(|i| if i % 2 == 0 { -0.5 } else { 0.5 }).collect();
+        let (lower, upper) = imputation_pooled_interval_95(&same, 2, Some(60.0)).unwrap();
+        let half = antecedent_stats::student_t_ppf(0.975, 60.0 * 61.0 / 63.0) * within.sqrt();
+        assert!((lower + half).abs() < 1e-9 && (upper - half).abs() < 1e-9);
+        assert_eq!(imputation_pooled_interval_95(&draws[..199], 2, None), None);
+        assert_eq!(imputation_pooled_interval_95(&draws, 1, None), None);
+    }
+
+    #[test]
+    fn pooled_probability_interval_pools_on_the_logit_scale() {
+        let probabilities: Vec<f64> = (0..200)
+            .map(|i| {
+                let table = if i < 100 { 0.3 } else { 0.4 };
+                table + if i % 2 == 0 { -0.05 } else { 0.05 }
+            })
+            .collect();
+        let logits: Vec<f64> = probabilities
+            .iter()
+            .map(|probability| (probability / (1.0 - probability)).ln())
+            .collect();
+        let (lower, upper) = imputation_pooled_interval_95(&logits, 2, Some(60.0)).unwrap();
+        let logistic = |value: f64| 1.0 / (1.0 + (-value).exp());
+        let interval =
+            imputation_pooled_probability_interval_95(&probabilities, 2, Some(60.0)).unwrap();
+        assert!((interval.0 - logistic(lower)).abs() < 1e-12);
+        assert!((interval.1 - logistic(upper)).abs() < 1e-12);
+        assert!(0.0 < interval.0 && interval.0 < interval.1 && interval.1 < 1.0);
+        let mut bounded = probabilities;
+        bounded[0] = 1.0;
+        assert!(imputation_pooled_probability_interval_95(&bounded, 2, None).is_none());
     }
 
     #[test]

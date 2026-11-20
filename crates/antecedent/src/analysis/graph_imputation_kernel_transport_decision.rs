@@ -2,7 +2,8 @@
 //! fitted target effect and nonlinear utility under one compiler program.
 //!
 //! The source graph support still requires root treatment and pretreatment
-//! covariates. A declared Gaussian kernel density ratio transports each
+//! covariates. A declared Gaussian kernel density ratio, tilted so that the
+//! weighted source reproduces the frame's covariate means, transports each
 //! completed source table to an independent empirical target frame that may
 //! include continuous and binary covariates. Each graph gets its own safe
 //! adjustment set plus selected effect modifiers. Bandwidths and the overlap
@@ -22,7 +23,7 @@ use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::DecisionContract;
 use antecedent_io::measured_inference::graph_candidate::{
     KernelTransportStandardization, replay_confounded_kernel_transport_point,
-    replay_kernel_transport_point,
+    replay_kernel_transport_point, replicate_source,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,8 @@ use serde::{Deserialize, Serialize};
 use super::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
 use super::graph_imputation_transport_decision::{
     GraphImputationTransportDecisionError as Error, GraphImputationTransportDecisionResult,
-    TargetClusterBootstrap, bootstrap_cluster_rows, effect_chain,
+    POOLED_INTERVAL, REPLICATE_INTERVAL, TargetClusterBootstrap, bootstrap_cluster_rows,
+    effect_chain, imputation_pooled_interval_95, order_statistic_interval_95, transported_child_df,
 };
 use super::propagation_chain_decision::{compile_chain_decision, consume_chain_decision};
 use crate::planner::lowered::{
@@ -70,8 +72,10 @@ pub struct CompiledGraphImputationKernelTransportDecision {
 }
 
 /// Prespecified iid empirical bootstrap of independent target units.
-/// Each replicate refits the full graph-imputation transport schedule and
-/// contributes one posterior draw. This is a source-only uncertainty model;
+/// Each replicate refits the full graph-imputation transport schedule on its
+/// own imputation and posterior streams and contributes one posterior draw;
+/// the interval is the replicate order-statistic interval of those draws.
+/// This is a source-only uncertainty model;
 /// it has no earned population coverage or decision reliability.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -86,7 +90,9 @@ pub struct TargetFrameBootstrap {
 pub struct GraphImputationKernelTransportCalibrationCandidate {
     /// Complete graph, imputation, kernel, fit and decision execution.
     pub result: GraphImputationTransportDecisionResult,
-    /// Nearest-rank central 95% effect posterior interval.
+    /// 95% interval from the target effect draws: replicate order statistics
+    /// under target resampling, Rubin's rules across the completed tables on a
+    /// fixed frame.
     pub interval: (f64, f64),
     /// Prospective whole-route calibration coordinate.
     pub basis: CalibrationBasis,
@@ -480,7 +486,9 @@ pub fn compile_graph_imputation_confounded_kernel_transport_decision(
 }
 
 /// Compile independent-cluster mixed-target resampling with either supported
-/// pretreatment graph family. Each replicate reruns the complete schedule.
+/// pretreatment graph family. Each replicate reruns the complete schedule on
+/// its own imputation and posterior streams, and the interval is the replicate
+/// order-statistic interval of the retained draws.
 ///
 /// # Errors
 /// Invalid source, target, cluster policy, graph premise or decision.
@@ -686,10 +694,16 @@ impl CompiledGraphImputationKernelTransportDecision {
                     sampled.target_unit_ids =
                         (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
                 }
+                // Each replicate redraws its completed tables and posterior on
+                // its own streams. On the declared streams every replicate held
+                // the same posterior draws, so the retained draws repeated one
+                // another and understated the source and imputation spread.
+                let replicate_bytes =
+                    replicate_source(&self.native_source, policy.seed, replicate)?;
                 let run = if self.confounded {
-                    replay_confounded_kernel_transport_point(&self.native_source, &sampled, ctx)?
+                    replay_confounded_kernel_transport_point(&replicate_bytes, &sampled, ctx)?
                 } else {
-                    replay_kernel_transport_point(&self.native_source, &sampled, ctx)?
+                    replay_kernel_transport_point(&replicate_bytes, &sampled, ctx)?
                 };
                 if run.draws.is_empty() {
                     return Err(Error::Invalid("target bootstrap has no posterior draws"));
@@ -766,10 +780,22 @@ impl CompiledGraphImputationKernelTransportDecision {
             ));
         }
         ordered.sort_by(f64::total_cmp);
-        let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
-        let interval = (ordered[rank(25)], ordered[rank(975)]);
         let source = GraphImputationSource::decode(&self.native_source).map_err(Error::Invalid)?;
         let parts = source.parts();
+        // Under target resampling each draw is one independent replicate, each
+        // on its own completed tables. On a fixed frame the draws pool the
+        // declared tables, which Rubin's rules combine.
+        let replicated = self.cluster_bootstrap.is_some() || self.target_bootstrap.is_some();
+        let interval = if replicated {
+            order_statistic_interval_95(&ordered)
+        } else {
+            imputation_pooled_interval_95(
+                &result.producer.draws,
+                parts.imputations as usize,
+                transported_child_df(parts, &self.target.selection_targets),
+            )
+            .ok_or(Error::Invalid("mixed target draws do not pool across completed tables"))?
+        };
         let mut policy = CanonicalWriter::new(
             "antecedent.graph_imputation_kernel_transport.calibration_policy.v1",
         );
@@ -839,7 +865,7 @@ impl CompiledGraphImputationKernelTransportDecision {
                 "multi_env",
                 "Bayesian",
                 feature,
-                "nearest_rank_95",
+                if replicated { REPLICATE_INTERVAL } else { POOLED_INTERVAL },
                 "",
                 if self.cluster_bootstrap.is_some() {
                     "independent_source_units_and_target_clusters"
