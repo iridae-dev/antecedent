@@ -1495,6 +1495,10 @@ fn native_fit_verifiers(ctx: &ExecutionContext) -> Vec<Box<dyn NodeVerifier>> {
 }
 
 /// The native-fit consumer a compiled bundle uses after its entry point passed the support gate.
+///
+/// Pass the caller's context, never the bundle's own lowered dispatch: each verifier recompiles
+/// its embedded producer or decision as an independent consumer, and a compile inside a lowered
+/// dispatch is refused as `public_builder_reentry`, so no native node would replay.
 fn native_fit_consumer(ctx: &ExecutionContext) -> BundleConsumer {
     native_fit_verifiers(ctx).into_iter().fold(standard_consumer(), BundleConsumer::register)
 }
@@ -1704,11 +1708,12 @@ impl CompiledCyclicPosteriorBundleRecomputation {
         ctx: &ExecutionContext,
     ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        // The producer recompiles its own program, which this dispatch would refuse as reentry.
         let producer =
             super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
                 &self.producer_artifact,
                 self.producer_program,
-                &scoped,
+                ctx,
             )?;
         let bundle = self.chain.execute(&scoped)?;
         if producer.decision.chain.identity() != bundle.terminal_identity {
@@ -1928,7 +1933,7 @@ impl CompiledCyclicPosteriorNodeBundle {
         let bundle = &self.inner.chain.bundle;
         let bytes = export_bundle(bundle, "cyclic-posterior-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -2329,7 +2334,7 @@ impl CompiledTrialIpwNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "trial-ipw-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -2746,7 +2751,7 @@ impl CompiledGraphImputationTransportNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "graph-transport-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -3179,7 +3184,7 @@ impl CompiledJointTransportEffectNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "joint-transport-effect-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -4020,7 +4025,7 @@ impl CompiledPredictiveFitDecisionBundle {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bytes = export_bundle(&self.bundle, "predictive-fit-decision-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),

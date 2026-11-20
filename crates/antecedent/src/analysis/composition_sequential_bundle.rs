@@ -482,7 +482,7 @@ impl CompiledSequentialReliabilityBundle {
         require_bundle_route(&scoped, COMPILE_ROUTE)?;
         let bytes = export_bundle(&self.bundle, "sequential-reliability-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_consumer(&scoped)
+        let consumed = native_fit_consumer(ctx)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
