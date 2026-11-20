@@ -12654,3 +12654,96 @@ def events_prepare(
     cancel: CancellationToken | None = None,
 ) -> NativePreparedEventProgram: ...
 def events_provider_request_id(request: str) -> str: ...
+
+# Predictive bridge transport decisions, their premise assessment and bridge-terminal bundles.
+class BridgePremiseAssessmentHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgePremiseAssessmentResultHandle | None, str | None]: ...
+
+class BridgePremiseAssessmentResultHandle:
+    def summary_json(self) -> str: ...
+    def export(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BridgeTransportDecisionHandle:
+    program_identity: str
+    variant: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgeTransportDecisionResultHandle | None, str | None]: ...
+
+class BridgeTransportDecisionResultHandle:
+    def summary_json(self) -> str: ...
+    def distribution(self) -> JointDistributionArtifact: ...
+    def source_distribution(self) -> JointDistributionArtifact: ...
+    def export(
+        self,
+        artifact_id: str,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BridgeBundleRecomputationHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[BridgeBundleRecomputationResultHandle | None, str | None]: ...
+
+class BridgeBundleRecomputationResultHandle:
+    def summary_json(self) -> str: ...
+    def export(
+        self, seed: int = 1, threads: int | None = None, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def bridge_premise_assessment_compile(
+    request_json: str,
+) -> tuple[BridgePremiseAssessmentHandle | None, str | None]: ...
+def bridge_premise_assessment_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def bridge_transport_decision_compile(
+    contract_json: str,
+    source: JointDistributionArtifact,
+    decision_json: str,
+    stream: int,
+    assessment: BridgePremiseAssessmentHandle | None = None,
+    robust_json: str | None = None,
+    target_posterior_json: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[BridgeTransportDecisionHandle | None, str | None]: ...
+def bridge_transport_decision_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[BridgeTransportDecisionResultHandle | None, str | None]: ...
+def bridge_bundle_recomputation_compile(
+    bundle: bytes,
+    bundle_identity: str,
+    terminal_node: str,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    stream: int,
+) -> tuple[BridgeBundleRecomputationHandle | None, str | None]: ...
+def bridge_bundle_recomputation_consume(
+    artifact: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
