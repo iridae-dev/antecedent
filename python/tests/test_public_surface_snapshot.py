@@ -459,6 +459,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "recovery_chain",
         "release_migration",
         "repair",
+        "sampling_assumption_union",
         "scenario_decision",
         "scenario_invariance",
         "scientific_bridge",

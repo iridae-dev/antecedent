@@ -73,7 +73,7 @@ fn refusal_json(refusal: &DecisionReliabilityRefusal) -> String {
     )
 }
 
-fn error_json(error: &ReliabilityError) -> String {
+pub(crate) fn error_json(error: &ReliabilityError) -> String {
     let refusal = error.to_refusal();
     json!({
         "code": refusal.code,

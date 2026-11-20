@@ -178,6 +178,7 @@ mod observational_survival_api;
 mod pag_completion_api;
 mod planning_api;
 mod policy_api;
+mod policy_reliability_api;
 mod pooled_measurement_api;
 mod posterior;
 mod predictive_assessment_api;
@@ -231,6 +232,7 @@ mod repair_api;
 mod response_api;
 mod retained_refresh_api;
 mod rollout_api;
+mod sampling_assumption_union_api;
 mod scalar_decision_api;
 mod scenario_invariance_api;
 mod scientific_bridge_api;
@@ -1942,6 +1944,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     chain_decision_api::register(m)?;
     bundle_recomputation_api::register(m)?;
     transport_decision_api::register(m)?;
+    sampling_assumption_union_api::register(m)?;
+    policy_reliability_api::register(m)?;
     registry::register_module(m)
 }
 

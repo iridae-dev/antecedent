@@ -13323,3 +13323,129 @@ def temporal_path_consume(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> TemporalPathResultHandle: ...
+
+# Whole-chain bootstrap union of an assumption envelope (sampling_assumption_union_api.rs).
+class SamplingAssumptionUnionHandle:
+    @property
+    def result_json(self) -> str: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def sampling_assumption_union_compile(
+    scheme: str,
+    request_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[SamplingAssumptionUnionHandle | None, str | None]: ...
+def sampling_assumption_union_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
+# Compiled policy programs and their replay (policy_reliability_api.rs).
+class PolicySubsamplingHandle:
+    @property
+    def candidate_json(self) -> str: ...
+    def export(
+        self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
+    ) -> bytes: ...
+
+class SequentialPolicyReliabilityHandle:
+    @property
+    def parts(self) -> tuple[str, str, str]: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class SequentialReliabilityBundleHandle:
+    @property
+    def receipt_json(self) -> str: ...
+    @property
+    def route(self) -> str: ...
+    def export(
+        self, cancel: CancellationToken | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+def observational_policy_export(
+    outcome: list[float],
+    treatment: list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[list[float]],
+    declaration_json: str,
+    report_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[bytes, str]: ...
+def observational_policy_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    seed: int = 0,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def policy_subsampling_compile(
+    outcome: list[float],
+    treatment: list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[list[float]],
+    declaration_json: str,
+    subsample_rows: int,
+    replicates: int,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> PolicySubsamplingHandle: ...
+def policy_subsampling_consume(
+    artifact: bytes,
+    expected_identity: str,
+    seed: int = 0,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def sequential_policy_reliability_compile(
+    model_json: str,
+    policies_json: str,
+    unit: str,
+    mode_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[SequentialPolicyReliabilityHandle | None, str | None]: ...
+def sequential_policy_reliability_consume(
+    artifact: bytes,
+    expected_identity: str | None = None,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[tuple[str, str, str] | None, str | None]: ...
+def composition_add_sequential_policy_reliability(
+    builder: CompositionBundleBuilder,
+    reliability: SequentialPolicyReliabilityHandle,
+    producer: str,
+    draws: str,
+    diagnostic: str,
+    cancel: CancellationToken | None = None,
+) -> str | None: ...
+def sequential_reliability_bundle_compile(
+    bundle: CompositionBundle,
+    producer: str,
+    draws: str,
+    diagnostic: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[SequentialReliabilityBundleHandle | None, str | None]: ...
+def sequential_reliability_bundle_consume(
+    artifact: bytes,
+    expected_bundle: str,
+    expected_identity: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...

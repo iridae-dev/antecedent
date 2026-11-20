@@ -184,6 +184,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `release_migration` | Consume artifacts written by a previous release | [migration.md](migration.md) |
 | `repair` | Evidence obligations, durable study candidates and identification repair | [design-ranking.md](design-ranking.md) |
 | `results` | The result and analysis types returned by `analyze` and `estimate` (a subpackage) | [start/reading-a-result.md](start/reading-a-result.md) |
+| `sampling_assumption_union` | Whole-chain bootstrap union of an assumption envelope under a declared resampling scheme | [scientific-bridges.md](scientific-bridges.md) |
 | `scenario_decision` | Decide over the claims of a real scenario set or CPDAG-completion result | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `scenario_invariance` | Selection differences and invariances behind each transport-scenario answer | [transport-counterfactuals.md](transport-counterfactuals.md) |
 | `scientific_bridge` | Typed bridges between scientific quantities | [scientific-bridges.md](scientific-bridges.md) |
