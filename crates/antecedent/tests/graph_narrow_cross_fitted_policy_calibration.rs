@@ -1,8 +1,13 @@
-//! Coverage of the cross-fitted learning procedure on its empirical
-//! scored-row frame. The wider x,w adjustment set enters nuisance fitting,
-//! while the policy uses x. Every realized fold action has an exact
-//! conditional outcome mean under the planted structural law, so the target
-//! is known even when fold policies differ.
+//! Coverage of the cross-fitted learning procedure's fold-policy average on
+//! its empirical scored-row frame. The wider x,w adjustment set enters
+//! nuisance fitting, while the policy uses x. The target is what the route
+//! states: the mean outcome `E[Y(pi_k(X))]` of each realized fold policy,
+//! weighted by the fold's share of the scored rows. A fold policy reads only
+//! the binary x, so its two stratum actions fix that population value under
+//! the planted law, even when fold policies differ. The interval's
+//! influence-score standard error includes the variation of the conditional
+//! mean over the scored covariates, so the row-wise conditional means of the
+//! scored rows are not its target.
 
 mod common;
 
@@ -21,6 +26,53 @@ use common::calibration::{
 const TEST: &str = "graph_narrow_cross_fitted_policy_l95";
 const DGP: &str = "binary_fold_policies_known_assignment_wider_nuisance";
 const INTERVAL: &str = "cross_fitted_policy_score_wald_v1";
+const FOLDS: usize = 3;
+
+/// Population value of the realized cross-fitted learner: each fold policy's
+/// mean outcome, weighted by the fold's share of the scored rows. The report
+/// lists the scored rows fold by fold, each fold in ascending row order, so a
+/// descending row index opens the next fold. `value(x, action)` is the planted
+/// conditional mean averaged over the independent fair sign W; X is a fair
+/// sign, so a fold policy's value is the mean of its two stratum values.
+fn fold_policy_average_value(
+    rows: &[u64],
+    actions: &[f64],
+    x: &[f64],
+    value: impl Fn(f64, f64) -> f64,
+) -> Option<f64> {
+    let mut total = 0.0;
+    let mut folds = 0;
+    let mut start = 0;
+    while start < rows.len() {
+        let mut end = start + 1;
+        while end < rows.len() && rows[end] > rows[end - 1] {
+            end += 1;
+        }
+        let mut stratum = [None; 2];
+        for (&row, &action) in rows[start..end].iter().zip(&actions[start..end]) {
+            let i = usize::try_from(row).expect("row index fits usize");
+            let slot = &mut stratum[usize::from(x[i] > 0.0)];
+            if let Some(previous) = slot {
+                #[allow(
+                    clippy::float_cmp,
+                    reason = "a fold policy of x alone returns the identical action for every row in a stratum"
+                )]
+                {
+                    assert_eq!(*previous, action);
+                }
+            } else {
+                *slot = Some(action);
+            }
+        }
+        let [negative, positive] = stratum;
+        let fold_value = 0.5 * value(-1.0, negative?) + 0.5 * value(1.0, positive?);
+        total += (end - start) as f64 * fold_value;
+        folds += 1;
+        start = end;
+    }
+    assert_eq!(folds, FOLDS, "each fold's scored rows form one ascending run");
+    Some(total / rows.len() as f64)
+}
 
 fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWire)> {
     let mut next = uniform(seed, 0xA11C_E101);
@@ -50,7 +102,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
         support: Some(vec![0.0, 1.0]),
         objective: Some("maximize".into()),
         evaluation: Some("cross_fitted_learning".into()),
-        folds: Some(3),
+        folds: Some(FOLDS),
         known_propensity_columns: Some(vec![p0, p1]),
         causal_graph: Some(PolicyGraphDeclaration {
             nodes: vec!["x".into(), "w".into(), "a".into(), "y".into()],
@@ -73,7 +125,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
         treatment,
         adjustment: vec![
             AdjustmentColumn { name: "x".into(), values: x.clone() },
-            AdjustmentColumn { name: "w".into(), values: w.clone() },
+            AdjustmentColumn { name: "w".into(), values: w },
         ],
         spec,
     };
@@ -82,17 +134,14 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
     let candidate = plan.cross_fitted_value_candidate(&ctx).ok()?;
     assert_eq!(candidate.interval.calibration, candidate.slot.status.as_str());
     assert_eq!(candidate.basis.key.interval_method, INTERVAL);
-    let truth = candidate
-        .report
-        .row_index
-        .iter()
-        .zip(&candidate.report.policy_actions)
-        .map(|(&row, &action)| {
-            let i = usize::try_from(row).expect("row index fits usize");
-            1.0 + 0.3 * x[i] + 0.1 * w[i] + action * (2.0 + 0.3 * x[i])
-        })
-        .sum::<f64>()
-        / candidate.report.evaluation_rows as f64;
+    // E[W] = E[noise] = 0, so the planted mean averaged over W is
+    // 1 + 0.3 x + action (2 + 0.3 x).
+    let truth = fold_policy_average_value(
+        &candidate.report.row_index,
+        &candidate.report.policy_actions,
+        &x,
+        |xi, action| 1.0 + 0.3 * xi + action * (2.0 + 0.3 * xi),
+    )?;
     Some(((candidate.interval.lower, candidate.interval.upper), truth, candidate.basis))
 }
 

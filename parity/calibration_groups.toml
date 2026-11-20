@@ -14930,8 +14930,8 @@ whole = true
 
 # A graph-checked three-fold learner sees binary x while nuisance models use x,w and known row
 # assignment. The 500/1000/2000-row grid reruns all folds and scores a separately keyed 95% interval
-# against the exact conditional mean of the realized fold actions on the empirical scored-row frame.
-# Unstable fold policies remain in the experiment.
+# against the population value of each realized fold policy, weighted by the fold's share of the
+# scored rows. Unstable fold policies remain in the experiment.
 [[group]]
 label = "graph_narrow_cross_fitted_policy_calibration: graph_narrow_cross_fitted_policy_l95"
 package = "antecedent"
@@ -15299,8 +15299,8 @@ whole = true
 # The graph-checked three-fold learner of graph_narrow_cross_fitted_policy_calibration on a near-tie
 # outcome law, where fold policies differ between folds. The 500/1000/2000-row grid reruns all folds
 # with 100 half-sample subsamples and scores the route's own basic subsampling 95% interval against
-# the exact conditional mean of the realized fold actions on the empirical scored-row frame, after
-# an independent replay.
+# the population value of each realized fold policy, weighted by the fold's share of the scored rows,
+# after an independent replay.
 [[group]]
 label = "graph_narrow_cross_fitted_subsampling_policy_calibration: graph_narrow_cross_fitted_subsampling_policy_l95"
 package = "antecedent"

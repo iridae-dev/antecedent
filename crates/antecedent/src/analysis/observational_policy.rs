@@ -801,9 +801,13 @@ impl CompiledObservationalPolicy {
     }
 
     /// Score the graph-checked cross-fitted learner and form a separate
-    /// candidate interval for the average value of its fold-specific policies.
-    /// The row-score SE assumes the policies stabilise across folds; coverage
-    /// must be measured for this exact learner and graph schedule.
+    /// candidate interval for the average value of its fold-specific policies:
+    /// each realized fold policy's population mean outcome, weighted by its
+    /// fold's share of the scored rows. The row-score SE includes the variation
+    /// of the outcome means over the scored covariates, so it is not an interval
+    /// for the scored rows' own conditional means. It assumes the policies
+    /// stabilise across folds; coverage must be measured for this exact learner
+    /// and graph schedule.
     ///
     /// # Errors
     /// A non-graph or non-cross-fitted route, malformed score or estimator
@@ -914,11 +918,19 @@ impl CompiledObservationalPolicy {
     /// Form a separately keyed, unmeasured m-out-of-n subsampling candidate.
     /// Each sample contains distinct original rows, and the compiler refits the
     /// learner, nuisance models and folds for every sample. The basic interval
-    /// scales the subsample deviations by sqrt(m/n). It targets the original
-    /// empirical-frame fold-policy average, not one final policy. Its validity
-    /// depends on an appropriate subsampling limit and scaling; near decision
-    /// ties or for unstable learners those conditions may fail. No stability or
-    /// coverage is inferred from successful execution.
+    /// scales the subsample deviations by sqrt(m/(n-m)), the scaling of the
+    /// delete-(n-m) jackknife histogram (Wu, 1990): a subsample drawn without
+    /// replacement shares its rows with the full sample, so a mean-like
+    /// estimate deviates from the full-sample one with variance
+    /// sigma^2 (1/m - 1/n), not sigma^2/m. The factor tends to the m-out-of-n
+    /// rate sqrt(m/n) as m/n -> 0. The deviation quantiles sit at the
+    /// plotting positions (B + 1) p of the B replicates (see
+    /// [`plotting_position_quantile`]). The interval targets the original
+    /// empirical-frame fold-policy average: the population value of each
+    /// realized fold policy, weighted by its fold's scored rows, not one final
+    /// policy. Its validity depends on an appropriate subsampling limit and
+    /// scaling; near decision ties or for unstable learners those conditions
+    /// may fail. No stability or coverage is inferred from successful execution.
     ///
     /// # Errors
     /// Invalid schedule, missing cells, changed seed, cancellation, or any
@@ -996,17 +1008,15 @@ impl CompiledObservationalPolicy {
             deviations.push(report.value - candidate.report.value);
         }
         deviations.sort_by(f64::total_cmp);
-        let scale = (subsample_rows as f64 / n as f64).sqrt();
-        let lower = candidate.report.value
-            - scale * antecedent_kernels::quantile_type7_sorted(&deviations, 0.975);
-        let upper = candidate.report.value
-            - scale * antecedent_kernels::quantile_type7_sorted(&deviations, 0.025);
+        let scale = (subsample_rows as f64 / (n - subsample_rows) as f64).sqrt();
+        let lower = candidate.report.value - scale * plotting_position_quantile(&deviations, 0.975);
+        let upper = candidate.report.value - scale * plotting_position_quantile(&deviations, 0.025);
         if !lower.is_finite() || !upper.is_finite() || lower > upper {
             return Err(policy_compiler_refusal(
                 "policy subsampling interval is nonfinite or reversed",
             ));
         }
-        candidate.basis.key.interval_method = "cross_fitted_policy_subsampling_basic_v1".into();
+        candidate.basis.key.interval_method = "cross_fitted_policy_subsampling_basic_v2".into();
         candidate.basis.key.se_kind = "full_refit_subsample_distribution".into();
         candidate.basis.key.dependence = "iid_rows_subsampling_limit_assumed".into();
         candidate.basis.key.functional = format!(
@@ -1290,6 +1300,28 @@ impl PolicyRequestWire {
 const POLICY_CAPABILITY: &str = "estimate.observational_policy_value";
 const SUBSAMPLING_COMPILE_ROUTE: &str = "antecedent.policy.compile_policy_subsampling";
 const SUBSAMPLING_CONSUME_ROUTE: &str = "antecedent.policy.consume_policy_subsampling";
+
+/// Quantile of ascending-sorted Monte Carlo draws at the plotting position
+/// `(B + 1) p`, linearly interpolated between order statistics (Hyndman and
+/// Fan type 6). When the `B` draws are exchangeable with the error they stand
+/// in for, the order statistics at positions `(B + 1) a` and `(B + 1) b`
+/// bracket it with probability `b - a` (Davison and Hinkley, 1997, section
+/// 5.2); the type-7 positions `1 + (B - 1) p` bracket it with probability
+/// `(b - a) (B - 1) / (B + 1)`, about 0.93 for a 95% interval from 100 draws.
+/// Positions outside `[1, B]` read the extreme draw.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the position is clamped to [1, B], so its floor is a positive index within the draws"
+)]
+fn plotting_position_quantile(sorted: &[f64], p: f64) -> f64 {
+    let draws = sorted.len();
+    let position = ((draws + 1) as f64 * p).clamp(1.0, draws as f64);
+    let below = position.floor();
+    let index = below as usize - 1;
+    let next = sorted[(index + 1).min(draws - 1)];
+    sorted[index] + (position - below) * (next - sorted[index])
+}
 
 /// Compiler-owned m-out-of-n full-refit policy subsampling schedule.
 #[derive(Clone, Debug)]
