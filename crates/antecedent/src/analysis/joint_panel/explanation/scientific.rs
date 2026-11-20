@@ -300,9 +300,11 @@ impl super::JointPanelResult {
     /// Apply explicit component bindings to the actual compiled terminal world means.
     /// Source data, identification, mechanism, joint law and uncertainty semantics remain
     /// those of this result. Arbitrary scenario weights or fitted parameter surgery are
-    /// outside this world basis and must be compiled by their own method owner.
+    /// outside this world basis and must be compiled by their own method owner. The
+    /// decomposition runs inside the dispatch of the result's program.
     /// # Errors
-    /// Missing hybrid worlds, unsupported scope, malformed bindings or numerical resources.
+    /// Missing hybrid worlds, unsupported scope, malformed bindings or numerical resources;
+    /// the compiler refusals of the panel handle's `estimate`.
     pub fn decompose_compiled_components(
         &self,
         bindings: &ReferenceComponentBindings,
@@ -384,7 +386,10 @@ impl super::JointPanelResult {
             projection,
         )
         .map_err(JointPanelError::compile)?;
-        decompose_scientific_reference(&source, bindings, scope, ctx)
+        let dispatched = self
+            .prepared()
+            .enter_dispatch(crate::analysis::joint_panel::compiled::Entry::Public, ctx)?;
+        decompose_scientific_reference(&source, bindings, scope, &dispatched)
     }
 }
 

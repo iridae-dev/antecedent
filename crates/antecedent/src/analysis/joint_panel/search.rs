@@ -1,10 +1,20 @@
 //! Native search handoff retaining the compiled source and its scientific permission.
+//!
+//! Every compiled search lowers a `JointPanelProgramSearch` program that is a child of the
+//! fitted response's program. A public execution enters that program's dispatch, passes the
+//! release support gate and runs the unchanged search engine. The responses a continuous or
+//! certified search evaluates for its proposals are retargeted inside that dispatch as
+//! children of the search program.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use super::compiled::{self, Entry};
 use super::{
     JointPanelError, JointPanelFunctional, JointPanelResponseFunctional, JointPanelResult,
     JointPanelScientificScope, JointPanelWorld, engine, joint_panel_target, source,
 };
-use antecedent_core::{ExecutionContext, ScientificWorldId, SemanticDigest};
+use crate::analysis::lowering::joint_panel::search::{self as lowering, SearchOperation};
+use crate::planner::lowered::{CarrierDemand, DecisionProgram, LoweredProgram};
+use crate::planner::{PlanStage, PlanView};
+use antecedent_core::{CanonicalWriter, ExecutionContext, ScientificWorldId, SemanticDigest};
 use antecedent_design::decision_contract::ProgramSearchContract;
 use antecedent_design::program_search::{FiniteProgramDomain, PreparedFiniteProgramSearch};
 use antecedent_design::scientific_source::{
@@ -51,18 +61,23 @@ pub struct JointPanelSearch {
     source: Arc<ScientificDecisionSource>,
     scope: JointPanelScientificScope,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
+    program: SearchProgram,
 }
 impl JointPanelResult {
     /// Compile search from actual channel schedules, response law and scientific authority.
     /// No response fit is repeated. Later execution cannot silently discard the source scope.
     ///
+    /// The search lowers a program-search program that is a child of this result's program.
+    ///
     /// # Errors
-    /// Missing scientific permission, incomplete uncertainty, mismatched controls or resources.
+    /// Missing scientific permission, incomplete uncertainty, mismatched controls or resources;
+    /// `public_builder_reentry` inside a lowered dispatch.
     pub fn compile_search(
         &self,
         request: &JointPanelSearchRequest,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelSearch, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         source::check_cancelled(ctx)?;
         let n = match request.uncertainty {
             JointPanelSearchUncertainty::PointMeans => 1,
@@ -93,32 +108,64 @@ impl JointPanelResult {
                 .map_err(|error| engine::PanelError::Resource(error.to_string()))?,
         );
         let plan = self.compile_numerical_search(request, ctx)?;
-        Ok(JointPanelSearch { plan, source: Arc::new(scoped), scope: request.scope, retention })
+        let program = SearchSpec::finite(self, request, bytes).lower(&request.contract)?;
+        Ok(JointPanelSearch {
+            plan,
+            source: Arc::new(scoped),
+            scope: request.scope,
+            retention,
+            program,
+        })
     }
 }
 impl JointPanelSearch {
-    /// Execute the original finite-search engine under the retained scientific scope.
+    /// Execute the original finite-search engine under the retained scientific scope, inside
+    /// the dispatch of this search's program.
     ///
     /// # Errors
     /// Cancellation, resources, source demand or scientific permission is refused before a certificate.
+    /// `public_builder_reentry` inside another lowered dispatch, and `not_supported` from a
+    /// release build that does not support the route.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<ScopedProgramSearchResult, JointPanelError> {
+        let scoped = self.program.enter(ctx)?;
         self.retention.observe_current();
-        self.source.search(&self.plan, self.scope, ctx).map_err(map_scientific_error)
+        self.source.search(&self.plan, self.scope, &scoped).map_err(map_scientific_error)
     }
     /// Change downstream utility/risk while retaining candidates, fitted response and authority.
+    /// The search lowers again for the new objective.
     ///
     /// # Errors
     /// A changed input space or invalid replacement objective is refused by the existing owner.
     pub fn with_objective(&self, contract: ProgramSearchContract) -> Result<Self, JointPanelError> {
+        // The existing owner's refusal of the replacement objective comes first.
+        let program = self.program.with_objective(&contract);
+        let plan = self.plan.with_objective(contract).map_err(JointPanelError::compile)?;
         Ok(Self {
-            plan: self.plan.with_objective(contract).map_err(JointPanelError::compile)?,
+            plan,
             source: Arc::clone(&self.source),
             scope: self.scope,
             retention: Arc::clone(&self.retention),
+            program: program?,
         })
+    }
+    /// The lowered program this search executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// One view over every layer of the lowered program this search executes. Reading it
+    /// evaluates and searches nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the lowered program this search executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
     }
     /// Exact scientific source, including typed target and retained identification obligations.
     #[must_use]
@@ -165,6 +212,269 @@ fn retained_source_quote(source: &ScientificDecisionSource) -> Result<u64, Joint
     u64::try_from(bytes).map_err(JointPanelError::compile)
 }
 
+/// Domain tag of the retained source a search reads from its parent fit.
+const SEARCH_SOURCE_TAG: &str = "antecedent.joint_panel.program_search.source.v1";
+/// Domain tag of a finite search's declaration other than its objective contract.
+const FINITE_DECLARATION_TAG: &str = "antecedent.joint_panel.program_search.finite.v1";
+/// Domain tag of a continuous or certified search's declaration other than its objective.
+const CONTINUOUS_DECLARATION_TAG: &str = "antecedent.joint_panel.program_search.continuous.v1";
+/// Domain tag of the decision contract a search program records.
+const SEARCH_CONTRACT_TAG: &str = "antecedent.joint_panel.program_search.contract.v1";
+
+/// What a search program lowers from, other than its objective contract.
+#[derive(Clone, Debug)]
+struct SearchSpec {
+    operation: SearchOperation,
+    /// Program of the fitted response the search reads.
+    parent: SemanticDigest,
+    /// The retained source of the parent fit: its dependency, target and representation.
+    source: SemanticDigest,
+    /// Bytes of the retained source the search holds.
+    source_bytes: u64,
+    /// `Mean` for point means, `DecisionDraws` for the aligned law.
+    carrier: CarrierDemand,
+    /// Candidate programs: the declared worlds of a finite search, the evaluation bound of a
+    /// continuous search, none enumerated for a certified search over its box.
+    actions: usize,
+    /// The budget, when declared, and the operational restrictions.
+    domain_constraints: usize,
+    utility_units: Arc<str>,
+    /// Digest of the declaration other than the objective contract.
+    declaration: [u8; 32],
+}
+
+/// A lowered search program and the declaration it lowers again from when the objective
+/// changes.
+#[derive(Clone, Debug)]
+struct SearchProgram {
+    spec: SearchSpec,
+    lowered: Arc<LoweredProgram>,
+}
+
+impl SearchSpec {
+    /// The declaration of a finite search over `result`'s declared worlds, holding a retained
+    /// source of `source_bytes`.
+    fn finite(
+        result: &JointPanelResult,
+        request: &JointPanelSearchRequest,
+        source_bytes: u64,
+    ) -> Self {
+        let mut writer = CanonicalWriter::new(FINITE_DECLARATION_TAG);
+        writer.text(scope_name(request.scope)).word(request.max_candidates as u64);
+        write_search(
+            &mut writer,
+            &request.functional,
+            request.uncertainty,
+            &request.domain,
+            &request.utility_units,
+        );
+        Self {
+            operation: SearchOperation::Finite,
+            parent: result.program_identity(),
+            source: search_source(result, request.uncertainty),
+            source_bytes,
+            carrier: carrier(request.uncertainty),
+            actions: result.request().worlds.len(),
+            domain_constraints: domain_constraints(&request.domain),
+            utility_units: Arc::from(request.utility_units.as_str()),
+            declaration: writer.finish(),
+        }
+    }
+
+    /// The declaration of a continuous (`Continuous`) or certified (`Certified`) search over
+    /// programs proposed from `result`'s frozen fit.
+    fn continuous(
+        result: &JointPanelResult,
+        request: &JointPanelContinuousSearchRequest,
+        operation: SearchOperation,
+    ) -> Self {
+        let mut writer = CanonicalWriter::new(CONTINUOUS_DECLARATION_TAG);
+        writer
+            .text(operation.as_str())
+            .text(scope_name(request.scope))
+            .word(u64::from(request.base_world.raw()))
+            .reals(&request.initial);
+        write_search(
+            &mut writer,
+            &request.functional,
+            request.uncertainty,
+            &request.domain,
+            &request.utility_units,
+        );
+        // Only the bounded poll reads the evaluation policy; a certificate bounds the box.
+        let actions = if operation == SearchOperation::Continuous {
+            let options = &request.options;
+            writer
+                .word(options.max_evaluations as u64)
+                .word(options.max_iterations as u64)
+                .real(options.initial_step)
+                .real(options.step_tolerance)
+                .real(options.objective_tolerance);
+            options.max_evaluations
+        } else {
+            0
+        };
+        // Each proposal holds its response representation over one world.
+        let values = match request.uncertainty {
+            JointPanelSearchUncertainty::PointMeans => 1,
+            JointPanelSearchUncertainty::AlignedLaw => result.draws.len(),
+        };
+        Self {
+            operation,
+            parent: result.program_identity(),
+            source: search_source(result, request.uncertainty),
+            source_bytes: (values as u64).saturating_mul(8),
+            carrier: carrier(request.uncertainty),
+            actions,
+            domain_constraints: domain_constraints(&request.domain),
+            utility_units: Arc::from(request.utility_units.as_str()),
+            declaration: writer.finish(),
+        }
+    }
+
+    /// Lower the search program for `contract`: the decision carries the carrier, the
+    /// candidate programs as actions, the budget, restrictions and risk constraints as
+    /// constraints, and the identity of the complete declaration and contract.
+    fn lower(self, contract: &ProgramSearchContract) -> Result<SearchProgram, JointPanelError> {
+        let identity = contract.identity().map_err(JointPanelError::compile)?;
+        let mut writer = CanonicalWriter::new(SEARCH_CONTRACT_TAG);
+        writer.bytes(&self.declaration).bytes(&identity);
+        let decision = DecisionProgram {
+            carrier: self.carrier,
+            utility: DecisionProgram::utility_form(None),
+            actions: self.actions,
+            constraints: self.domain_constraints + contract.constraints.len(),
+            chance_threshold: contract
+                .constraints
+                .iter()
+                .map(|constraint| constraint.min_probability)
+                .fold(0.0_f64, f64::max),
+            utility_unit: Some(Arc::clone(&self.utility_units)),
+            contract_identity: Some(Arc::from(writer.finish_hex())),
+            information_value: None,
+            scenario_source: None,
+        };
+        let lowered = lowering::lower(
+            self.operation,
+            Some(self.parent),
+            self.source,
+            self.source_bytes,
+            decision,
+        )?;
+        Ok(SearchProgram { spec: self, lowered: Arc::new(lowered) })
+    }
+}
+
+impl SearchProgram {
+    /// The same search lowered for a replacement objective contract.
+    fn with_objective(&self, contract: &ProgramSearchContract) -> Result<Self, JointPanelError> {
+        self.spec.clone().lower(contract)
+    }
+
+    /// Identity of the lowered program.
+    fn identity(&self) -> SemanticDigest {
+        self.lowered.identity()
+    }
+
+    /// One view over every layer of the lowered program, at the prepared stage.
+    fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Prepared)
+    }
+
+    /// Enter this program's dispatch from a public execution entry point and pass its release
+    /// support gate. The engines run with the returned context.
+    fn enter(&self, ctx: &ExecutionContext) -> Result<ExecutionContext, JointPanelError> {
+        let scoped = compiled::enter(ctx, &self.lowered)?;
+        compiled::require_release_support(&scoped, self.spec.operation.route())?;
+        Ok(scoped)
+    }
+}
+
+/// Identity of the retained source a search reads from `result`: the fit dependency, the
+/// parent's scientific target and the representation the search reads.
+fn search_source(
+    result: &JointPanelResult,
+    uncertainty: JointPanelSearchUncertainty,
+) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(SEARCH_SOURCE_TAG);
+    writer
+        .bytes(result.dependency_identity().as_bytes())
+        .bytes(result.request().target.identity().as_bytes())
+        .text(uncertainty_name(uncertainty));
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+/// The evidence the search decision reads: point means or the aligned law.
+const fn carrier(uncertainty: JointPanelSearchUncertainty) -> CarrierDemand {
+    match uncertainty {
+        JointPanelSearchUncertainty::PointMeans => CarrierDemand::Mean,
+        JointPanelSearchUncertainty::AlignedLaw => CarrierDemand::DecisionDraws,
+    }
+}
+
+/// The budget, when declared, and every operational restriction.
+fn domain_constraints(domain: &FiniteProgramDomain) -> usize {
+    usize::from(domain.budget.is_some()) + domain.restrictions.len()
+}
+
+/// Stable name of the response representation a search reads.
+const fn uncertainty_name(uncertainty: JointPanelSearchUncertainty) -> &'static str {
+    match uncertainty {
+        JointPanelSearchUncertainty::PointMeans => "point_means",
+        JointPanelSearchUncertainty::AlignedLaw => "aligned_law",
+    }
+}
+
+/// Stable name of the scientific scope a search consumes its source under.
+const fn scope_name(scope: JointPanelScientificScope) -> &'static str {
+    match scope {
+        JointPanelScientificScope::ModelConditional => "model_conditional",
+        JointPanelScientificScope::IdentifiedCausal => "identified_causal",
+    }
+}
+
+/// Write the response functional, representation, utility units and complete program domain
+/// a search declares.
+fn write_search(
+    writer: &mut CanonicalWriter,
+    functional: &JointPanelResponseFunctional,
+    uncertainty: JointPanelSearchUncertainty,
+    domain: &FiniteProgramDomain,
+    utility_units: &str,
+) {
+    match functional {
+        JointPanelResponseFunctional::TerminalMean => {
+            writer.text("terminal_mean");
+        }
+        JointPanelResponseFunctional::WindowAverage { from, until } => {
+            writer.text("window_average").word(*from as u64).word(*until as u64);
+        }
+        JointPanelResponseFunctional::WindowChange { before, after } => {
+            writer.text("window_change").word(before.0 as u64).word(before.1 as u64);
+            writer.word(after.0 as u64).word(after.1 as u64);
+        }
+        JointPanelResponseFunctional::WeightedSum { coefficients } => {
+            writer.text("weighted_sum").reals(coefficients);
+        }
+    }
+    writer
+        .text(uncertainty_name(uncertainty))
+        .text(utility_units)
+        .word(domain.controls.len() as u64);
+    for control in &domain.controls {
+        writer
+            .word(u64::from(control.variable.raw()))
+            .bytes(&control.offset.to_le_bytes())
+            .real(control.lower)
+            .real(control.upper)
+            .real(control.unit_cost);
+    }
+    writer.opt_real(domain.budget).word(domain.restrictions.len() as u64);
+    for restriction in &domain.restrictions {
+        writer.text(&restriction.id).real(restriction.bound).reals(&restriction.coefficients);
+    }
+}
+
 /// Bounded numerical next attempt after explicit finite-program evaluation.
 #[derive(Clone, Debug)]
 pub struct JointPanelContinuousSearchRequest {
@@ -192,6 +502,7 @@ pub struct JointPanelContinuousSearchRequest {
 pub struct JointPanelContinuousSearch {
     plan: antecedent_design::program_search::continuous::PreparedContinuousProgramSearch,
     evaluator: FrozenPanelEvaluator,
+    program: SearchProgram,
 }
 #[derive(Clone, Debug)]
 struct FrozenPanelEvaluator {
@@ -200,6 +511,9 @@ struct FrozenPanelEvaluator {
     domain: FiniteProgramDomain,
     functional: JointPanelResponseFunctional,
     uncertainty: JointPanelSearchUncertainty,
+    /// Identity of the search program inside whose dispatch proposals are evaluated; each
+    /// proposal's retargeted response is a child of that program.
+    program: SemanticDigest,
 }
 /// Best-found numerical search and its independently consumable checked response source.
 #[derive(Clone, Debug)]
@@ -208,12 +522,23 @@ pub struct JointPanelContinuousSearchResult {
     pub search: antecedent_design::program_search::continuous::ContinuousProgramSearchResult,
     /// Exact response/proof for the best feasible program, when one was found.
     pub best_source: Option<ScientificDecisionSource>,
+    program: SemanticDigest,
+}
+impl JointPanelContinuousSearchResult {
+    /// Identity of the lowered search program that produced this result.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
+    }
 }
 impl JointPanelResult {
     /// Compile continuous search over actual programs evaluated with this frozen fit realization.
     ///
+    /// The search lowers a program-search program that is a child of this result's program.
+    ///
     /// # Errors
-    /// Invalid controls, unsupported causal extrapolation, source representation or search policy.
+    /// Invalid controls, unsupported causal extrapolation, source representation or search policy;
+    /// `public_builder_reentry` inside a lowered dispatch.
     pub fn compile_continuous_search(
         &self,
         request: JointPanelContinuousSearchRequest,
@@ -222,6 +547,7 @@ impl JointPanelResult {
         use antecedent_design::program_search::{
             ProgramSearchScope, continuous::PreparedContinuousProgramSearch,
         };
+        Entry::Public.admit(ctx)?;
         if request.scope != JointPanelScientificScope::ModelConditional {
             return Err(JointPanelError::Unsupported("continuous proposals need their own causal design proof; this model-based numerical next attempt grants only explicitly conditional use".into()));
         }
@@ -251,6 +577,8 @@ impl JointPanelResult {
             .coordinates
             .first()
             .ok_or_else(|| JointPanelError::compile("no retained response coordinate"))?;
+        let spec = SearchSpec::continuous(self, &request, SearchOperation::Continuous);
+        let program = spec.lower(&request.contract)?;
         let plan = PreparedContinuousProgramSearch::compile(
             request.contract,
             request.domain.clone(),
@@ -273,40 +601,73 @@ impl JointPanelResult {
                 domain: request.domain,
                 functional: request.functional,
                 uncertainty: request.uncertainty,
+                program: program.identity(),
             },
+            program,
         })
     }
 }
 impl JointPanelContinuousSearch {
-    /// Execute bounded polling through the retained compiler and existing decision engine.
+    /// Execute bounded polling through the retained compiler and existing decision engine,
+    /// inside the dispatch of this search's program. Each proposal's response is retargeted
+    /// from the frozen fit as a child of this program.
     ///
     /// # Errors
     /// Numerical source, resource or cancellation refusal; no global certificate is fabricated.
+    /// `public_builder_reentry` inside another lowered dispatch, and `not_supported` from a
+    /// release build that does not support the route.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelContinuousSearchResult, JointPanelError> {
         use antecedent_design::program_search::continuous::CompiledProgramEvaluator;
-        let search = self.plan.execute(&self.evaluator, ctx).map_err(map_search_error)?;
+        let scoped = self.program.enter(ctx)?;
+        let search = self.plan.execute(&self.evaluator, &scoped).map_err(map_search_error)?;
         let best_source = search
             .best
             .as_ref()
             .map(|best| {
-                self.evaluator.evaluate_program(&best.controls, ctx).map(|compiled| compiled.source)
+                self.evaluator
+                    .evaluate_program(&best.controls, &scoped)
+                    .map(|compiled| compiled.source)
             })
             .transpose()
             .map_err(map_search_error)?;
-        Ok(JointPanelContinuousSearchResult { search, best_source })
+        Ok(JointPanelContinuousSearchResult {
+            search,
+            best_source,
+            program: self.program.identity(),
+        })
     }
     /// Change only downstream objective/risk, preserving the exact fitted response realization.
+    /// The search lowers again for the new objective.
     ///
     /// # Errors
     /// Changed response space, comparative objectives or invalid contracts are refused.
     pub fn with_objective(&self, contract: ProgramSearchContract) -> Result<Self, JointPanelError> {
-        Ok(Self {
-            plan: self.plan.with_objective(contract).map_err(JointPanelError::compile)?,
-            evaluator: self.evaluator.clone(),
-        })
+        // The existing owner's refusal of the replacement objective comes first.
+        let program = self.program.with_objective(&contract);
+        let plan = self.plan.with_objective(contract).map_err(JointPanelError::compile)?;
+        let program = program?;
+        let mut evaluator = self.evaluator.clone();
+        evaluator.program = program.identity();
+        Ok(Self { plan, evaluator, program })
+    }
+    /// The lowered program this search executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// One view over every layer of the lowered program this search executes. Reading it
+    /// evaluates and searches nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the lowered program this search executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
     }
 }
 impl antecedent_design::program_search::continuous::CompiledProgramEvaluator
@@ -372,8 +733,11 @@ impl antecedent_design::program_search::continuous::CompiledProgramEvaluator
             request.target.inference(),
         )
         .map_err(map_joint_error)?;
-        let result =
-            self.result.retarget_frozen(vec![world], target, ctx).map_err(map_joint_error)?;
+        // The proposal's response is a child of the search program whose dispatch `ctx` is in.
+        let result = self
+            .result
+            .retarget_frozen_entry(Entry::Child(self.program), vec![world], target, ctx)
+            .map_err(map_joint_error)?;
         let source = match self.uncertainty {
             JointPanelSearchUncertainty::PointMeans => result.project_mean_source(&self.functional),
             JointPanelSearchUncertainty::AlignedLaw => result.project_law_source(&self.functional),

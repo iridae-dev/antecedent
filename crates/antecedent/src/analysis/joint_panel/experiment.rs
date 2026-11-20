@@ -1,14 +1,28 @@
 //! Conditional experiment updates over one compiled panel posterior and existing decision ports.
+//!
+//! Every update, decision and next-study ranking executes the `JointPanelExperiment` program
+//! of its operation. A public entry point lowers that program as a child of the program whose
+//! law it reads, enters the program's dispatch, passes the release support gate and runs the
+//! unchanged update with the dispatch-scoped context; the result keeps the caller's context
+//! and carries the program it executed.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::compiled::{self, Entry};
 use super::{
     Arc, ExecutionContext, JointPanelError, JointPanelRequest, JointPanelResponseFunctional,
     JointPanelResult, JointPanelState, PreparedStudy, SemanticDigest, engine, source,
 };
+use crate::analysis::lowering::joint_panel::experiment::{ExperimentOperation, lower};
+use crate::planner::lowered::{
+    CarrierDemand, DecisionProgram, EvsiProgram, JointPanelRoute, LoweredProgram,
+};
+use crate::planner::{PlanStage, PlanView};
 use antecedent_contract::bridge::{BridgeContract, SourceMappingDependence};
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId, SourceStatus};
+use antecedent_core::CanonicalWriter;
 use antecedent_design::DesignError;
 use antecedent_design::decision::DecisionProblem;
+use antecedent_design::decision_contract::DecisionContract;
 use antecedent_design::preposterior::{DecisionSignal, PreposteriorAnalysis};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust,
@@ -92,11 +106,284 @@ pub enum PanelExperimentModularPolicy {
     FrozenJointImportance,
 }
 
+impl PanelExperimentModularPolicy {
+    /// Stable `snake_case` name.
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::FrozenJointImportance => "frozen_joint_importance",
+        }
+    }
+}
+
+impl PanelExperimentMapping {
+    /// Write the fitted dependency and every paired realization in slot order.
+    fn write(&self, writer: &mut CanonicalWriter) {
+        writer.bytes(self.dependency.as_bytes()).reals(&self.intercepts).reals(&self.slopes);
+    }
+
+    /// Bytes of the paired realizations an update reads.
+    fn quoted_bytes(&self) -> u64 {
+        let slots = self.intercepts.len().saturating_add(self.slopes.len());
+        u64::try_from(slots).unwrap_or(u64::MAX).saturating_mul(F64_BYTES)
+    }
+}
+
+impl PanelExperimentEvidence {
+    /// Identity of the declared origins: model, experiment, mapping and every prior origin,
+    /// in declaration order.
+    pub(crate) fn origins_identity(&self) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new("antecedent.joint_panel.experiment_origins.v1");
+        writer
+            .bytes(self.model.digest().as_bytes())
+            .bytes(self.experiment.digest().as_bytes())
+            .bytes(self.mapping.digest().as_bytes())
+            .word(self.prior_origins.len() as u64);
+        for origin in &self.prior_origins {
+            writer.bytes(origin.digest().as_bytes());
+        }
+        SemanticDigest::from_bytes(writer.finish())
+    }
+}
+
+impl PanelExperimentUpdate {
+    /// Identity of the independent experiment evidence this update reads: its bridge,
+    /// response functional, Gaussian sample-mean likelihood, modular policy, paired mapping
+    /// and declared origins. It is the experiment an update program cites as trial evidence.
+    pub(crate) fn evidence_identity(&self) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new("antecedent.joint_panel.experiment_evidence.v1");
+        writer.bytes(self.bridge.identity().as_bytes());
+        write_functional(&mut writer, &self.functional);
+        writer
+            .real(self.observed_mean)
+            .real(self.observation_variance)
+            .word(self.sample_size)
+            .text(self.modular_policy.as_str());
+        self.mapping.write(&mut writer);
+        writer.bytes(self.evidence.origins_identity().as_bytes());
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// Bytes of the experiment evidence an update reads: its sufficient statistics and the
+    /// paired mapping realizations. A quote for the physical layer; nothing is admitted.
+    pub(crate) fn evidence_bytes(&self) -> u64 {
+        self.mapping.quoted_bytes().saturating_add(3 * F64_BYTES)
+    }
+}
+
+/// Bytes of one `f64`, the unit of every experiment quote.
+const F64_BYTES: u64 = std::mem::size_of::<f64>() as u64;
+
+/// Write a response functional in canonical form.
+fn write_functional(writer: &mut CanonicalWriter, functional: &JointPanelResponseFunctional) {
+    match functional {
+        JointPanelResponseFunctional::TerminalMean => {
+            writer.text("terminal_mean");
+        }
+        JointPanelResponseFunctional::WindowAverage { from, until } => {
+            writer.text("window_average").word(*from as u64).word(*until as u64);
+        }
+        JointPanelResponseFunctional::WindowChange { before, after } => {
+            writer
+                .text("window_change")
+                .word(before.0 as u64)
+                .word(before.1 as u64)
+                .word(after.0 as u64)
+                .word(after.1 as u64);
+        }
+        JointPanelResponseFunctional::WeightedSum { coefficients } => {
+            writer.text("weighted_sum").reals(coefficients);
+        }
+    }
+}
+
+/// Bytes of the aligned draws of a conditioned law, the read of a decision or ranking.
+fn law_bytes(law: &DistributionArtifact) -> u64 {
+    u64::try_from(law.draws().len()).unwrap_or(u64::MAX).saturating_mul(F64_BYTES)
+}
+
+/// Lower the experiment program of `operation` as a child of the program `parent`.
+fn experiment_program(
+    operation: ExperimentOperation,
+    parent: SemanticDigest,
+    experiment: SemanticDigest,
+    experiment_bytes: u64,
+    decision: Option<DecisionProgram>,
+) -> Result<Arc<LoweredProgram>, JointPanelError> {
+    Ok(Arc::new(lower(operation, parent, experiment, experiment_bytes, decision)?))
+}
+
+/// Enter the dispatch of an experiment `program` from a public entry point and pass the
+/// release support gate with the scoped context. The update runs with the returned context.
+///
+/// # Errors
+/// `public_builder_reentry` when `ctx` is already inside a lowered dispatch, and the
+/// `not_supported` refusal of a release build whose experiment capability is not supported.
+fn enter_experiment(
+    ctx: &ExecutionContext,
+    program: &LoweredProgram,
+) -> Result<ExecutionContext, JointPanelError> {
+    let scoped = compiled::enter(ctx, program)?;
+    compiled::require_release_support(&scoped, JointPanelRoute::Experiment)?;
+    Ok(scoped)
+}
+
+/// The decision program of a decision contract evaluated on a conditioned posterior law.
+///
+/// A contract that does not validate carries no contract identity; the decision evaluation
+/// then refuses it exactly as it does outside the compiler route.
+fn contract_decision(contract: &DecisionContract) -> DecisionProgram {
+    DecisionProgram {
+        carrier: CarrierDemand::ParameterPosterior,
+        utility: DecisionProgram::utility_form(None),
+        actions: contract.actions.len(),
+        constraints: contract.constraints.len(),
+        chance_threshold: contract
+            .constraints
+            .iter()
+            .map(|constraint| constraint.min_probability)
+            .fold(0.0, f64::max),
+        utility_unit: Some(Arc::from(contract.utility_units.as_str())),
+        contract_identity: contract.identity().ok().map(Arc::from),
+        information_value: None,
+        scenario_source: None,
+    }
+}
+
+/// The conditioned law a decision or next-study ranking reads, as its program cites it.
+struct ConditionedLaw {
+    /// Identity of the program that conditioned the law.
+    program: SemanticDigest,
+    /// Identity of the conditioned law as the decision reads it.
+    law: SemanticDigest,
+    /// Bytes of the conditioned law's aligned draws.
+    bytes: u64,
+    /// The experiment whose evidence the conditioned law already summarizes.
+    experiment: SourceId,
+}
+
+impl ConditionedLaw {
+    /// Lower the decision program of `contract` over this law and pass its dispatch entry and
+    /// release support gate with `ctx`, the context the law was conditioned under: the
+    /// decision evaluation takes no context of its own.
+    ///
+    /// # Errors
+    /// As [`enter_experiment`].
+    fn enter_decision(
+        &self,
+        ctx: &ExecutionContext,
+        contract: &DecisionContract,
+    ) -> Result<(), JointPanelError> {
+        let program = lower(
+            ExperimentOperation::Decide,
+            self.program,
+            self.law,
+            self.bytes,
+            Some(contract_decision(contract)),
+        )?;
+        enter_experiment(ctx, &program)?;
+        Ok(())
+    }
+
+    /// Lower the next-study ranking program over this law and enter its dispatch from a
+    /// public entry point. Returns the program identity every ranked value carries and the
+    /// context the ranking runs with.
+    ///
+    /// The program's information value lists the candidates in canonical order, the
+    /// experiment the law already summarizes, the caller's seed and one batch of
+    /// `replicates` draws per candidate without early stopping; a replicate count beyond
+    /// `u32::MAX` is quoted at `u32::MAX`. Its experiment identity binds the law, every
+    /// candidate's sampling model and cost, and `regimes`, the identities of the declared
+    /// future-study regimes.
+    ///
+    /// # Errors
+    /// A Monte Carlo store whose quote overflows `u64`, and the refusals of
+    /// [`enter_experiment`].
+    fn enter_ranking<A>(
+        &self,
+        ctx: &ExecutionContext,
+        problem: &DecisionProblem<A, PanelExperimentDecisionState>,
+        candidates: &[PanelFutureSample],
+        regimes: &[SemanticDigest],
+        replicates: usize,
+    ) -> Result<(SemanticDigest, ExecutionContext), JointPanelError> {
+        let mut catalog = CanonicalWriter::new("antecedent.joint_panel.next_study_catalog.v1");
+        catalog.bytes(self.law.as_bytes()).word(candidates.len() as u64);
+        for candidate in candidates {
+            catalog
+                .text(&candidate.id)
+                .word(candidate.sample_size)
+                .real(candidate.observation_variance)
+                .opt_real(candidate.cost_utility);
+        }
+        catalog.word(regimes.len() as u64);
+        for regime in regimes {
+            catalog.bytes(regime.as_bytes());
+        }
+        let decision = DecisionProgram {
+            carrier: CarrierDemand::ParameterPosterior,
+            utility: DecisionProgram::utility_form(None),
+            actions: problem.actions.len(),
+            constraints: problem.constraints.len(),
+            chance_threshold: problem.chance_threshold,
+            utility_unit: None,
+            contract_identity: None,
+            information_value: Some(self.information_value(candidates, replicates, ctx)?),
+            scenario_source: None,
+        };
+        let program = lower(
+            ExperimentOperation::RankNext,
+            self.program,
+            SemanticDigest::from_bytes(catalog.finish()),
+            self.bytes,
+            Some(decision),
+        )?;
+        let scoped = enter_experiment(ctx, &program)?;
+        Ok((program.identity(), scoped))
+    }
+
+    /// The value-of-information layer of a next-study ranking; see [`Self::enter_ranking`].
+    fn information_value(
+        &self,
+        candidates: &[PanelFutureSample],
+        replicates: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<EvsiProgram, JointPanelError> {
+        let ids = candidates
+            .iter()
+            .map(|candidate| candidate.id.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(Arc::<str>::from)
+            .collect::<Arc<[Arc<str>]>>();
+        let rank = EvsiProgram::schedule(1, 1, u32::try_from(replicates).unwrap_or(u32::MAX), 0.0);
+        let monte_carlo =
+            EvsiProgram::quote_tasks(candidates.len() as u64, rank.draws_per_candidate())
+                .ok_or_else(|| JointPanelError::compile("next-study Monte Carlo quote overflow"))?;
+        let costed = !candidates.is_empty()
+            && candidates.iter().all(|candidate| candidate.cost_utility.is_some());
+        Ok(EvsiProgram {
+            candidates: ids,
+            prior_observation_ids: Arc::from([Arc::<str>::from(self.experiment.to_hex())]),
+            rng_seed: ctx.rng.master_seed(),
+            mc_error_tolerance: 0.0,
+            require_net_value: false,
+            tie_tolerance: 0.0,
+            max_candidates: candidates.len() as u64,
+            rank,
+            // Declared costs are already in the decision's utility unit.
+            cost_map: costed
+                .then(|| EvsiProgram::cost_mapping("decision_utility", "decision_utility", 1.0)),
+            monte_carlo,
+        })
+    }
+}
+
 /// Common prepared state carrying the exact original panel program and declared update.
 #[derive(Clone, Debug)]
 pub struct PanelExperimentState {
     panel: PreparedStudy<JointPanelState>,
     update: PanelExperimentUpdate,
+    lowered: Arc<LoweredProgram>,
 }
 
 /// Conditional Bayesian update retaining the whole aligned joint response, not marginal intervals.
@@ -109,6 +396,32 @@ pub struct PanelExperimentResult {
     posterior_means: Vec<f64>,
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
+    program: ExecutedProgram,
+}
+
+/// The experiment program an update executed, and the context of the public entry point
+/// that ran it, which later decisions on the update run under.
+#[derive(Clone, Debug)]
+struct ExecutedProgram {
+    lowered: Arc<LoweredProgram>,
+    caller: ExecutionContext,
+}
+
+impl ExecutedProgram {
+    /// The executed `lowered` program, kept with `caller`, the public entry point's context.
+    fn new(lowered: Arc<LoweredProgram>, caller: &ExecutionContext) -> Self {
+        Self { lowered, caller: caller.clone() }
+    }
+
+    /// Inspect the executed program.
+    fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Identity of the executed program.
+    fn identity(&self) -> SemanticDigest {
+        self.lowered.identity()
+    }
 }
 
 /// Retained experimental law whose scientific consumption requires caller-current evidence.
@@ -228,18 +541,44 @@ impl JointPanelResult {
     /// is the same frozen modular update as `with_experiment`, with caller-current
     /// bridge and evidence checks repeated before every scientific consumption.
     ///
+    /// The update executes the `JointPanelExperiment` condition program, a child of this
+    /// response's program with the experiment as trial evidence; the result carries it.
+    ///
     /// # Errors
     /// A sampling distribution, unsupported translation, stale evidence, mismatched
-    /// mapping dependency or invalid likelihood cannot become a posterior update.
+    /// mapping dependency or invalid likelihood cannot become a posterior update; a call
+    /// inside another program's lowered dispatch is refused.
     pub fn condition_experiment(
         &self,
         update: PanelExperimentUpdate,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<PanelExperimentResult, JointPanelError> {
+        let lowered = experiment_program(
+            ExperimentOperation::Condition,
+            self.program_identity(),
+            update.evidence_identity(),
+            update.evidence_bytes(),
+            None,
+        )?;
+        let scoped = enter_experiment(ctx, &lowered)?;
+        self.condition_experiment_in(update, ledger, &scoped, lowered, ctx)
+    }
+
+    /// The update of [`Self::condition_experiment`] inside the dispatch of `lowered`, whose
+    /// release support gate `scoped` has passed. The result carries `lowered` and keeps
+    /// `caller`, the context of the public entry point.
+    pub(crate) fn condition_experiment_in(
+        &self,
+        update: PanelExperimentUpdate,
+        ledger: &EvidenceLedger,
+        scoped: &ExecutionContext,
+        lowered: Arc<LoweredProgram>,
+        caller: &ExecutionContext,
+    ) -> Result<PanelExperimentResult, JointPanelError> {
         validate_update(&update, ledger)?;
-        source::check_cancelled(ctx)?;
-        update_result(self.clone(), update, ledger, ctx)
+        source::check_cancelled(scoped)?;
+        update_result(self.clone(), update, ledger, scoped, ExecutedProgram::new(lowered, caller))
     }
 
     /// Exact assembled contrast coordinate for an experiment-to-model bridge.
@@ -267,6 +606,9 @@ impl JointPanelResult {
 impl PreparedStudy<JointPanelState> {
     /// Compile an experiment update through the same retained panel execution owner.
     ///
+    /// The handle retains the `JointPanelExperiment` condition program, a child of this
+    /// panel's program with the experiment as trial evidence. Lowering fits nothing.
+    ///
     /// # Errors
     /// A bridge without a complete estimand translation, invalid likelihood/mapping, or
     /// withdrawn, overlapping, unknown-origin evidence refuses before fitting.
@@ -286,29 +628,89 @@ impl PreparedStudy<JointPanelState> {
                 "cluster sampling draws cannot become a Bayesian experimental prior".into(),
             ));
         }
-        Ok(PreparedStudy { state: PanelExperimentState { panel: self.clone(), update } })
+        let lowered = experiment_program(
+            ExperimentOperation::Condition,
+            self.program_identity(),
+            update.evidence_identity(),
+            update.evidence_bytes(),
+            None,
+        )?;
+        Ok(PreparedStudy { state: PanelExperimentState { panel: self.clone(), update, lowered } })
     }
 }
 
 impl PreparedStudy<PanelExperimentState> {
+    /// The experiment program this handle executes: the update of the parent panel's
+    /// program by the declared experiment.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.state.lowered
+    }
+
+    /// Inspect the experiment program without fitting or conditioning.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.state.lowered), PlanStage::Prepared)
+    }
+
+    /// Identity of the experiment program this handle executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.state.lowered.identity()
+    }
+
     /// Execute the original shared mechanism once, then condition its complete response law.
+    ///
+    /// The experiment program's dispatch encloses the panel estimate, which runs as its
+    /// child; the result carries the experiment program and keeps `ctx`.
     ///
     /// # Errors
     /// Fit, draw alignment, bridge quantity, current authority, numerical/resource or
     /// cancellation failures remain refusals; updating does not discharge identification.
+    /// A call inside another program's lowered dispatch is refused.
     pub fn estimate(
         &self,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<PanelExperimentResult, JointPanelError> {
+        let scoped = enter_experiment(ctx, &self.state.lowered)?;
         validate_update(&self.state.update, ledger)?;
-        source::check_cancelled(ctx)?;
-        let original = self.state.panel.estimate(ctx)?;
-        update_result(original, self.state.update.clone(), ledger, ctx)
+        source::check_cancelled(&scoped)?;
+        let mut original =
+            self.state.panel.estimate_entry(Entry::Child(self.program_identity()), &scoped)?;
+        // The panel result keeps the caller's worker context, not the dispatch-scoped one.
+        original.context = ctx.serial_inner();
+        let program = ExecutedProgram::new(Arc::clone(&self.state.lowered), ctx);
+        update_result(original, self.state.update.clone(), ledger, &scoped, program)
     }
 }
 
 impl PanelExperimentResult {
+    /// The experiment program this update executed: a child of the program of the panel
+    /// response it conditioned, with the experiment as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// Inspect the experiment program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the experiment program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+    /// The conditioned law a decision or ranking on this update reads.
+    fn conditioned(&self) -> ConditionedLaw {
+        ConditionedLaw {
+            program: self.program.identity(),
+            law: self.dependency,
+            bytes: law_bytes(&self.law),
+            experiment: self.update.evidence.experiment,
+        }
+    }
     /// Original compiled result and retained identification obligations, without promotion.
     #[must_use]
     pub fn original(&self) -> &JointPanelResult {
@@ -369,6 +771,9 @@ impl PanelExperimentResult {
 
     /// Evaluate an existing decision contract on the updated whole law.
     ///
+    /// The evaluation executes the `JointPanelExperiment` decision program, a child of this
+    /// update's program, under the context the update was conditioned with.
+    ///
     /// # Errors
     /// Existing decision semantics and current authority are enforced without relaxation.
     pub fn decide(
@@ -376,6 +781,7 @@ impl PanelExperimentResult {
         contract: &antecedent_design::decision_contract::DecisionContract,
         ledger: &EvidenceLedger,
     ) -> Result<antecedent_design::scientific_source::ScopedDecisionResult, JointPanelError> {
+        self.conditioned().enter_decision(&self.program.caller, contract)?;
         self.law_source(ledger)?.evaluate(
             contract,
             antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional,
@@ -524,11 +930,18 @@ fn validate_bridge_window(
     Ok(())
 }
 
+/// Condition `original`'s projected posterior on `update` with the dispatch-scoped `ctx`; the
+/// result carries `program`.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one update keeps its origin, posterior, mapping, admission and law checks together"
+)]
 fn update_result(
     original: JointPanelResult,
     update: PanelExperimentUpdate,
     ledger: &EvidenceLedger,
     ctx: &ExecutionContext,
+    program: ExecutedProgram,
 ) -> Result<PanelExperimentResult, JointPanelError> {
     validate_model_origin(&original, &update, ledger)?;
     let law = original.numerical_project_law_source(&update.functional)?;
@@ -630,6 +1043,7 @@ fn update_result(
         posterior_means,
         dependency,
         retention,
+        program,
     })
 }
 
@@ -709,6 +1123,7 @@ pub struct PanelFutureSampleValue {
     pub standard_error: f64,
     /// Gross value minus cost only when cost was declared in the utility unit.
     pub net_value: Option<f64>,
+    program: SemanticDigest,
 }
 
 impl PanelFutureSampleValue {
@@ -717,6 +1132,12 @@ impl PanelFutureSampleValue {
     pub fn retained_admitted_bytes(&self) -> u64 {
         self.retention.observe_current();
         self.retention.remainder().bytes()
+    }
+    /// Identity of the `JointPanelExperiment` ranking program that valued this study: a
+    /// child of the program that conditioned the ranked law.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
     }
 }
 
@@ -862,9 +1283,13 @@ impl PanelExperimentResult {
     /// exposure mechanisms or nonlinear mappings. Utilities declare their own units;
     /// optional candidate costs must already be expressed in that same unit.
     ///
+    /// The ranking executes the `JointPanelExperiment` ranking program, a child of this
+    /// update's program; every value carries its identity.
+    ///
     /// # Errors
     /// Invalid study/cost/replicate bounds, current authority, resources/cancellation,
-    /// unsupported weighted constraints or callback failures refuse the ranking.
+    /// unsupported weighted constraints or callback failures refuse the ranking; a call
+    /// inside another program's lowered dispatch is refused.
     pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
@@ -873,18 +1298,20 @@ impl PanelExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+        let (program, scoped) =
+            self.conditioned().enter_ranking(ctx, problem, candidates, &[], replicates)?;
         self.retention.observe_current();
         let scientific = self.law_source(ledger)?;
         let coefficients = contrast_weights(self.original.request())?;
         rank_law_next_samples(
-            &ExperimentRankingReceipt::from(&scientific),
+            &ExperimentRankingReceipt::new(&scientific, program),
             &self.law,
             &self.update,
             &coefficients,
             problem,
             candidates,
             replicates,
-            ctx,
+            &scoped,
         )
     }
 }
@@ -894,19 +1321,26 @@ struct ExperimentRankingReceipt {
     dependency_identity: SemanticDigest,
     question_identity: SemanticDigest,
     projection: Option<Arc<antecedent_design::scientific_source::ScientificSourceProjection>>,
+    /// Identity of the ranking program the values are computed by.
+    program: SemanticDigest,
 }
-impl From<&PanelExperimentDecisionSource> for ExperimentRankingReceipt {
-    fn from(source: &PanelExperimentDecisionSource) -> Self {
+impl ExperimentRankingReceipt {
+    /// The receipt of a ranking program `program` over the law of `source`.
+    fn new(source: &PanelExperimentDecisionSource, program: SemanticDigest) -> Self {
         Self {
             target_identity: source.target().identity(),
             identification_identity: source.identification().identity(),
             dependency_identity: source.dependency_identity(),
             question_identity: source.question_identity(),
             projection: source.projection().cloned().map(Arc::new),
+            program,
         }
     }
 }
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the ranking reads its receipt, law, update, contrast, decision, catalog and budget"
+)]
 fn rank_law_next_samples<A: serde::Serialize>(
     receipt: &ExperimentRankingReceipt,
     law: &DistributionArtifact,
@@ -931,7 +1365,10 @@ fn rank_law_next_samples<A: serde::Serialize>(
 }
 /// Ranking core. `candidate_means[i]`, when present, is the experimental mean each retained
 /// draw slot implies for candidate `i`'s own regime; absent means the update's own estimand.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the ranking reads its receipt, law, update, contrast, decision, catalog and budget"
+)]
 fn rank_law_next_studies<A: serde::Serialize>(
     receipt: &ExperimentRankingReceipt,
     law: &DistributionArtifact,
@@ -1020,6 +1457,7 @@ fn rank_law_next_studies<A: serde::Serialize>(
             gross_evsi: samples.mean(),
             standard_error: samples.stderr_of_mean(),
             net_value: candidate.cost_utility.map(|cost| samples.mean() - cost),
+            program: receipt.program,
         });
     }
     // A net ranking is meaningful only when every candidate declares a comparable cost.
@@ -1215,5 +1653,81 @@ mod catalog_size_tests {
         assert!(validate_future_sample_catalog(&candidates(2_000), 250_000).is_ok());
         assert!(validate_future_sample_catalog(&candidates(0), 1_000).is_err());
         assert!(validate_future_sample_catalog(&candidates(3), 1).is_err());
+    }
+}
+
+#[cfg(test)]
+mod program_tests {
+    use super::{
+        Arc, ConditionedLaw, DecisionProblem, ExecutionContext, PanelExperimentDecisionState,
+        PanelFutureSample, SemanticDigest, SourceId,
+    };
+    use antecedent_design::DesignError;
+    use antecedent_design::decision::Utility;
+
+    struct Flat;
+
+    impl Utility<usize, PanelExperimentDecisionState> for Flat {
+        fn evaluate_batch(
+            &self,
+            _: &[usize],
+            _: &[PanelExperimentDecisionState],
+            out: &mut [f64],
+        ) -> Result<(), DesignError> {
+            out.fill(0.0);
+            Ok(())
+        }
+    }
+
+    fn law() -> ConditionedLaw {
+        ConditionedLaw {
+            program: SemanticDigest::from_bytes([1; 32]),
+            law: SemanticDigest::from_bytes([2; 32]),
+            bytes: 64,
+            experiment: SourceId::from_digest(SemanticDigest::from_bytes([3; 32])),
+        }
+    }
+
+    fn sample(id: &str, cost_utility: Option<f64>) -> PanelFutureSample {
+        PanelFutureSample {
+            id: id.into(),
+            sample_size: 10,
+            observation_variance: 1.0,
+            cost_utility,
+        }
+    }
+
+    #[test]
+    fn a_ranking_program_binds_its_catalog_and_runs_inside_its_own_dispatch() {
+        let ctx = ExecutionContext::for_tests(5);
+        let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(Flat), vec![]);
+        let catalog = [sample("b", None), sample("a", None)];
+        let (program, scoped) = law().enter_ranking(&ctx, &problem, &catalog, &[], 9).unwrap();
+        assert_eq!(scoped.lowered_dispatch(), Some(program));
+        let resized =
+            [sample("b", None), PanelFutureSample { sample_size: 20, ..sample("a", None) }];
+        let (other, _) = law().enter_ranking(&ctx, &problem, &resized, &[], 9).unwrap();
+        assert_ne!(program, other, "a candidate's sampling model is part of the program");
+        let regime = [SemanticDigest::from_bytes([4; 32])];
+        let (with_regime, _) = law().enter_ranking(&ctx, &problem, &catalog, &regime, 9).unwrap();
+        assert_ne!(program, with_regime, "a declared regime is part of the program");
+        assert!(
+            law().enter_ranking(&scoped, &problem, &catalog, &[], 9).is_err(),
+            "a ranking inside another program's dispatch is refused"
+        );
+    }
+
+    #[test]
+    fn the_information_value_lists_candidates_in_canonical_order() {
+        let ctx = ExecutionContext::for_tests(5);
+        let catalog = [sample("b", Some(1.0)), sample("a", Some(2.0))];
+        let value = law().information_value(&catalog, 9, &ctx).unwrap();
+        let ids = value.candidates().iter().map(|id| &**id).collect::<Vec<_>>();
+        assert_eq!(ids, ["a", "b"]);
+        assert_eq!(value.monte_carlo().draws(), 9);
+        assert_eq!(value.prior_observation_ids().len(), 1);
+        assert!(value.cost_map().is_some());
+        let uncosted = law().information_value(&[sample("a", None)], 9, &ctx).unwrap();
+        assert!(uncosted.cost_map().is_none());
     }
 }

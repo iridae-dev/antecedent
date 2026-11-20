@@ -236,6 +236,14 @@ pub(crate) struct PyPanelExperiment {
 }
 #[pymethods]
 impl PyPanelExperiment {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn rank_next_samples(
         &self,
@@ -487,6 +495,14 @@ pub(crate) struct PyDesignExperiment {
 }
 #[pymethods]
 impl PyDesignExperiment {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn rank_next_samples(
         &self,
@@ -672,6 +688,14 @@ pub(crate) struct PyNativeExperiment {
 }
 #[pymethods]
 impl PyNativeExperiment {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(declaration_json,ledger,*,replicates=199,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn rank_next_samples(
         &self,

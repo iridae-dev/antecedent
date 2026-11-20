@@ -1,7 +1,10 @@
 //! Design-native compiled joint functionals, independent of the nonlinear panel fitter.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 mod native;
+use super::compiled::{Entry, require_release_support};
 use super::{JointPanelError, contracts};
+use crate::analysis::lowering::joint_panel::design::{self as design_lowering, DesignInput};
+use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
     CanonicalEncode, CanonicalWriter, ExecutionContext, ScientificTarget, SemanticDigest,
@@ -129,6 +132,8 @@ pub struct PreparedJointDesign {
     identification: Arc<CompiledIdentificationProduct>,
     dependency: SemanticDigest,
     point: Arc<JointDesignLaw>,
+    /// The program every execution of this design enters.
+    program: Arc<LoweredProgram>,
     _lease: Arc<antecedent_core::execution::AdmissionLease>,
 }
 /// Executed native design law; the original proof and target survive downstream ports.
@@ -722,6 +727,7 @@ impl PreparedJointDesign {
         proof: JointDesignProof,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         let worlds = validate_design_source(&target, &proof, ctx)?;
         let quote = antecedent_io::convert::to_cbor(&proof).map_err(failure)?.len();
         let bytes = u64::try_from(quote)
@@ -740,14 +746,39 @@ impl PreparedJointDesign {
         check_cancel(ctx)?;
         let identification = identify_joint_design(&target, &proof, worlds)?;
         let dependency = identity(&target, &proof)?;
+        let program = Arc::new(design_lowering::lower(
+            DesignInput::Worlds { target: &target, identification: &identification },
+            dependency,
+            bytes,
+        )?);
         Ok(Self {
             target: Arc::new(target),
             proof: Arc::new(proof),
             identification: Arc::new(identification),
             dependency,
             point: Arc::new(point),
+            program,
             _lease: lease,
         })
+    }
+    /// The lowered program every execution of this design enters.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+    /// One view over every layer of the lowered program this design executes. Reading it
+    /// executes nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.program),
+            crate::planner::PlanStage::Prepared,
+        )
+    }
+    /// Identity of the lowered program this design executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
     }
     /// Exact identifying functional and design premises, independent of statistical mode.
     #[must_use]
@@ -771,6 +802,21 @@ impl PreparedJointDesign {
         inference: JointDesignInference,
         ctx: &ExecutionContext,
     ) -> Result<JointDesignResult, JointPanelError> {
+        self.execute_entry(Entry::Public, inference, ctx)
+    }
+    /// [`Self::execute`] through `entry`: the public path enters the design program and passes
+    /// the release support gate; a child of an enclosing program's dispatch enters without it.
+    pub(crate) fn execute_entry(
+        &self,
+        entry: Entry,
+        inference: JointDesignInference,
+        ctx: &ExecutionContext,
+    ) -> Result<JointDesignResult, JointPanelError> {
+        let scoped = entry.enter(ctx, &self.program)?;
+        if entry == Entry::Public {
+            require_release_support(&scoped, JointPanelRoute::Design)?;
+        }
+        let ctx = &scoped;
         check_cancel(ctx)?;
         let draws = match &inference {
             JointDesignInference::Frequentist
@@ -825,6 +871,11 @@ impl JointDesignResult {
     #[must_use]
     pub fn prepared(&self) -> &PreparedJointDesign {
         &self.prepared
+    }
+    /// Identity of the lowered program that produced this law.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.prepared.program.identity()
     }
     fn coordinates(&self) -> Result<Vec<ScientificQuantity>, JointPanelError> {
         let worlds = contracts::target_worlds(&self.prepared.target)?;

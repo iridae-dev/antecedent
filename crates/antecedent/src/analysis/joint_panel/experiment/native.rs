@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::super::designs::{NativeJointDesignResult, NativeJointIdentification};
 use super::{
-    Arc, DecisionProblem, DistributionArtifact, DistributionCalibration, DistributionTrust,
-    EvidenceLedger, ExecutionContext, ExperimentRankingReceipt, JointLawExperimentRequest,
-    JointPanelError, JointPanelResponseFunctional, PanelExperimentDecisionState,
-    PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
-    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, SemanticDigest, SourceId,
-    admit, rank_law_next_samples, source, validate_mapping_moments, validate_model_dependency,
-    validate_update,
+    Arc, CanonicalWriter, ConditionedLaw, DecisionProblem, DistributionArtifact,
+    DistributionCalibration, DistributionTrust, EvidenceLedger, ExecutedProgram, ExecutionContext,
+    ExperimentOperation, ExperimentRankingReceipt, JointLawExperimentRequest, JointPanelError,
+    LoweredProgram, PanelExperimentDecisionState, PanelExperimentEvidence, PanelExperimentMapping,
+    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, PlanView, SemanticDigest,
+    SourceId, admit, enter_experiment, experiment_program, law_bytes, rank_law_next_samples,
+    source, validate_mapping_moments, validate_model_dependency, validate_update,
 };
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_estimate::joint_design::compiled::{JointDesignLaw, JointNativeDesignLaw};
@@ -45,6 +45,26 @@ pub struct NativeExperimentBinding {
     #[serde(default)]
     pub local_ratio_regularization: Option<LocalRatioGaussianRegularization>,
 }
+
+impl NativeExperimentBinding {
+    /// Write the coefficients, response units and any local-ratio regularization.
+    fn write(&self, writer: &mut CanonicalWriter) {
+        writer.reals(&self.coefficients).text(&self.outcome_units);
+        match &self.local_ratio_regularization {
+            Some(bounds) => {
+                writer
+                    .word(1)
+                    .real(bounds.max_abs_intercept)
+                    .real(bounds.min_abs_slope)
+                    .real(bounds.max_abs_slope)
+                    .text(&bounds.assumption);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+    }
+}
 /// Decision result carrying the actual native scientific target and conditional update scope.
 #[derive(Clone, Debug)]
 pub struct NativeExperimentDecision {
@@ -66,6 +86,7 @@ pub struct NativeJointExperimentResult {
     law: DistributionArtifact,
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
+    program: ExecutedProgram,
 }
 /// Replayed native experiment evidence; historical replay grants no current authority.
 #[derive(Clone, Debug)]
@@ -204,12 +225,14 @@ impl NativeJointDesignResult {
         Ok(quantity)
     }
     /// Condition a genuine native posterior without changing its original scientific target kind.
+    ///
+    /// The update executes the `JointPanelExperiment` native condition program, a child of
+    /// this design's program with the experiment and the native projection as trial
+    /// evidence; the result carries it.
+    ///
     /// # Errors
-    /// Unsupported native law, mismatched translation, invalid evidence/mapping or admission.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "Keep native target, proper conditional likelihood, evidence authority and admitted retention in one transaction."
-    )]
+    /// Unsupported native law, mismatched translation, invalid evidence/mapping or admission;
+    /// a call inside another program's lowered dispatch is refused.
     pub fn condition_native_experiment(
         &self,
         binding: NativeExperimentBinding,
@@ -217,22 +240,42 @@ impl NativeJointDesignResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<NativeJointExperimentResult, JointPanelError> {
+        let update = request.into_update();
+        let mut experiment = CanonicalWriter::new("antecedent.joint_panel.native_experiment.v1");
+        binding.write(&mut experiment);
+        experiment.bytes(update.evidence_identity().as_bytes());
+        let lowered = experiment_program(
+            ExperimentOperation::NativeCondition,
+            self.program_identity(),
+            SemanticDigest::from_bytes(experiment.finish()),
+            update.evidence_bytes(),
+            None,
+        )?;
+        let scoped = enter_experiment(ctx, &lowered)?;
+        let program = ExecutedProgram::new(lowered, ctx);
+        self.condition_native_in(binding, update, ledger, &scoped, program)
+    }
+
+    /// The update of [`Self::condition_native_experiment`] with the dispatch-scoped `ctx`; the
+    /// result carries `program`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "native target, likelihood, evidence and admitted retention stay one transaction"
+    )]
+    fn condition_native_in(
+        &self,
+        binding: NativeExperimentBinding,
+        update: PanelExperimentUpdate,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        program: ExecutedProgram,
+    ) -> Result<NativeJointExperimentResult, JointPanelError> {
         source::check_cancelled(ctx)?;
-        if request.bridge.target.quantity != self.experiment_quantity(&binding)? {
+        if update.bridge.target.quantity != self.experiment_quantity(&binding)? {
             return Err(JointPanelError::compile(
                 "experimental bridge must target the exact method-native functional, population and units",
             ));
         }
-        let update = PanelExperimentUpdate {
-            bridge: request.bridge,
-            functional: JointPanelResponseFunctional::TerminalMean,
-            observed_mean: request.observed_mean,
-            observation_variance: request.observation_variance,
-            sample_size: request.sample_size,
-            modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
-            mapping: request.mapping,
-            evidence: request.evidence,
-        };
         validate_update(&update, ledger)?;
         validate_model_dependency(self.dependency_identity(), &update, ledger)?;
         let draw_count = match self.law() {
@@ -330,10 +373,36 @@ impl NativeJointDesignResult {
             law,
             dependency,
             retention,
+            program,
         })
     }
 }
 impl NativeJointExperimentResult {
+    /// The experiment program this update executed: a child of the program of the native
+    /// design it conditioned, with the experiment as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// Inspect the experiment program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the experiment program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+    /// The conditioned law a decision or ranking on this update reads.
+    fn conditioned(&self) -> ConditionedLaw {
+        ConditionedLaw {
+            program: self.program.identity(),
+            law: self.dependency,
+            bytes: law_bytes(&self.law),
+            experiment: self.update.evidence.experiment,
+        }
+    }
     /// Additional global mapping support premise establishing local-ratio posterior moments.
     #[must_use]
     pub fn local_ratio_regularization(&self) -> Option<&LocalRatioGaussianRegularization> {
@@ -360,6 +429,10 @@ impl NativeJointExperimentResult {
         Ok(&self.law)
     }
     /// Terminal utility and operational constraints over the native target vector.
+    ///
+    /// The evaluation executes the `JointPanelExperiment` decision program, a child of this
+    /// update's program, under the context the update was conditioned with.
+    ///
     /// # Errors
     /// Current evidence, quantities, utilities or constraints do not satisfy the existing owner.
     pub fn decide(
@@ -367,6 +440,7 @@ impl NativeJointExperimentResult {
         contract: &antecedent_design::decision_contract::DecisionContract,
         ledger: &EvidenceLedger,
     ) -> Result<NativeExperimentDecision, JointPanelError> {
+        self.conditioned().enter_decision(&self.program.caller, contract)?;
         self.validate(ledger)?;
         let result = antecedent_design::decision_eval::evaluate_contract(contract, &self.law)
             .map_err(JointPanelError::compile)?;
@@ -379,8 +453,13 @@ impl NativeJointExperimentResult {
         })
     }
     /// Additional independent samples of this exact mapped native functional.
+    ///
+    /// The ranking executes the `JointPanelExperiment` ranking program, a child of this
+    /// update's program; every value carries its identity.
+    ///
     /// # Errors
-    /// Current evidence, study costs, utility, integration resources or cancellation fails.
+    /// Current evidence, study costs, utility, integration resources or cancellation fails;
+    /// a call inside another program's lowered dispatch is refused.
     pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
@@ -389,6 +468,8 @@ impl NativeJointExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+        let (program, scoped) =
+            self.conditioned().enter_ranking(ctx, problem, candidates, &[], replicates)?;
         self.validate(ledger)?;
         let encoded = antecedent_io::convert::to_cbor(self.identification())
             .map_err(JointPanelError::compile)?;
@@ -408,6 +489,7 @@ impl NativeJointExperimentResult {
             dependency_identity: self.dependency,
             question_identity: target,
             projection: None,
+            program,
         };
         rank_law_next_samples(
             &receipt,
@@ -417,7 +499,7 @@ impl NativeJointExperimentResult {
             problem,
             candidates,
             replicates,
-            ctx,
+            &scoped,
         )
     }
 }

@@ -54,7 +54,7 @@ fn capability_units() -> Option<&'static [CapabilityUnit]> {
 
 /// Whether the capability unit `capability` is supported in this build's derived status.
 #[must_use]
-pub(super) fn capability_supported(capability: &str) -> bool {
+pub(crate) fn capability_supported(capability: &str) -> bool {
     capability_units().is_some_and(|units| {
         units.iter().any(|unit| unit.id == capability && unit.status == "supported")
     })

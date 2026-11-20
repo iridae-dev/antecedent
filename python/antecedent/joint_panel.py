@@ -388,6 +388,11 @@ class PanelResult:
 
     _handle: Any
 
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def experiment_quantity(self, functional: Mapping[str, Any] | str = "terminal_mean") -> Any:
         """Return the exact compiled response quantity for an experimental bridge."""
         from ._joint_panel_experiment import quantity
@@ -696,6 +701,15 @@ class PreparedPanel:
     """Native checked preparation with synchronized reuse of compatible fits."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def inspect(self) -> dict[str, Any]:
         """Inspect source/design obligations without fitting or simulation."""

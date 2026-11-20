@@ -1,5 +1,6 @@
 //! Exact reuse of an independently retained static common-adjustment proof.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use super::compiled::Entry;
 use super::{
     JointPanelDesignAttempt, JointPanelDesignOutcome, JointPanelError, JointPanelState,
     JointPanelWorldSupport, contracts, source,
@@ -29,16 +30,19 @@ impl PreparedStudy<JointPanelState> {
     /// supported interventions and the empirical reference law are checked before the
     /// row-to-balanced-group reindexing is accepted. No builder, identification or fit runs.
     /// Nonlinear numerical fitting and uncertainty retain their own conditional or `not_measured` meaning.
+    /// The bound handle lowers its program again, retaining the bound identification.
     ///
     /// # Errors
     /// Refuses temporal targets, changed source data, unsupported worlds, parametric-only
-    /// identification, incomplete rows and a different group/covariate reference law.
+    /// identification, incomplete rows and a different group/covariate reference law, and a
+    /// call inside another program's lowered dispatch.
     pub fn with_static_source_proof(
         &self,
         proof: PreparedJointResponse,
         proof_data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         source::check_cancelled(ctx)?;
         crate::analysis::prepared::joint_target_admission(&self.request().target)
             .map_err(JointPanelError::compile)?;
@@ -132,6 +136,7 @@ impl PreparedStudy<JointPanelState> {
         }
         next.state.attempts = attempts.into();
         next.state.static_source = Some(Arc::new(proof));
+        next.relower()?;
         Ok(next)
     }
     /// Run general ID on a declared unrolled point graph of this panel program and record the
@@ -146,15 +151,20 @@ impl PreparedStudy<JointPanelState> {
     /// functional only under its own restrictions, so an identified verdict is never turned
     /// into an identification claim for the fit.
     ///
+    /// When the declared Gaussian restriction retains an identification, the handle lowers its
+    /// program again with it; otherwise only the attempt record changes and the program is
+    /// unchanged.
+    ///
     /// # Errors
     /// A graph whose channels or periods differ from the program, an invalid outcome period,
-    /// or a failure of the general ID run.
+    /// a failure of the general ID run, or a call inside another program's lowered dispatch.
     pub fn with_unrolled_graph_attempt(
         &self,
         graph: &UnrolledPanelGraph,
         outcome_periods: &[usize],
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         source::check_cancelled(ctx)?;
         for world in &self.request().worlds {
             let channels = &world.program.channels;

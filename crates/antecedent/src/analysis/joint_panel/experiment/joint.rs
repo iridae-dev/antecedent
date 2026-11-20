@@ -8,14 +8,16 @@
 //! Nothing here supplies a missing covariance; evidence without one cannot construct an update.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    Arc, DecisionProblem, DistributionArtifact, DistributionCalibration, DistributionTrust,
-    EvidenceLedger, ExecutionContext, ExperimentRankingReceipt, JointPanelError,
-    JointPanelResponseFunctional, JointPanelResult, PanelExperimentDecisionSource,
+    Arc, CanonicalWriter, ConditionedLaw, DecisionProblem, DistributionArtifact,
+    DistributionCalibration, DistributionTrust, EvidenceLedger, ExecutedProgram, ExecutionContext,
+    ExperimentOperation, ExperimentRankingReceipt, F64_BYTES, JointPanelError,
+    JointPanelResponseFunctional, JointPanelResult, LoweredProgram, PanelExperimentDecisionSource,
     PanelExperimentDecisionState, PanelExperimentEvidence, PanelExperimentMapping,
     PanelExperimentModularPolicy, PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue,
-    SemanticDigest, SourceId, admit, contrast_weights, law::MAX_LAW_EXPERIMENT_BYTES,
-    rank_law_next_samples, source, validate_bridge_projection, validate_mapping_moments,
-    validate_model_dependency, validate_model_origin, validate_update,
+    PlanView, SemanticDigest, SourceId, admit, contrast_weights, enter_experiment,
+    experiment_program, law::MAX_LAW_EXPERIMENT_BYTES, law_bytes, rank_law_next_samples, source,
+    validate_bridge_projection, validate_mapping_moments, validate_model_dependency,
+    validate_model_origin, validate_update, write_functional,
 };
 use antecedent_contract::bridge::BridgeContract;
 use antecedent_design::decision_contract::UtilityExpr;
@@ -63,7 +65,58 @@ fn experiment_id(c: &PanelJointExperimentComponent) -> Option<&String> {
     c.bridge.estimand_bridge.as_ref().map(|t| &t.experiment_id)
 }
 
+impl PanelJointExperimentComponent {
+    /// Identity of this component's translation: its bridge, response functional and paired
+    /// mapping realizations.
+    pub(crate) fn evidence_identity(&self) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new("antecedent.joint_panel.experiment_component.v1");
+        writer.bytes(self.bridge.identity().as_bytes());
+        write_functional(&mut writer, &self.functional);
+        self.mapping.write(&mut writer);
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// Bytes of this component's paired mapping realizations. A quote; nothing is admitted.
+    pub(crate) fn evidence_bytes(&self) -> u64 {
+        self.mapping.quoted_bytes()
+    }
+}
+
 impl PanelJointExperimentUpdate {
+    /// Identity of the independent experiment evidence this joint update reads: every
+    /// component's translation, the observed means, the sampling covariance, the unit count,
+    /// the modular policy, any assumed bias bounds and the declared origins. It is the
+    /// experiment a joint update program cites as trial evidence.
+    pub(crate) fn evidence_identity(&self) -> SemanticDigest {
+        let mut writer =
+            CanonicalWriter::new("antecedent.joint_panel.joint_experiment_evidence.v1");
+        writer.word(self.components.len() as u64);
+        for component in &self.components {
+            writer.bytes(component.evidence_identity().as_bytes());
+        }
+        writer
+            .reals(&self.observed_means)
+            .reals(&self.sampling_covariance)
+            .word(self.sample_size)
+            .text(self.modular_policy.as_str());
+        match &self.contrast_bias_bounds {
+            Some(bounds) => writer.word(1).reals(bounds),
+            None => writer.word(0),
+        };
+        writer.bytes(self.evidence.origins_identity().as_bytes());
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// Bytes of the experiment evidence a joint update reads: the observed means, the
+    /// covariance and every component's paired mapping. A quote; nothing is admitted.
+    pub(crate) fn evidence_bytes(&self) -> u64 {
+        let moments = self.observed_means.len().saturating_add(self.sampling_covariance.len());
+        self.components.iter().fold(
+            u64::try_from(moments).unwrap_or(u64::MAX).saturating_mul(F64_BYTES),
+            |bytes, component| bytes.saturating_add(component.evidence_bytes()),
+        )
+    }
+
     /// Each component as the single-component update that already owns its validation.
     ///
     /// The per-observation variance handed to that owner is only the finiteness-checked
@@ -172,6 +225,7 @@ pub struct PanelJointExperimentResult {
     contract_id: String,
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
+    program: ExecutedProgram,
 }
 
 /// Conditional weights of `prior` under the joint likelihood of `observed`.
@@ -211,15 +265,41 @@ impl JointPanelResult {
     /// checks. Only the quantities the bridges name are informed; no other functional of the
     /// response, program or population is promoted by the update.
     ///
+    /// The update executes the `JointPanelExperiment` joint condition program, a child of
+    /// this response's program with the experiment as trial evidence; the result carries it.
+    ///
     /// # Errors
     /// A sampling distribution, an unsupported or duplicated component, a covariance that is
     /// not symmetric positive definite, stale or overlapping evidence, or a bridge that does
-    /// not name its exact response functional.
+    /// not name its exact response functional; a call inside another program's lowered
+    /// dispatch is refused.
     pub fn condition_joint_experiment(
         &self,
         update: PanelJointExperimentUpdate,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
+    ) -> Result<PanelJointExperimentResult, JointPanelError> {
+        let lowered = experiment_program(
+            ExperimentOperation::JointCondition,
+            self.program_identity(),
+            update.evidence_identity(),
+            update.evidence_bytes(),
+            None,
+        )?;
+        let scoped = enter_experiment(ctx, &lowered)?;
+        self.condition_joint_experiment_in(update, ledger, &scoped, lowered, ctx)
+    }
+
+    /// The update of [`Self::condition_joint_experiment`] inside the dispatch of `lowered`,
+    /// whose release support gate `ctx` has passed. The result carries `lowered` and keeps
+    /// `caller`, the context of the public entry point.
+    pub(crate) fn condition_joint_experiment_in(
+        &self,
+        update: PanelJointExperimentUpdate,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        lowered: Arc<LoweredProgram>,
+        caller: &ExecutionContext,
     ) -> Result<PanelJointExperimentResult, JointPanelError> {
         let scalars = update.scalar_updates()?;
         for scalar in &scalars {
@@ -306,6 +386,7 @@ impl JointPanelResult {
             contract_id,
             dependency,
             retention,
+            program: ExecutedProgram::new(lowered, caller),
         })
     }
 }
@@ -360,6 +441,34 @@ fn joint_dependency(
 }
 
 impl PanelJointExperimentResult {
+    /// The experiment program this update executed: a child of the program of the panel
+    /// response it conditioned, with the experiment as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// Inspect the experiment program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the experiment program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+    /// The conditioned law of `component` that a decision or ranking reads. Its identity
+    /// binds the component; a component this update did not inform reads no draws.
+    fn conditioned(&self, component: usize) -> ConditionedLaw {
+        let mut law = CanonicalWriter::new("antecedent.joint_panel.joint_component_law.v1");
+        law.bytes(self.dependency.as_bytes()).word(component as u64);
+        ConditionedLaw {
+            program: self.program.identity(),
+            law: SemanticDigest::from_bytes(law.finish()),
+            bytes: self.laws.get(component).map_or(0, law_bytes),
+            experiment: self.update.evidence.experiment,
+        }
+    }
     /// The original compiled result and its retained identification obligations.
     #[must_use]
     pub fn original(&self) -> &JointPanelResult {
@@ -540,6 +649,9 @@ impl PanelJointExperimentResult {
     }
     /// Evaluate an existing decision contract on one component's updated law.
     ///
+    /// The evaluation executes the `JointPanelExperiment` decision program, a child of this
+    /// update's program, under the context the update was conditioned with.
+    ///
     /// # Errors
     /// Existing decision semantics and current authority are enforced without relaxation.
     pub fn decide(
@@ -548,6 +660,7 @@ impl PanelJointExperimentResult {
         contract: &antecedent_design::decision_contract::DecisionContract,
         ledger: &EvidenceLedger,
     ) -> Result<antecedent_design::scientific_source::ScopedDecisionResult, JointPanelError> {
+        self.conditioned(component).enter_decision(&self.program.caller, contract)?;
         self.law_source(component, ledger)?.evaluate(
             contract,
             antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional,
@@ -557,7 +670,9 @@ impl PanelJointExperimentResult {
     /// Rank independent future samples of one component's mapped estimand.
     ///
     /// The future sample is a new, independent study valued against the jointly updated
-    /// weights and the caller's decision; it does not rank other estimands.
+    /// weights and the caller's decision; it does not rank other estimands. The ranking
+    /// executes the `JointPanelExperiment` ranking program, a child of this update's program;
+    /// every value carries its identity.
     ///
     /// # Errors
     /// As [`PanelExperimentResult::rank_next_samples`](super::PanelExperimentResult::rank_next_samples),
@@ -571,17 +686,19 @@ impl PanelJointExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+        let (program, scoped) =
+            self.conditioned(component).enter_ranking(ctx, problem, candidates, &[], replicates)?;
         let scientific = self.law_source(component, ledger)?;
         let coefficients = contrast_weights(self.original.request())?;
         rank_law_next_samples(
-            &ExperimentRankingReceipt::from(&scientific),
+            &ExperimentRankingReceipt::new(&scientific, program),
             &self.laws[component],
             &self.scalars[component],
             &coefficients,
             problem,
             candidates,
             replicates,
-            ctx,
+            &scoped,
         )
     }
     fn validate_current(&self, ledger: &EvidenceLedger) -> Result<(), JointPanelError> {

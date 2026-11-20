@@ -206,6 +206,7 @@ fn panel_error(error: facade::JointPanelError) -> PyErr {
         facade::JointPanelError::Engine(engine::PanelError::Resource(_)) => {
             crate::CausalResourceError::new_err(error.to_string())
         }
+        facade::JointPanelError::Compiler(error) => crate::errors::py_err(error),
         _ => crate::value_err(error.to_string()),
     }
 }
@@ -425,9 +426,17 @@ pub(crate) struct PyPreparedJointPanel {
 }
 #[pymethods]
 impl PyPreparedJointPanel {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn inspect(&self) -> String {
         let inspection = self.inner.inspect();
-        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.is_identified_claim(),"source_identity":inspection.source_identity.to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>(),"indicators":self.indicators.iter().map(|indicator|serde_json::json!({"name":indicator.name,"source":indicator.source,"level":indicator.level})).collect::<Vec<_>>(),"gaussian_restriction_declared":self.gaussian_restriction}).to_string()
+        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.is_identified_claim(),"source_identity":inspection.source_identity.to_hex(),"lowered_program_identity":self.inner.program_identity().to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>(),"indicators":self.indicators.iter().map(|indicator|serde_json::json!({"name":indicator.name,"source":indicator.source,"level":indicator.level})).collect::<Vec<_>>(),"gaussian_restriction_declared":self.gaussian_restriction}).to_string()
     }
     #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn estimate(
@@ -538,6 +547,10 @@ pub(crate) struct PyJointPanelResult {
 }
 #[pymethods]
 impl PyJointPanelResult {
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn certify_program(
         &self,

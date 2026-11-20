@@ -18,8 +18,13 @@
 //! within-unit serial law.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use super::{JointPanelError, JointPanelRequest, Study};
-use antecedent_core::ExecutionContext;
+use super::compiled::{Entry, enter, require_release_support};
+use super::{
+    JointPanelError, JointPanelRequest, JointPanelState, PanelMissingPolicy, PreparedStudy, Study,
+};
+use crate::analysis::lowering::joint_panel::imputation;
+use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_data::{ImputationSpec, PanelData, PanelUnit, SamplingRegularity, TableView};
 use antecedent_estimate::joint_panel::PanelInference;
 use antecedent_estimate::multiple_imputation::{
@@ -52,6 +57,8 @@ pub struct PreparedJointPanelImputation {
     imputer: Imputer,
     /// Per unit: its source rows and the follow-up rows stacked into the imputation table.
     layout: Arc<[(usize, usize)]>,
+    /// The program the imputation executes: the wrapper of every completed-panel response.
+    program: Arc<LoweredProgram>,
 }
 
 /// The pooled response of every declared program, with the evidence of how it was pooled.
@@ -70,6 +77,16 @@ pub struct JointPanelImputedResult {
     pub imputed_cells: Vec<(Arc<str>, usize)>,
     /// Model declarations and single-class boundary facts, including their identity digest.
     pub imputation_assumptions: multiple_imputation::ImputationAssumptions,
+    /// Identity of the lowered program that produced the pooled response.
+    program: SemanticDigest,
+}
+
+impl JointPanelImputedResult {
+    /// Identity of the lowered imputation program that produced this pooled response.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
+    }
 }
 
 impl Study {
@@ -106,8 +123,9 @@ impl Study {
         request: JointPanelRequest,
         spec: ImputationSpec,
         domains: &[(Arc<str>, antecedent_data::ImputationDomain)],
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<PreparedJointPanelImputation, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         let columns = &request.columns;
         let prefix = request.lag_order;
         match &request.options.inference {
@@ -214,19 +232,95 @@ impl Study {
         )
         .and_then(|imputer| imputer.with_dynamics(1))
         .map_err(|error| imputation_error(&error))?;
-        Ok(PreparedJointPanelImputation { source: data, request, imputer, layout: layout.into() })
+        let identity = source_identity(&data, &request)?;
+        let program = Arc::new(imputation::lower(
+            &request,
+            imputer.spec(),
+            domains,
+            identity,
+            source_bytes(&data),
+        )?);
+        Ok(PreparedJointPanelImputation {
+            source: data,
+            request,
+            imputer,
+            layout: layout.into(),
+            program,
+        })
     }
 }
 
+/// Identity of the incomplete panel: its schema and, per unit, the label, length and content.
+fn source_identity(
+    data: &PanelData,
+    request: &JointPanelRequest,
+) -> Result<SemanticDigest, JointPanelError> {
+    let mut writer = CanonicalWriter::new("antecedent.compiler.joint_panel.imputation.source.v1");
+    writer.bytes(
+        &antecedent_io::to_cbor(&antecedent_io::schema_to_wire(data.schema()))
+            .map_err(JointPanelError::compile)?,
+    );
+    writer.word(request.lag_order as u64);
+    for unit in data.units() {
+        writer
+            .word(u64::from(unit.unit_id))
+            .word(unit.series.row_count() as u64)
+            .bytes(&unit.series.storage().content_digest());
+    }
+    Ok(SemanticDigest::from_bytes(writer.finish()))
+}
+
+/// Bytes of the incomplete panel's numeric cells, the size of the source read.
+fn source_bytes(data: &PanelData) -> u64 {
+    let width = data.schema().variables().len() as u64;
+    data.units()
+        .iter()
+        .map(|unit| (unit.series.row_count() as u64).saturating_mul(width).saturating_mul(8))
+        .fold(0, u64::saturating_add)
+}
+
 impl PreparedJointPanelImputation {
+    /// The lowered program this handle executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+
+    /// One view over every layer of the lowered program this handle executes. Reading it
+    /// imputes, fits and samples nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.program),
+            crate::planner::PlanStage::Prepared,
+        )
+    }
+
+    /// Identity of the lowered program this handle executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+
     /// Impute, fit every completed panel and pool the response vectors.
+    ///
+    /// Runs inside the imputation program's dispatch; each completed panel compiles and fits
+    /// as a child of that program.
     ///
     /// # Errors
     /// An imputation or fit refusal on any completed table, or fits that cannot be pooled.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "imputation, per-table child fits and pooling run inside one dispatch"
+    )]
     pub fn estimate(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelImputedResult, JointPanelError> {
+        let scoped = enter(ctx, &self.program)?;
+        require_release_support(&scoped, JointPanelRoute::Imputation)?;
+        let parent = Entry::Child(self.program.identity());
+        let ctx = &scoped;
         let columns = &self.request.columns;
         let prefix = self.request.lag_order;
         let run = multiple_imputation::run_vector(&self.imputer, ctx, |table, ctx| {
@@ -259,8 +353,14 @@ impl PreparedJointPanelImputation {
             }
             let completed =
                 PanelData::try_new(Arc::from(units)).map_err(JointPanelError::compile)?;
-            let prepared = Study::prepare_joint_panel(completed, self.request.clone(), ctx)?;
-            let result = prepared.estimate(ctx)?;
+            let prepared = PreparedStudy::<JointPanelState>::compile_joint_panel_entry(
+                parent,
+                completed,
+                self.request.clone(),
+                PanelMissingPolicy::Refuse,
+                ctx,
+            )?;
+            let result = prepared.estimate_entry(parent, ctx)?;
             let point: Vec<f64> =
                 result.point.iter().flat_map(|response| response.means.iter().copied()).collect();
             let p = point.len();
@@ -309,6 +409,7 @@ impl PreparedJointPanelImputation {
             programs: self.request.worlds.iter().map(|world| world.program.id.clone()).collect(),
             horizons: self.request.worlds.iter().map(super::JointPanelWorld::horizon).collect(),
             imputation_assumptions: run.assumptions,
+            program: self.program.identity(),
             pooled: run.pooled,
             fits: run.fits.iter().map(|fit| fit.point.clone()).collect(),
             imputed_cells: self

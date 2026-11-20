@@ -1,8 +1,16 @@
 //! Observationally held-out whole-program selection using the native randomized
 //! design owner. The bootstrap repeats the complete actual procedure.
+//!
+//! Every compiled selection lowers a `JointPanelProgramSelection` program over its own
+//! training and held-out samples. A public execution enters that program's dispatch, passes
+//! the release support gate and runs the unchanged held-out selection engine.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 /// Continuous structural-dose selection with genuinely held-out original units.
 pub mod instrumented;
+use super::{JointPanelError, compiled};
+use crate::analysis::lowering::joint_panel::search::{self as lowering, SearchOperation};
+use crate::planner::lowered::{CarrierDemand, DecisionProgram, JointPanelRoute, LoweredProgram};
+use crate::planner::{PlanStage, PlanView};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_design::program_search::{
     ProgramSearchError,
@@ -20,6 +28,7 @@ use antecedent_estimate::joint_design::{
     randomized::{JointRandomizedDesign, JointRandomizedUnit, randomized_joint_means},
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Prespecified generation rule, repeated on every resampled training dataset.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,6 +76,7 @@ struct Recipe {
 pub struct PreparedRandomizedSelection {
     recipe: std::sync::Arc<Recipe>,
     identity: SemanticDigest,
+    lowered: Arc<LoweredProgram>,
 }
 /// Actual selected program with held-out observational uncertainty and bootstrap diagnostics.
 #[derive(Debug)]
@@ -77,6 +87,7 @@ pub struct RandomizedSelectionResult {
     seed: u64,
     repetitions: usize,
     tie_tolerance: f64,
+    program: SemanticDigest,
 }
 /// Fewest complete programs a randomized selection compares.
 const MIN_PROGRAMS: usize = 2;
@@ -96,10 +107,66 @@ impl RandomizedSelectionResult {
     pub const fn identity(&self) -> SemanticDigest {
         self.identity
     }
+
+    /// Identity of the lowered selection program that produced this result.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
+    }
 }
 
 fn invalid(e: impl std::fmt::Display) -> ProgramSearchError {
     ProgramSearchError::Invalid(e.to_string())
+}
+
+/// A compiler-route refusal (a lowering, a call inside another program's lowered dispatch, or
+/// a route a release build does not support), keeping the typed refusal as the source.
+fn compiler_refusal(error: JointPanelError) -> ProgramSearchError {
+    match error {
+        JointPanelError::Compiler(error) => {
+            ProgramSearchError::upstream("joint panel compiler route", error)
+        }
+        error => invalid(error),
+    }
+}
+
+/// Enter the dispatch of a selection program from a public execution entry point and pass
+/// its release support gate. The engines run with the returned context.
+fn enter(
+    lowered: &LoweredProgram,
+    ctx: &ExecutionContext,
+) -> Result<ExecutionContext, ProgramSearchError> {
+    let scoped = compiled::enter(ctx, lowered).map_err(compiler_refusal)?;
+    compiled::require_release_support(&scoped, JointPanelRoute::ProgramSelection)
+        .map_err(compiler_refusal)?;
+    Ok(scoped)
+}
+
+/// Lower a held-out selection program over the samples whose identity is `source` and whose
+/// encoding holds `source_bytes`. The decision reads mean values and compares `actions`
+/// candidate programs (none enumerated over a continuous dose box) under `constraints` hard
+/// restrictions, in `utility_units`; the source identity binds the complete policy.
+fn lower_selection(
+    operation: SearchOperation,
+    source: SemanticDigest,
+    source_bytes: usize,
+    actions: usize,
+    constraints: usize,
+    utility_units: &str,
+) -> Result<LoweredProgram, ProgramSearchError> {
+    let decision = DecisionProgram {
+        carrier: CarrierDemand::Mean,
+        utility: DecisionProgram::utility_form(None),
+        actions,
+        constraints,
+        chance_threshold: 0.0,
+        utility_unit: Some(Arc::from(utility_units)),
+        contract_identity: None,
+        information_value: None,
+        scenario_source: None,
+    };
+    lowering::lower(operation, None, source, source_bytes as u64, decision)
+        .map_err(|error| ProgramSearchError::upstream("lower the selection program", error))
 }
 fn admit_selection_input(
     ctx: &ExecutionContext,
@@ -116,6 +183,9 @@ fn codec(e: antecedent_io::IoError) -> ProgramSearchError {
 impl PreparedRandomizedSelection {
     /// Bind actual distinct observational units, known randomization and common
     /// sampling/utility premises. Held-out units are never passed to selection.
+    ///
+    /// The selection lowers a program-selection program over its training and held-out units,
+    /// with the complete programs as candidate actions and the budget as a constraint.
     /// # Errors
     /// Malformed target/policy, overlapping original unit IDs or unsupported data.
     pub fn compile(
@@ -162,12 +232,39 @@ impl PreparedRandomizedSelection {
             "antecedent.joint_panel.randomized_selection.v1",
             &bytes,
         ));
-        Ok(Self { recipe: std::sync::Arc::new(recipe), identity })
+        let lowered = lower_selection(
+            SearchOperation::RandomizedSelection,
+            identity,
+            bytes.len(),
+            k,
+            1,
+            &recipe.policy.utility_units,
+        )?;
+        Ok(Self { recipe: std::sync::Arc::new(recipe), identity, lowered: Arc::new(lowered) })
+    }
+    /// The lowered program this selection executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+    /// One view over every layer of the lowered program this selection executes. Reading it
+    /// fits and selects nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Prepared)
+    }
+    /// Identity of the lowered program this selection executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.lowered.identity()
     }
     /// Execute complete selection on training units and fixed-action evaluation
     /// on independent held-out units. Original clusters resample as whole units.
+    /// The selection runs inside the dispatch of its program.
     /// # Errors
-    /// Failed stages, unsupported held-out program, cancellation or resources.
+    /// Failed stages, unsupported held-out program, cancellation or resources;
+    /// `public_builder_reentry` inside another lowered dispatch, and `not_supported` from a
+    /// release build that does not support the route.
     pub fn execute(
         &self,
         repetitions: usize,
@@ -185,6 +282,7 @@ impl PreparedRandomizedSelection {
                 })
                 .collect()
         }
+        let scoped = enter(&self.lowered, ctx)?;
         let training = blocks(&self.recipe.training);
         let validation = blocks(&self.recipe.validation);
         let procedure = execute_heldout_selection(
@@ -194,7 +292,7 @@ impl PreparedRandomizedSelection {
             0,
             repetitions,
             tie_tolerance,
-            ctx,
+            &scoped,
         )?;
         Ok(RandomizedSelectionResult {
             procedure,
@@ -203,6 +301,7 @@ impl PreparedRandomizedSelection {
             seed: ctx.rng.master_seed(),
             repetitions,
             tie_tolerance,
+            program: self.lowered.identity(),
         })
     }
     /// Verify replay against this actual current data, scientific target and procedure.
@@ -223,15 +322,20 @@ impl PreparedRandomizedSelection {
     /// feasible program set. Every repetition refits the native randomized
     /// estimator on one common resample, preserving cross-program dependence.
     /// Data-dependent screening requires the held-out procedure instead.
+    /// The bootstrap runs inside the dispatch of this selection's program.
     /// # Errors
     /// Changing candidate generation, failed replicate support, invalid level,
-    /// cancellation, numerical or resource refusal.
+    /// cancellation, numerical or resource refusal; `public_builder_reentry` inside another
+    /// lowered dispatch, and `not_supported` from a release build that does not support the
+    /// route.
     pub fn simultaneous_intervals(
         &self,
         repetitions: usize,
         level: f64,
         ctx: &ExecutionContext,
     ) -> Result<SimultaneousProgramIntervals, ProgramSearchError> {
+        let scoped = enter(&self.lowered, ctx)?;
+        let ctx = &scoped;
         if !matches!(self.recipe.policy.generation, RandomizedCandidateGeneration::All) {
             return Err(invalid(
                 "fixed-set intervals cannot certify data-dependent candidate generation; execute held-out selection",

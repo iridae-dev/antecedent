@@ -1156,6 +1156,95 @@ impl EventProcessLoweredParts {
     }
 }
 
+/// The compiled route of a joint-panel program. Every joint-panel family lowers through
+/// [`JointPanelLoweredParts`], which names the program cell by this route.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) enum JointPanelRoute {
+    /// A fitted joint multi-channel panel response over its declared program worlds.
+    Response,
+    /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+    TimeVarying,
+    /// A joint panel response pooled over multiply imputed completed panels.
+    Imputation,
+    /// A search for the best program over a fitted joint panel response.
+    ProgramSearch,
+    /// Held-out selection of a program from randomized or instrumented candidates.
+    ProgramSelection,
+    /// An independent experiment conditioning a joint panel or design law, and the decision
+    /// and next-study value read from the conditioned law.
+    Experiment,
+    /// A design-native joint functional with its retained design proof.
+    Design,
+}
+
+impl JointPanelRoute {
+    /// Every joint-panel route, in declaration order.
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Response,
+        Self::TimeVarying,
+        Self::Imputation,
+        Self::ProgramSearch,
+        Self::ProgramSelection,
+        Self::Experiment,
+        Self::Design,
+    ];
+
+    /// The program cell a program of this route is lowered for.
+    pub(crate) const fn cell(self) -> ProgramCell {
+        match self {
+            Self::Response => ProgramCell::JointPanelResponse,
+            Self::TimeVarying => ProgramCell::JointPanelTimeVarying,
+            Self::Imputation => ProgramCell::JointPanelImputation,
+            Self::ProgramSearch => ProgramCell::JointPanelProgramSearch,
+            Self::ProgramSelection => ProgramCell::JointPanelProgramSelection,
+            Self::Experiment => ProgramCell::JointPanelExperiment,
+            Self::Design => ProgramCell::JointDesign,
+        }
+    }
+}
+
+/// The six layers of a compiled joint-panel program, for the route it was lowered for.
+pub(crate) struct JointPanelLoweredParts {
+    /// The joint-panel route the program is lowered for; it names the program cell.
+    pub(crate) route: JointPanelRoute,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl JointPanelLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = self.route.cell();
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        // Promotion of this capability annotates the same scientific program.
+        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
 /// `Study::compile`, a cyclic family that prepares through its own entry, a
 /// standalone experiment plan, or a propagation chain.
@@ -1261,10 +1350,26 @@ pub(crate) enum ProgramCell {
     LatentSoftIntervention,
     /// A native event-process or event-world program.
     EventProcess,
+    /// A fitted joint multi-channel panel response over its declared program worlds.
+    JointPanelResponse,
+    /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+    JointPanelTimeVarying,
+    /// A joint panel response pooled over multiply imputed completed panels.
+    JointPanelImputation,
+    /// A search for the best program over a fitted joint panel response.
+    JointPanelProgramSearch,
+    /// Held-out selection of a program from randomized or instrumented candidates.
+    JointPanelProgramSelection,
+    /// An independent experiment conditioning a joint panel or design law, and the decision
+    /// and next-study value read from the conditioned law.
+    JointPanelExperiment,
+    /// A design-native joint functional with its retained design proof.
+    JointDesign,
 }
 
 impl ProgramCell {
     /// Stable name, written to the supported-route record.
+    #[allow(clippy::too_many_lines, reason = "one exhaustive arm per program cell")]
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Route(cell) => cell.as_str(),
@@ -1364,6 +1469,13 @@ impl ProgramCell {
             Self::MnarFixedShift => "MnarFixedShift",
             Self::LatentSoftIntervention => "LatentSoftIntervention",
             Self::EventProcess => "EventProcess",
+            Self::JointPanelResponse => "JointPanelResponse",
+            Self::JointPanelTimeVarying => "JointPanelTimeVarying",
+            Self::JointPanelImputation => "JointPanelImputation",
+            Self::JointPanelProgramSearch => "JointPanelProgramSearch",
+            Self::JointPanelProgramSelection => "JointPanelProgramSelection",
+            Self::JointPanelExperiment => "JointPanelExperiment",
+            Self::JointDesign => "JointDesign",
         }
     }
 }
@@ -1472,7 +1584,14 @@ impl LoweredProgram {
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift
             | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess => None,
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
         }
     }
 
@@ -1538,7 +1657,14 @@ impl LoweredProgram {
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift
             | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess => None,
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
         }
     }
 
@@ -1604,7 +1730,14 @@ impl LoweredProgram {
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift
             | ProgramCell::LatentSoftIntervention
-            | ProgramCell::EventProcess => None,
+            | ProgramCell::EventProcess
+            | ProgramCell::JointPanelResponse
+            | ProgramCell::JointPanelTimeVarying
+            | ProgramCell::JointPanelImputation
+            | ProgramCell::JointPanelProgramSearch
+            | ProgramCell::JointPanelProgramSelection
+            | ProgramCell::JointPanelExperiment
+            | ProgramCell::JointDesign => None,
         }
     }
 

@@ -1,6 +1,9 @@
 //! Compiled native-design targets for means, local cohort effects and donor contrasts.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{JointPanelError, check_cancel, failure};
+use crate::analysis::joint_panel::compiled::{Entry, require_release_support};
+use crate::analysis::lowering::joint_panel::design::{self as design_lowering, DesignInput};
+use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_estimate::joint_design::compiled::{
     JointDesignInference, JointDesignRecipe, JointNativeDesignLaw,
@@ -36,6 +39,8 @@ pub struct PreparedNativeJointDesign {
     identification: Arc<NativeJointIdentification>,
     dependency: SemanticDigest,
     point: Arc<JointNativeDesignLaw>,
+    /// The program every execution of this design enters.
+    program: Arc<LoweredProgram>,
     _lease: Arc<antecedent_core::execution::AdmissionLease>,
 }
 /// Executed native target with its exact statistical procedure and original design proof.
@@ -234,6 +239,7 @@ impl PreparedNativeJointDesign {
         recipe: JointDesignRecipe,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         check_cancel(ctx)?;
         let size = encoded_size(&recipe, ctx)?;
         let quote = u64::try_from(size)
@@ -257,13 +263,38 @@ impl PreparedNativeJointDesign {
         let mut writer = CanonicalWriter::new("antecedent.compiled_native_joint_design.v1");
         writer.bytes(&antecedent_io::convert::to_cbor(&recipe).map_err(failure)?);
         let dependency = SemanticDigest::from_bytes(writer.finish());
+        let program = Arc::new(design_lowering::lower(
+            DesignInput::Native(&identification),
+            dependency,
+            quote,
+        )?);
         Ok(Self {
             recipe: Arc::new(recipe),
             identification: Arc::new(identification),
             dependency,
             point: Arc::new(point),
+            program,
             _lease: lease,
         })
+    }
+    /// The lowered program every execution of this design enters.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+    /// One view over every layer of the lowered program this design executes. Reading it
+    /// executes nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.program),
+            crate::planner::PlanStage::Prepared,
+        )
+    }
+    /// Identity of the lowered program this design executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
     }
     /// Exact native target, identifying functional and retained causal restrictions.
     #[must_use]
@@ -296,6 +327,21 @@ impl PreparedNativeJointDesign {
         inference: JointDesignInference,
         ctx: &ExecutionContext,
     ) -> Result<NativeJointDesignResult, JointPanelError> {
+        self.execute_entry(Entry::Public, inference, ctx)
+    }
+    /// [`Self::execute`] through `entry`: the public path enters the design program and passes
+    /// the release support gate; a child of an enclosing program's dispatch enters without it.
+    pub(crate) fn execute_entry(
+        &self,
+        entry: Entry,
+        inference: JointDesignInference,
+        ctx: &ExecutionContext,
+    ) -> Result<NativeJointDesignResult, JointPanelError> {
+        let scoped = entry.enter(ctx, &self.program)?;
+        if entry == Entry::Public {
+            require_release_support(&scoped, JointPanelRoute::Design)?;
+        }
+        let ctx = &scoped;
         check_cancel(ctx)?;
         let size = encoded_size(&inference, ctx)?;
         let draws = match &inference {
@@ -395,6 +441,11 @@ impl NativeJointDesignResult {
     #[must_use]
     pub fn prepared(&self) -> &PreparedNativeJointDesign {
         &self.prepared
+    }
+    /// Identity of the lowered program that produced this law.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.prepared.program.identity()
     }
     /// Freeze the actual source, proof, native target and full statistical recipe.
     /// # Errors

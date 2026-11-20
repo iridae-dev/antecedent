@@ -684,6 +684,24 @@ pub(super) fn physical_choice(data: &engine::PanelData) -> Result<PhysicalChoice
     )
     .map_err(JointPanelError::compile)
 }
+/// Bytes of the adapted numeric panel the fit reads: every group's prehistory, channel,
+/// outcome, confounder and season cells. A quote for the lowered program's read; it takes no
+/// admission.
+pub(super) fn adapted_bytes(data: &engine::PanelData) -> u64 {
+    let channels = data.channels.len() as u64;
+    data.groups
+        .iter()
+        .map(|group| {
+            (group.outcome.len() as u64)
+                .saturating_mul(channels.saturating_add(3))
+                .saturating_add(channels.saturating_mul(2))
+        })
+        .fold(0, u64::saturating_add)
+        .saturating_mul(8)
+}
+/// The fit cache key: the adapted source, the fit policy, the execution seed and kernel policy,
+/// and the time-varying specification. The lowered program identity is not part of it, so a
+/// retarget reuses a compatible fit.
 pub(super) fn fit_dependency(
     state: &JointPanelState,
     ctx: &ExecutionContext,

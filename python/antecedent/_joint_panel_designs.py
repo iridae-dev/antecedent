@@ -29,6 +29,11 @@ class JointDesignResult:
 
     _handle: Any
 
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         return json.loads(self._handle.report())
 
@@ -247,6 +252,15 @@ class PreparedJointDesign:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def proof(self) -> dict[str, Any]:
         return json.loads(self._handle.proof())
 
@@ -316,6 +330,11 @@ class NativeJointDesignResult:
 
     _handle: Any
 
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         return json.loads(self._handle.report())
 
@@ -369,6 +388,15 @@ class PreparedNativeJointDesign:
     """Compiled exact native target; local effects remain local effects."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def identification(self) -> dict[str, Any]:
         return json.loads(self._handle.identification())

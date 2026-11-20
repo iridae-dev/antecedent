@@ -1,8 +1,9 @@
 //! Checked execution of the reviewed nonlinear multi-channel panel mechanism.
 //!
 //! The common prepared handle owns the scientific question, real design attempts,
-//! statistical program, physical choice and dependency keys. Numerical fitting remains
-//! in antecedent-estimate. A finite fitted response is never an identification proof.
+//! statistical program, physical choice, dependency keys and the lowered program whose
+//! dispatch its execution enters. Numerical fitting remains in antecedent-estimate. A finite
+//! fitted response is never an identification proof.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod artifact;
@@ -10,6 +11,7 @@ mod categorical;
 pub use categorical::{
     DummyCodedPanel, PanelCategoricalChannel, PanelDummyChannel, dummy_code_panel,
 };
+pub(crate) mod compiled;
 mod contracts;
 mod data_policy;
 pub use data_policy::{
@@ -67,6 +69,8 @@ pub use streamed::{DEFAULT_TILE_DRAWS, JointPanelProjectedLaw};
 #[cfg(test)]
 mod tests;
 
+use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
+use crate::planner::{PlanStage, PlanView};
 use crate::{PreparedStudy, Study};
 use antecedent_core::physical_choice::PhysicalChoice;
 use antecedent_core::{
@@ -78,6 +82,7 @@ use antecedent_estimate::joint_panel::{
     self as engine, PanelFit, PanelFitOptions, PanelProgram, PanelResponse,
 };
 use antecedent_identify::CompiledIdentificationProduct;
+use compiled::Entry;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -171,11 +176,49 @@ pub enum JointPanelError {
     /// The retained program's engine refused execution.
     #[error(transparent)]
     Engine(#[from] engine::PanelError),
+    /// The compiler route refused: lowering, a call inside another program's lowered dispatch,
+    /// or a route the release build does not support. The reason code is kept.
+    #[error(transparent)]
+    Compiler(#[from] crate::error::CausalError),
 }
 impl JointPanelError {
     fn compile(error: impl std::fmt::Display) -> Self {
         Self::Compile(error.to_string())
     }
+}
+
+/// The refusal of an admitted single-worker map, with cancellation and admission failures
+/// read as the engine's own typed refusals.
+fn worker_error(
+    error: antecedent_core::execution::MapExecutionError<JointPanelError>,
+) -> JointPanelError {
+    match error {
+        antecedent_core::execution::MapExecutionError::Work(error) => error,
+        antecedent_core::execution::MapExecutionError::Admission(
+            antecedent_core::execution::AdmissionError::Cancelled,
+        ) => engine::PanelError::Cancelled.into(),
+        antecedent_core::execution::MapExecutionError::Admission(error) => {
+            engine::PanelError::Resource(error.to_string()).into()
+        }
+    }
+}
+
+/// Lower the response program of a handle from its request, identification, adapted source
+/// and fit policy. Lowering reads declarations and quotes only.
+fn lower_program(
+    request: &JointPanelRequest,
+    identification: &CompiledIdentificationProduct,
+    source_identity: SemanticDigest,
+    options_identity: SemanticDigest,
+    data: &engine::PanelData,
+) -> Result<Arc<LoweredProgram>, JointPanelError> {
+    Ok(Arc::new(crate::analysis::lowering::joint_panel::response::lower(
+        request,
+        identification,
+        source_identity,
+        options_identity,
+        source::adapted_bytes(data),
+    )?))
 }
 
 /// Fitted mechanism retained across compatible program and utility changes.
@@ -204,6 +247,7 @@ pub struct JointPanelState {
     identification: Arc<CompiledIdentificationProduct>,
     attempts: Arc<[JointPanelDesignAttempt]>,
     physical: PhysicalChoice,
+    lowered: Arc<LoweredProgram>,
     static_source: Option<Arc<crate::PreparedJointResponse>>,
     fits: Arc<FitCache>,
     source_retention: Arc<antecedent_core::execution::AdmissionLease>,
@@ -228,6 +272,8 @@ pub struct JointPanelInspection {
     pub physical: PhysicalChoice,
     /// Fits actually run by this cache, zero immediately after compilation.
     pub fits_performed: usize,
+    /// Identity of the lowered program the handle executes; its results carry it.
+    pub lowered_program_identity: SemanticDigest,
 }
 
 /// Aligned fitted mean responses; outcome innovations are integrated out.
@@ -297,14 +343,33 @@ impl PreparedStudy<JointPanelState> {
     }
     /// [`Self::compile_joint_panel`] with a declared policy for missing cells.
     ///
+    /// The handle retains the lowered program it executes.
+    ///
     /// # Errors
-    /// Invalid source, target, program, policy, cancellation or admission refusal.
+    /// Invalid source, target, program, policy, cancellation or admission refusal, or a call
+    /// inside another program's lowered dispatch.
     pub fn compile_joint_panel_with_policy(
         source: PanelData,
         request: JointPanelRequest,
         missing: PanelMissingPolicy,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Self::compile_joint_panel_entry(Entry::Public, source, request, missing, ctx)
+    }
+    /// [`Self::compile_joint_panel_with_policy`] reached through `entry`: a public call, or a
+    /// child of the enclosing program whose dispatch `ctx` runs inside.
+    ///
+    /// # Errors
+    /// As [`Self::compile_joint_panel_with_policy`], and `public_builder_reentry` when `ctx`
+    /// does not admit `entry`.
+    pub(crate) fn compile_joint_panel_entry(
+        entry: Entry,
+        source: PanelData,
+        request: JointPanelRequest,
+        missing: PanelMissingPolicy,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
+        entry.admit(ctx)?;
         source::check_cancelled(ctx)?;
         let bytes = source::source_quote(&source, &request)?;
         source::check_memory(ctx, bytes)?;
@@ -355,6 +420,8 @@ impl PreparedStudy<JointPanelState> {
         contracts::validate_target(source.schema(), &request)?;
         let (identification, attempts) = contracts::compile_support(&data, &request)?;
         let physical = source::physical_choice(&data)?;
+        let lowered =
+            lower_program(&request, &identification, source_identity, options_identity, &data)?;
         Ok(Self {
             state: JointPanelState {
                 source,
@@ -365,6 +432,7 @@ impl PreparedStudy<JointPanelState> {
                 identification: Arc::new(identification),
                 attempts: attempts.into(),
                 physical,
+                lowered,
                 fits,
                 static_source: None,
                 source_retention,
@@ -410,18 +478,93 @@ impl PreparedStudy<JointPanelState> {
             design_attempts: self.state.attempts.to_vec(),
             physical: self.state.physical,
             fits_performed: self.fits_performed(),
+            lowered_program_identity: self.program_identity(),
         }
+    }
+    /// The lowered program this handle executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.state.lowered
+    }
+    /// One view over every layer of the lowered program this handle executes. Reading it
+    /// fits, samples and evaluates nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.state.lowered), PlanStage::Prepared)
+    }
+    /// Identity of the lowered program this handle executes; its results carry it.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.state.lowered.identity()
+    }
+    /// The compiler route of this handle's program: time-varying when the request declares a
+    /// time-varying mechanism, the invariant response otherwise.
+    pub(crate) fn route(&self) -> JointPanelRoute {
+        if self.state.request.temporal.is_some() {
+            JointPanelRoute::TimeVarying
+        } else {
+            JointPanelRoute::Response
+        }
+    }
+    /// Enter the dispatch of this handle's program through `entry`; a public entry then passes
+    /// the release support gate of the handle's route. The engines run with the returned
+    /// context.
+    ///
+    /// # Errors
+    /// `public_builder_reentry` when `ctx` does not admit `entry`, or the `not_supported`
+    /// refusal of a release build.
+    pub(crate) fn enter_dispatch(
+        &self,
+        entry: Entry,
+        ctx: &ExecutionContext,
+    ) -> Result<ExecutionContext, JointPanelError> {
+        let scoped = entry.enter(ctx, &self.state.lowered)?;
+        if entry == Entry::Public {
+            compiled::require_release_support(&scoped, self.route())?;
+        }
+        Ok(scoped)
+    }
+    /// Lower this handle's program again after a derivation changed its request or its
+    /// identification.
+    pub(super) fn relower(&mut self) -> Result<(), JointPanelError> {
+        self.state.lowered = lower_program(
+            &self.state.request,
+            &self.state.identification,
+            self.state.source_identity,
+            self.state.options_identity,
+            &self.state.data,
+        )?;
+        Ok(())
     }
     /// Change only program/world/functional bindings, retaining compatible fitted mechanisms.
     ///
+    /// The retargeted handle retains its own lowered program; the fit dependency, and so the
+    /// fit cache, is unchanged.
+    ///
     /// # Errors
-    /// Program, target, design support or caller resource checks fail before fitting.
+    /// Program, target, design support or caller resource checks fail before fitting, or the
+    /// call is inside another program's lowered dispatch.
     pub fn retarget(
         &self,
         worlds: Vec<JointPanelWorld>,
         target: ScientificTarget,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        self.retarget_entry(Entry::Public, worlds, target, ctx)
+    }
+    /// [`Self::retarget`] reached through `entry`: a public call, or a child of the enclosing
+    /// program whose dispatch `ctx` runs inside.
+    ///
+    /// # Errors
+    /// As [`Self::retarget`], and `public_builder_reentry` when `ctx` does not admit `entry`.
+    pub(crate) fn retarget_entry(
+        &self,
+        entry: Entry,
+        worlds: Vec<JointPanelWorld>,
+        target: ScientificTarget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
+        entry.admit(ctx)?;
         source::check_cancelled(ctx)?;
         let bytes = source::retarget_quote(self.request(), &worlds, &target)?;
         source::check_memory(ctx, bytes)?;
@@ -457,6 +600,9 @@ impl PreparedStudy<JointPanelState> {
     }
     /// Replace actual fitting dependencies; cached fits are reused only for an identical key.
     ///
+    /// The refitted handle is compiled, and its program lowered, from the new source and
+    /// options.
+    ///
     /// # Errors
     /// New source or inference options fail compilation, or resources/cancellation refuse it.
     pub fn refit_data(
@@ -478,26 +624,40 @@ impl PreparedStudy<JointPanelState> {
     }
     /// Execute from the retained compiler product with shared admission and cancellation.
     ///
+    /// The fit and the evaluation run inside the dispatch of the handle's lowered program,
+    /// after the release support gate of its route. The result carries the program identity.
+    ///
     /// # Errors
-    /// Numerical, dependency, cancellation and resource errors remain typed.
+    /// Numerical, dependency, cancellation and resource errors remain typed; a call inside
+    /// another program's lowered dispatch and a release build's `not_supported` refusal are
+    /// compiler refusals.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<JointPanelResult, JointPanelError> {
-        let mut result =
-            ctx.try_map_indexed(1, |_, worker| self.estimate_impl(worker)).map_err(|error| {
-                match error {
-                    antecedent_core::execution::MapExecutionError::Work(error) => error,
-                    antecedent_core::execution::MapExecutionError::Admission(
-                        antecedent_core::execution::AdmissionError::Cancelled,
-                    ) => engine::PanelError::Cancelled.into(),
-                    antecedent_core::execution::MapExecutionError::Admission(error) => {
-                        engine::PanelError::Resource(error.to_string()).into()
-                    }
-                }
-            })?;
-        result
+        self.estimate_entry(Entry::Public, ctx)
+    }
+    /// [`Self::estimate`] reached through `entry`: a public call passes the release support
+    /// gate, a child of the enclosing program whose dispatch `ctx` runs inside does not.
+    ///
+    /// # Errors
+    /// As [`Self::estimate`], and `public_builder_reentry` when `ctx` does not admit `entry`.
+    pub(crate) fn estimate_entry(
+        &self,
+        entry: Entry,
+        ctx: &ExecutionContext,
+    ) -> Result<JointPanelResult, JointPanelError> {
+        let scoped = self.enter_dispatch(entry, ctx)?;
+        // The result keeps the caller's worker context, not the dispatch-scoped one.
+        let kept = ctx.serial_inner();
+        scoped
+            .try_map_indexed(1, |_, worker| self.estimate_impl(worker, &kept))
+            .map_err(worker_error)?
             .pop()
             .ok_or_else(|| JointPanelError::compile("admitted panel worker returned no result"))
     }
-    fn estimate_impl(&self, ctx: &ExecutionContext) -> Result<JointPanelResult, JointPanelError> {
+    fn estimate_impl(
+        &self,
+        ctx: &ExecutionContext,
+        kept: &ExecutionContext,
+    ) -> Result<JointPanelResult, JointPanelError> {
         source::check_cancelled(ctx)?;
         self.state
             .identification
@@ -509,13 +669,16 @@ impl PreparedStudy<JointPanelState> {
         }
         let dependency = source::fit_dependency(&self.state, ctx)?;
         let fit = self.fit(dependency, ctx)?;
-        self.evaluate_fit(fit, dependency, ctx)
+        self.evaluate_fit(fit, dependency, ctx, kept)
     }
+    /// Evaluate `fit` over this handle's worlds with `ctx`; the result keeps `kept`, the
+    /// caller's context, for its downstream ports and artifact.
     fn evaluate_fit(
         &self,
         fit: JointPanelFit,
         dependency: SemanticDigest,
         ctx: &ExecutionContext,
+        kept: &ExecutionContext,
     ) -> Result<JointPanelResult, JointPanelError> {
         source::check_cancelled(ctx)?;
         self.state.source_retention.observe_current();
@@ -559,7 +722,7 @@ impl PreparedStudy<JointPanelState> {
             program,
             dependency,
             seed: ctx.rng.master_seed(),
-            context: ctx.clone(),
+            context: kept.clone(),
             _retention: retention,
         })
     }
@@ -629,33 +792,55 @@ impl JointPanelResult {
     /// Evaluate compatible worlds using this exact retained fit and its aligned uncertainty rows.
     /// Fitting dependencies remain frozen; caller context controls only projection resources/cancellation.
     ///
+    /// The retargeted program is lowered again and the evaluation runs inside its dispatch;
+    /// the returned result carries that program's identity.
+    ///
     /// # Errors
-    /// Changed scientific/program bindings, cancellation, resource or projection failures.
+    /// Changed scientific/program bindings, cancellation, resource or projection failures, or
+    /// the compiler refusals of the panel handle's `estimate`.
     pub fn retarget_frozen(
         &self,
         worlds: Vec<JointPanelWorld>,
         target: ScientificTarget,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
-        let prepared = self.program.retarget(worlds, target, ctx)?;
-        let mut values = ctx
+        self.retarget_frozen_entry(Entry::Public, worlds, target, ctx)
+    }
+    /// [`Self::retarget_frozen`] reached through `entry`: a public call passes the release
+    /// support gate, a child of the enclosing program whose dispatch `ctx` runs inside does
+    /// not.
+    ///
+    /// # Errors
+    /// As [`Self::retarget_frozen`], and `public_builder_reentry` when `ctx` does not admit
+    /// `entry`.
+    pub(crate) fn retarget_frozen_entry(
+        &self,
+        entry: Entry,
+        worlds: Vec<JointPanelWorld>,
+        target: ScientificTarget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
+        let prepared = self.program.retarget_entry(entry, worlds, target, ctx)?;
+        let scoped = prepared.enter_dispatch(entry, ctx)?;
+        // The result keeps the caller's worker context, not the dispatch-scoped one.
+        let kept = ctx.serial_inner();
+        let mut result = scoped
             .try_map_indexed(1, |_, worker| {
-                prepared.evaluate_fit(self.fit.clone(), self.dependency, worker)
+                prepared.evaluate_fit(self.fit.clone(), self.dependency, worker, &kept)
             })
-            .map_err(|error| match error {
-                antecedent_core::execution::MapExecutionError::Work(error) => error,
-                antecedent_core::execution::MapExecutionError::Admission(
-                    antecedent_core::execution::AdmissionError::Cancelled,
-                ) => engine::PanelError::Cancelled.into(),
-                antecedent_core::execution::MapExecutionError::Admission(error) => {
-                    engine::PanelError::Resource(error.to_string()).into()
-                }
-            })?;
-        let mut result = values
+            .map_err(worker_error)?
             .pop()
             .ok_or_else(|| JointPanelError::compile("frozen projection returned no result"))?;
         result.seed = self.seed;
         Ok(result)
+    }
+
+    /// Identity of the lowered program of the prepared handle this result retains: the program
+    /// it was evaluated by, lowered again with the withdrawn identification when the fitted
+    /// mechanism's checks withdrew a Gaussian-restricted claim.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.program_identity()
     }
 
     /// Exact checked request and response coordinate order.

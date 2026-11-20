@@ -5975,6 +5975,20 @@ suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-panel-compiled-route"
+crate = "antecedent"
+cargo_target = "joint_panel_compiled"
+path = "crates/antecedent/tests/joint_panel_compiled.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-compiled-route-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_compiled_route.py"
+gates = ["inventory"]
+
+[[test]]
 id = "joint-panel-streamed-memory"
 crate = "antecedent"
 cargo_target = "joint_panel_streamed_memory"
