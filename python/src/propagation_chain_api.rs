@@ -19,7 +19,7 @@ use serde_json::json;
 use crate::PyCancellationToken;
 use crate::transport_common::execution_context;
 
-type Refused<T> = (Option<T>, Option<String>);
+pub(crate) type Refused<T> = (Option<T>, Option<String>);
 /// Exported record, lowered program identity, law meaning and table alignment.
 pub(crate) type ChainParts = (Py<PyBytes>, String, String, Option<String>, Option<String>);
 

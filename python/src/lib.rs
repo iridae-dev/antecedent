@@ -259,6 +259,7 @@ mod transport_buffers;
 mod transport_common;
 mod transport_counterfactual_api;
 mod transport_counterfactual_sampled_api;
+mod transport_decision_api;
 mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
@@ -1942,6 +1943,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     chain_decision_api::register(m)?;
     bundle_recomputation_api::register(m)?;
+
+    transport_decision_api::register(m)?;
     registry::register_module(m)
 }
 

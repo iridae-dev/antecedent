@@ -13115,3 +13115,211 @@ def predictive_fit_decision_bundle_consume(
 def support_cell_estimator_target(
     coordinate: str, estimator: str
 ) -> tuple[bool, str | None, str | None]: ...
+
+# Transported decisions, time-ordered path transport and transported-fit bundle replay.
+
+class CompiledTransportDecisionHandle:
+    @property
+    def route(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> TransportDecisionResultHandle: ...
+    def export(
+        self,
+        result: TransportDecisionResultHandle,
+        artifact_id: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class TransportDecisionResultHandle:
+    @property
+    def route(self) -> str: ...
+    def summary_json(self) -> str: ...
+    def chain(self) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+
+class CompiledTransportNodeBundleHandle:
+    @property
+    def route(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str, str]: ...
+    def export(
+        self,
+        receipt_json: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class CompiledTemporalPathHandle:
+    @property
+    def kind(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def plan_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> TemporalPathResultHandle: ...
+    def export(
+        self,
+        result: TemporalPathResultHandle,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+
+class TemporalPathResultHandle:
+    @property
+    def kind(self) -> str: ...
+    def summary_json(self) -> str: ...
+
+def trial_ipw_decision_compile(
+    graph: Admg,
+    structure_json: str,
+    rows_json: str,
+    contract_json: str,
+    effect_json: str | None = None,
+    worlds_json: str | None = None,
+    independent_potential_outcomes: bool = False,
+    *,
+    catalog: Any = None,
+) -> CompiledTransportDecisionHandle: ...
+def joint_transport_decision_compile(
+    graph: Admg,
+    structure_json: str,
+    request_json: str,
+    contract_json: str,
+    effect_json: str | None = None,
+    worlds_json: str | None = None,
+    target_noise_variance: float | None = None,
+    target_noise_correlation: float | None = None,
+    *,
+    catalog: Any = None,
+) -> CompiledTransportDecisionHandle: ...
+def transport_decision_consume(
+    data: bytes,
+    route: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> TransportDecisionResultHandle: ...
+def transport_bundle_add_fit(
+    builder: CompositionBundleBuilder,
+    route: str,
+    node_id: str,
+    data: bytes,
+    program_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> None: ...
+def transport_node_bundle_compile(
+    bundle: CompositionBundle,
+    route: str,
+    producer_node: str,
+    terminal_node: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTransportNodeBundleHandle: ...
+def transport_node_bundle_consume(
+    data: bytes,
+    route: str,
+    expected_bundle: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str, str]: ...
+def transport_fit_bundle_consume(
+    data: bytes,
+    route: str,
+    expected_identity: str,
+    supplied_json: str | None = None,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def temporal_path_compile(
+    graph: Admg,
+    levels: list[tuple[str, list[float]]],
+    target: str,
+    sources: list[tuple[str, list[str], list[str]]],
+    catalog: Any,
+    path_json: str,
+    *,
+    laws: Any = None,
+    tables: Any = None,
+    overlap: tuple[str, list[tuple[Any, Any, str]]] | None = None,
+    unseen_rule: tuple[str, float | None] | None = None,
+    min_table_total: int | None = None,
+    max_unseen_fraction: float | None = None,
+    max_envelope_evaluations: int | None = None,
+    max_operations: int | None = None,
+    max_depth: int | None = None,
+    max_search_operations: int | None = None,
+    max_search_depth: int | None = None,
+    max_support_rows: int = 1_000_000,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTemporalPathHandle: ...
+def continuous_chain_compile(
+    request_json: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> CompiledTemporalPathHandle: ...
+def temporal_path_consume(
+    data: bytes,
+    kind: str,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> TemporalPathResultHandle: ...
