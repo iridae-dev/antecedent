@@ -795,7 +795,7 @@ fn signed_uniform_per_edge_edge_probabilities_match_generating_frequencies() {
         "per_edge",
         &per_edge_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
         GraphScoreFamily::GaussianSignedUniform,
-        0x6A140000,
+        0x6A14_0000,
     );
 }
 
@@ -806,7 +806,7 @@ fn signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies() {
         "soft_tiers",
         &soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
         GraphScoreFamily::GaussianSignedUniform,
-        0x6A150000,
+        0x6A15_0000,
     );
 }
 
@@ -817,7 +817,7 @@ fn signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_fr
         "per_edge_and_soft_tiers",
         &per_edge_and_soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
         GraphScoreFamily::GaussianSignedUniform,
-        0x6A160000,
+        0x6A16_0000,
     );
 }
 

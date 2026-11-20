@@ -27,9 +27,6 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 use antecedent_discovery::DiscoveryConstraints;
-pub use antecedent_discovery::observed_marginals::{
-    ObservedMarginals, signed_uniform_observed_marginals,
-};
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
@@ -1034,4 +1031,11 @@ pub mod selective {
 /// Lagged temporal-ADMG posterior atoms.
 pub mod temporal_admg_atoms {
     pub use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
+}
+
+/// Signed-uniform structural graph probabilities for a partially observed table.
+pub mod observed_marginals {
+    pub use antecedent_discovery::observed_marginals::{
+        ObservedMarginals, signed_uniform_observed_marginals,
+    };
 }

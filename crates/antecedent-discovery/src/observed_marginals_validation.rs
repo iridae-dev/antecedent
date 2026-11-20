@@ -31,8 +31,8 @@ fn observed_score_matches_direct_missing_cell_oracle() {
     let ctx = ExecutionContext::for_tests(1);
     let out = from_columns(&[x], &y, &v, &prior, 94, 8192, &ctx).unwrap();
     // Independent integration of the missing value and coefficient in the joint density.
-    assert!((out.edge_marginals[1] - 0.38202614).abs() < 0.02);
-    assert!((out.edge_marginals[2] - 0.28189405).abs() < 0.02);
+    assert!((out.edge_marginals[1] - 0.382_026_14).abs() < 0.02);
+    assert!((out.edge_marginals[2] - 0.281_894_05).abs() < 0.02);
 }
 
 #[test]
@@ -84,6 +84,11 @@ fn validate_observed(design: &str, prior: &GraphPrior, seed: u64) {
                     continue;
                 }
                 let p = out.edge_marginals[i * n + j];
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "the finite directed probability indexes one of ten bins"
+                )]
                 let k = ((p * N_BINS as f64) as usize).min(N_BINS - 1);
                 cells[k].0 += 1.;
                 cells[k].1 += p;
@@ -142,8 +147,8 @@ fn six_variable_embedding_matches_direct_missing_cell_oracle() {
     x[0] = vec![0.8, -0.3, 1.25];
     let y = vec![Some(-1.4), Some(0.1), None];
     let r = from_columns(&x, &y, &v, &prior, 831, 4096, &ExecutionContext::for_tests(1)).unwrap();
-    assert!((r.edge_marginals[5] - 0.38202614).abs() < 0.02);
-    assert!((r.edge_marginals[30] - 0.28189405).abs() < 0.02);
+    assert!((r.edge_marginals[5] - 0.382_026_14).abs() < 0.02);
+    assert!((r.edge_marginals[30] - 0.281_894_05).abs() < 0.02);
     assert!(r.edge_marginals.iter().enumerate().all(|(i, p)| i == 5 || i == 30 || *p == 0.0));
 }
 
@@ -153,40 +158,40 @@ fn observed_score_matches_six_variable_forest_quadrature() {
     // missing values and every coefficient, and normalizes the graph weights.
     let expected = [
         0.0,
-        0.07565266365919267,
-        0.038803991169517,
-        0.10756796545403853,
-        0.4226058605261166,
-        0.06574606906448434,
-        0.033913535787448185,
+        0.075_652_663_659_192_67,
+        0.038_803_991_169_517,
+        0.107_567_965_454_038_53,
+        0.422_605_860_526_116_6,
+        0.065_746_069_064_484_34,
+        0.033_913_535_787_448_185,
         0.0,
-        0.05369279590441264,
-        0.0759350591441537,
-        0.0830631858216713,
-        0.0517004749668088,
-        0.02382142624494588,
-        0.06772984594542389,
+        0.053_692_795_904_412_64,
+        0.075_935_059_144_153_7,
+        0.083_063_185_821_671_3,
+        0.051_700_474_966_808_8,
+        0.023_821_426_244_945_88,
+        0.067_729_845_945_423_89,
         0.0,
-        0.151816523229946,
-        0.018333613117960165,
-        0.12610369659718104,
-        0.13352318379859165,
-        0.20035778593665268,
-        0.37554687405730747,
+        0.151_816_523_229_946,
+        0.018_333_613_117_960_165,
+        0.126_103_696_597_181_04,
+        0.133_523_183_798_591_65,
+        0.200_357_785_936_652_68,
+        0.375_546_874_057_307_47,
         0.0,
-        0.17557854853407595,
-        0.26244105441193905,
-        0.4968159130293306,
-        0.1977343754952275,
-        0.030935506717242454,
-        0.1446597879887598,
+        0.175_578_548_534_075_95,
+        0.262_441_054_411_939_05,
+        0.496_815_913_029_330_6,
+        0.197_734_375_495_227_5,
+        0.030_935_506_717_242_454,
+        0.144_659_787_988_759_8,
         0.0,
-        0.06174359704106226,
-        0.0322322518548922,
-        0.056059583700290024,
-        0.11478081749256511,
-        0.11494269076535561,
-        0.03238092530723511,
+        0.061_743_597_041_062_26,
+        0.032_232_251_854_892_2,
+        0.056_059_583_700_290_024,
+        0.114_780_817_492_565_11,
+        0.114_942_690_765_355_61,
+        0.032_380_925_307_235_11,
         0.0,
     ];
     let cols: Vec<Vec<f64>> = (0..6)
@@ -197,7 +202,7 @@ fn observed_score_matches_six_variable_forest_quadrature() {
     let y: Vec<_> = cols[5].iter().enumerate().map(|(r, &v)| (r < 7).then_some(v)).collect();
     let mut prior = GraphPrior::default();
     prior.constraints.max_parents = Some(1);
-    for seed in [95913, 99537, 104991] {
+    for seed in [95913, 99537, 104_991] {
         let out = from_columns(
             &cols[..5],
             &y,
@@ -213,9 +218,9 @@ fn observed_score_matches_six_variable_forest_quadrature() {
         eprintln!(
             "six-variable enumerated forest reference, seed={seed}, draws={} worst edge error={worst}, log normalizer error={}",
             out.draws_used,
-            out.log_evidence + 65.5906531425203
+            out.log_evidence + 65.590_653_142_520_3
         );
         assert!(worst < 0.035);
-        assert!((out.log_evidence + 65.5906531425203).abs() < 0.25);
+        assert!((out.log_evidence + 65.590_653_142_520_3).abs() < 0.25);
     }
 }
