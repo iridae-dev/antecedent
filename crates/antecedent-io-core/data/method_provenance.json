@@ -2287,7 +2287,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "016d4253ec15e95a64f8faa005aa55004a3f2cc29d271e65dd51e52d4bce9f26",
+   "digest": "a68029c00f6d50330f485b0a7dabbef1f8acc354c83ce4340ca84732ef4820e0",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
