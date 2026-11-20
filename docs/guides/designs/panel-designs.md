@@ -126,6 +126,23 @@ The prepared study freezes unit and period row order; refreshing with changed de
 - **Several treated units.** `adoptions=[(unit, period), ...]` with `placebo_replicates` fits each adopting unit against never-treated donors at its own adoption period. The overall effect is the post-period-weighted average, with an interval from reassigning adoptions to never-treated units and refitting. Conformal and staggered adoptions are alternatives.
 - **Bayesian.** With staggered adoptions, `bayesian.synthetic_control` averages the per-unit simplex posteriors. With the conformal declaration it reports a posterior predictive interval at each post period, which is a model-based statement about the counterfactual path and a different object from the permutation set.
 
+### What 95% means for the Bayesian average effect
+
+For one treated unit, the donor-weight posterior reports the 2.5th and 97.5th percentiles of draws of the average post-treatment effect. Those draws include uncertainty in the donor weights and in the untreated outcome. The predictive path reports an interval for the same average by averaging the effects **within each simulated path** and taking the 2.5th and 97.5th percentiles of those averages. A single-period interval answers a separate question.
+
+To interpret either interval, compare your donor count, pre-treatment periods and post-treatment periods with the measured design. The following 3.0.0 primary-run measurements used five post-treatment periods, independent Gaussian noise and a treated unit whose untreated outcome depended on three of the available donors. Each fraction counts how often a **returned** interval contained the known average effect. Skips are additional simulated panels for which the study had no interval to score.
+
+| Donors | Pre-treatment periods | Posterior interval | Skips | Predictive path average | Skips |
+|---:|---:|---:|---:|---:|---:|
+| 20 | 30 | 374/400 (93.5%) | 0 | 385/400 (96.3%) | 0 |
+| 20 | 40 | 382/400 (95.5%) | 0 | 372/400 (93.0%) | 0 |
+| 20 | 80 | 373/400 (93.3%) | 0 | 382/400 (95.5%) | 0 |
+| 40 | 30 | 1,821/1,994 (91.3%) | 6 | 1,807/1,993 (90.7%) | 7 |
+| 40 | 40 | 1,828/1,993 (91.7%) | 7 | 1,806/1,993 (90.6%) | 7 |
+| 40 | 80 | 1,854/2,000 (92.7%) | 0 | 384/400 (96.0%) | 0 |
+
+For example, with 40 donors and 40 pre-treatment periods, 95% is the nominal model level. The predictive interval for the five-period average covered the truth in 90.6% of returned intervals in this synthetic design. These frequencies have Monte Carlo uncertainty. For another donor count, history or horizon, an exact-design frequency requires a measurement at that design. Equal ratios of history to donors can give different results.
+
 ### Synthetic difference-in-differences
 
 `SyntheticDifferenceInDifferences` weights both donor units and pre-periods on the simplex, then computes the weighted difference-in-differences contrast. It needs a balanced panel with one treated unit, at least two donors, two pre-periods and one post-period, and reports `result.value.synthetic_did` including both weight vectors. With one treated unit it returns no interval or standard error, and refuses a fabricated one in a saved artifact. As for synthetic control, `adoptions=[(unit, period), ...]` with `placebo_replicates` fits several adopting units and reports placebo-variance intervals. `uniform_unit_randomization=True` adds the exact Fisher tail fraction as `randomization_p_value`, as for synthetic control; ridge augmentation is not available here.
