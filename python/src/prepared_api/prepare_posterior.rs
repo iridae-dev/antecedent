@@ -63,7 +63,7 @@ impl PyPreparedAnalysis {
             let spec = configured_spec(estimator_config, requested, &req.opts)?;
             // A posterior the engine pooled over completed tables keeps its provenance.
             let pooled = posterior.as_ref().and_then(|bound| bound.borrow().pooled_accepted());
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let query = CausalQuery::AverageEffect(static_ate_query(
@@ -120,7 +120,7 @@ impl PyPreparedAnalysis {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let query = conditional_query(
@@ -207,7 +207,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             let contrast = contrast.to_owned();
             let need = |value: &Option<String>, what: &str| -> PyResult<String> {
@@ -356,7 +356,7 @@ impl PyPreparedAnalysis {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             req.refuse_prior("a transport query")?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
             req.off_gil(py, move |mut req| {
@@ -434,7 +434,7 @@ impl PyPreparedAnalysis {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             let response_options = parse_response_options(response_options.as_ref())?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -484,7 +484,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
@@ -566,7 +566,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let input = req.load_frame(py, columns, frame.as_ref())?;
             let policy = policy.to_ascii_lowercase();
             req.off_gil(py, move |req| {
@@ -648,7 +648,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let input = req.load_frame(py, columns, frame.as_ref())?;
             let contrast = contrast.to_string();
             req.off_gil(py, move |req| {
@@ -730,7 +730,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let input = req.load_frame(py, columns, frame.as_ref())?;
             let policy = policy.to_ascii_lowercase();
             req.off_gil(py, move |req| {

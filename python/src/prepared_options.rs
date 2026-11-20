@@ -40,6 +40,8 @@ const KEYS: &[&str] = &[
     "retain_joint_horizons",
     "fallback",
     "structure_prior",
+    "exact_score",
+    "exact_max_parents",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -224,6 +226,9 @@ pub(crate) struct PrepareOptions {
     pub retain_joint_horizons: bool,
     /// The descriptive fallback to run on a study refused for identification, when declared.
     pub fallback: Option<crate::fallback_stage_api::FallbackDeclaration>,
+    /// The explicitly configured local score and parent-set limit for an exact DAG search.
+    pub exact_score: Option<antecedent::state::GraphScoreFamily>,
+    pub exact_max_parents: Option<usize>,
     /// Per-edge prior probabilities and soft tiers of the structure posterior a graph-posterior
     /// route searches; read by those routes only.
     pub structure_prior: Option<crate::bayesian::PriorArgs>,
@@ -377,6 +382,12 @@ impl PrepareOptions {
             estimator,
             retain_joint_horizons,
             fallback,
+            exact_score: item("exact_score")?
+                .map(|value| crate::bayesian::exact_score_family(&value.extract::<String>()?))
+                .transpose()?,
+            exact_max_parents: item("exact_max_parents")?
+                .map(|value| value.extract())
+                .transpose()?,
             structure_prior,
         })
     }
@@ -561,6 +572,8 @@ impl PrepareOptions {
             estimator: self.estimator,
             retain_joint_horizons: self.retain_joint_horizons,
             fallback: None,
+            exact_score: None,
+            exact_max_parents: None,
             structure_prior: None,
         };
         without_bootstrap.apply(builder)

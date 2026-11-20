@@ -32,6 +32,11 @@ pub(crate) fn contract_to_map(
     out.insert("graph_class".into(), contract.graph_class.as_str().to_string());
     out.insert("structure_source".into(), contract.structure_source.as_str().to_string());
     out.insert("accepted_version".into(), contract.accepted_version.to_string());
+    if let Some(score) =
+        contract.structure_provenance.as_deref().and_then(|source| source.graph_score())
+    {
+        out.insert("structure_provenance.graph_score".into(), score.to_string());
+    }
     if let Some(algorithm) = &contract.discovery_algorithm {
         out.insert("discovery_algorithm".into(), algorithm.to_string());
     }
@@ -182,12 +187,15 @@ pub(super) fn require_prepared_names(
 
 pub(super) fn take_supplied_posterior(
     posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
-    names: &[String],
+    req: &PrepareRequest,
 ) -> PyResult<Option<antecedent::discovery::GraphPosterior>> {
     posterior
         .map(|bound| {
             let posterior = bound.borrow();
-            posterior.require_bound_to(names)?;
+            posterior.require_bound_to(&req.names)?;
+            if let Some(accepted) = posterior.configured_exact() {
+                req.accepted_posterior.set(Some(accepted.clone()));
+            }
             posterior.to_rust()
         })
         .transpose()
@@ -217,23 +225,30 @@ pub(super) fn exact_dag_posterior(
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
     let prior = req.opts.structure_prior.as_ref();
+    let opts = &req.opts;
+    let configured =
+        prior.is_some() || opts.exact_score.is_some() || opts.exact_max_parents.is_some();
     if let Some(gp) = supplied {
-        if prior.is_some() {
+        if configured {
             return Err(crate::value_err(
-                "a supplied posterior is not fitted, so a structure prior describes a search \
-                 that never ran; drop the prior",
+                "a supplied posterior is not fitted, so posterior search options describe a search \
+                 that never ran; drop the search options",
             ));
         }
         return Ok(gp);
     }
     let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
-    let params = declared_params(prior, data.schema(), &vars)?;
+    let mut params = declared_params(prior, data.schema(), &vars)?;
+    if let Some(family) = opts.exact_score {
+        params.score_family = family;
+    }
+    params.prior.constraints.max_parents = opts.exact_max_parents;
     compiled_posterior(
         DiscoverySpec::exact_dag_posterior(params),
         crate::compiled_route_api::DiscoverInput::Tabular(data.clone()),
         &vars,
         ctx,
-        prior.is_some().then_some(req),
+        configured.then_some(req),
     )
 }
 

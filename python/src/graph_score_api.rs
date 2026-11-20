@@ -26,9 +26,10 @@ fn state_err(error: StateError) -> PyErr {
 fn family_of(name: &str) -> PyResult<GraphScoreFamily> {
     match name {
         "gaussian_bic" => Ok(GraphScoreFamily::GaussianBic),
+        "gaussian_signed_uniform" => Ok(GraphScoreFamily::GaussianSignedUniform),
         "laplace_bic" => Ok(GraphScoreFamily::LaplaceBic),
         other => Err(value_err(format!(
-            "unknown graph score family {other:?}; use gaussian_bic or laplace_bic"
+            "unknown graph score family {other:?}; use gaussian_bic, gaussian_signed_uniform or laplace_bic"
         ))),
     }
 }
@@ -43,8 +44,9 @@ pub struct PyGraphScoreCache {
 
 #[pymethods]
 impl PyGraphScoreCache {
-    /// One equal-length column per graph node; the family is `gaussian_bic` or `laplace_bic`.
-    /// Both return -BIC/2, counting intercept, parent coefficients, and fitted variance or scale.
+    /// One equal-length column per graph node; the family is `gaussian_bic`, `gaussian_signed_uniform` or `laplace_bic`.
+    /// BIC families count the intercept, parent coefficients, and fitted variance or scale.
+    /// The signed-uniform score integrates coefficients under known unit noise and zero intercept.
     #[new]
     #[pyo3(signature = (columns, *, family="gaussian_bic", byte_budget=None))]
     fn new(columns: Vec<Vec<f64>>, family: &str, byte_budget: Option<u64>) -> PyResult<Self> {

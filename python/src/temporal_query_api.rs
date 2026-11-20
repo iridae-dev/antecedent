@@ -277,7 +277,7 @@ impl PyPreparedAnalysis {
                     ));
                 }
             }
-            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
             let class_prior_ordered = query_spec
                 .get_item("class_prior_ordered")?
                 .filter(|value| !value.is_none())

@@ -142,7 +142,10 @@ def _structure_prior_option(discovery: Any) -> dict[str, Any]:
     """
     prior = discovery.prior if isinstance(discovery, (ExactDagPosterior, DbnPosterior)) else None
     kwargs = {} if prior is None else prior._native_kwargs()
-    return {"structure_prior": kwargs} if kwargs else {}
+    options: dict[str, Any] = {"structure_prior": kwargs} if kwargs else {}
+    if isinstance(discovery, ExactDagPosterior):
+        options.update({f"exact_{key}": value for key, value in discovery._score_options().items()})
+    return options
 
 
 def _check_response_strategy(

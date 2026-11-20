@@ -1569,15 +1569,14 @@ def pool_search_over_imputations(
 
 @dataclass(frozen=True)
 class ExactDagMarginals:
-    """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 15 variables.
+    """Exact edge marginals of the configured DAG posterior of 7 to 15 variables.
 
     ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)`` over ``names`` (the variables of the run, or
     the screened selection of :class:`ScreenedExactMarginals`, whose ``conditional_on_screen``
-    states that every number is conditional on the CI screen), exact for the BIC pseudo-posterior with the
-    edge prior of the run (uniform unless a :class:`StructurePrior` was given; no sampling
-    error). ``log_evidence`` is the log pseudo-posterior
-    normalizer ``log sum_G exp(score(G))``, with Gaussian score equal to -BIC/2 including
-    the fitted residual variances; it is not an exact marginal likelihood. Above six variables the graphs themselves cannot be listed, so
+    states that every number is conditional on the CI screen), exact for the selected score with the
+    edge prior of the run (uniform unless a :class:`StructurePrior` was given).
+    ``log_evidence`` is the graph log normalizer ``log sum_G exp(score(G))``. With the default
+    Gaussian BIC score this is a pseudo-posterior normalizer based on fitted residual variances. Above six variables the graphs themselves cannot be listed, so
     the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
     mixture over graphs that ``analyze`` uses) do not exist; asking for one is refused rather than
     approximated. Use ``OrderMcmc`` or ``StructureMcmc`` for atoms.
@@ -1589,6 +1588,8 @@ class ExactDagMarginals:
     _matrix: tuple[tuple[float, ...], ...]
     conditional_on_screen: str | None = None
     pooled_over_imputations: int | None = None
+    score: str = "gaussian_bic"
+    max_parents: int | None = None
 
     def edge_marginal_matrix(self) -> list[list[float]]:
         """The exact edge marginals as a list of rows: ``[i][j]`` is ``P(i -> j)``, in the order of
@@ -1609,7 +1610,7 @@ class ExactDagMarginals:
 
 @dataclass(frozen=True)
 class ExactDagPosterior:
-    """Exact DAG posterior (Gaussian BIC).
+    """Exact DAG posterior with a selectable local score.
 
     Up to 6 variables every DAG is enumerated and ``run`` returns a ``GraphPosterior`` (atoms,
     weights, marginals). From 7 to 15 variables ``run`` returns :class:`ExactDagMarginals`: the
@@ -1622,16 +1623,43 @@ class ExactDagPosterior:
     (at most 6 variables).
 
     ``prior`` (a :class:`StructurePrior`) gives per-edge inclusion probabilities and soft tiers;
-    unset, the edge prior is uniform.
+    unset, the edge prior is uniform. The default score is ``gaussian_bic``.
+    ``gaussian_signed_uniform`` specifies zero intercepts, known unit noise, and
+    independent coefficients with equiprobable signs and uniform magnitudes in [0.5, 1].
+    On complete data this score supports up to three parents per variable. For five or
+    more variables, specify ``max_parents`` of at most three.
     """
 
     prior: StructurePrior | None = None
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
 
+    score: Literal["gaussian_bic", "gaussian_signed_uniform"] = "gaussian_bic"
+    max_parents: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.score not in ("gaussian_bic", "gaussian_signed_uniform"):
+            raise CausalValueError(f"unknown exact DAG score {self.score!r}")
+        if self.max_parents is not None:
+            object.__setattr__(
+                self, "max_parents", _count(self.max_parents, "max_parents", minimum=0)
+            )
+
+    def _score_options(self) -> dict[str, Any]:
+        options: dict[str, Any] = {}
+        if self.score != "gaussian_bic":
+            options["score"] = self.score
+        if self.max_parents is not None:
+            options["max_parents"] = self.max_parents
+        return options
+
     algorithm_id: ClassVar[str] = "exact_dag_posterior"
 
     def _wire(self) -> dict[str, Any]:
-        return {"algorithm": "exact_dag_posterior", **_prior_wire(self.prior)}
+        return {
+            "algorithm": "exact_dag_posterior",
+            **_prior_wire(self.prior),
+            **self._score_options(),
+        }
 
     def run(
         self,
@@ -1653,14 +1681,26 @@ class ExactDagPosterior:
         names, cols = coerce_data(data)
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
             return _run_native(
-                execution, _discover_exact_dag_posterior, names, cols, **_prior_kwargs(self.prior)
+                execution,
+                _discover_exact_dag_posterior,
+                names,
+                cols,
+                **self._score_options(),
+                **_prior_kwargs(self.prior),
             )
         flat, log_evidence = _run_native(
-            execution, _discover_exact_dag_marginals, names, cols, **_prior_kwargs(self.prior)
+            execution,
+            _discover_exact_dag_marginals,
+            names,
+            cols,
+            **self._score_options(),
+            **_prior_kwargs(self.prior),
         )
         n = len(names)
         matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
-        return ExactDagMarginals(list(names), n, log_evidence, matrix)
+        return ExactDagMarginals(
+            list(names), n, log_evidence, matrix, score=self.score, max_parents=self.max_parents
+        )
 
     def _run_pooled(
         self, data: Any, imputations: Any, execution: Execution | None
@@ -1671,6 +1711,11 @@ class ExactDagPosterior:
         if imputations is None:
             raise CausalValueError(
                 "run needs data, or imputations= (a sequence of completed tables)"
+            )
+        if self._score_options():
+            raise CausalUnsupportedError(
+                "pooling exact structure posteriors supports the uncapped Gaussian BIC search",
+                reason_code="option_not_applicable",
             )
         tables = _imputed_tables(imputations)
         names = tables[0][0]
@@ -2309,6 +2354,7 @@ class EquivalenceClassPosterior:
                 names,
                 cols,
                 equivalence_classes=True,
+                **base._score_options(),
                 **_prior_kwargs(base.prior),
             )
         if isinstance(base, OrderMcmc):

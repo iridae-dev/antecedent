@@ -90,9 +90,8 @@ pub struct PyGraphPosterior {
     backend_id: String,
     /// The compiled discovery route this posterior came from (`None` for supplied atoms).
     route: Option<RouteRecord>,
-    /// The posterior pooled over the completed tables of an imputation, accepted with the
-    /// search's and the pooling's provenance (`None` for any other posterior).
-    pooled: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
+    /// Accepted provenance for a pooled search or an explicitly scored/capped exact search.
+    accepted: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
 }
 
 /// Width of the packed lag masks.
@@ -164,15 +163,15 @@ impl PyGraphPosterior {
             edge_ess: post.edge_ess().map(|v| v.as_ref().to_vec()),
             backend_id: post.diagnostics().backend_id.to_string(),
             route: None,
-            pooled: None,
+            accepted: None,
         }
     }
 
-    fn with_pooled(
+    fn with_accepted(
         mut self,
-        pooled: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
+        accepted: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
     ) -> Self {
-        self.pooled = pooled;
+        self.accepted = accepted;
         self
     }
 
@@ -180,7 +179,13 @@ impl PyGraphPosterior {
     pub(crate) fn pooled_accepted(
         &self,
     ) -> Option<antecedent::analysis::structure_route::AcceptedPosterior> {
-        self.pooled.clone()
+        self.accepted.as_ref().filter(|value| value.provenance().pooling.is_some()).cloned()
+    }
+
+    pub(crate) fn configured_exact(
+        &self,
+    ) -> Option<&antecedent::analysis::structure_route::AcceptedPosterior> {
+        self.accepted.as_ref().filter(|value| value.provenance().pooling.is_none())
     }
 
     fn with_route(mut self, route: RouteRecord) -> Self {
@@ -388,12 +393,11 @@ impl PyGraphPosterior {
         })
     }
 
-    /// Where a posterior pooled over completed tables came from: the search and its declared
-    /// structure prior, the pooling rule, the number of imputations and what produced them, as
-    /// a flat mapping; `None` for a posterior that was not pooled by the engine.
+    /// Accepted provenance of a configured exact search or pooled posterior, including
+    /// the pooling rule and imputation count for pooled results.
     #[getter]
     fn provenance(&self) -> Option<std::collections::HashMap<String, String>> {
-        self.pooled
+        self.accepted
             .as_ref()
             .map(|accepted| crate::compiled_route_api::provenance_map(accepted.provenance()))
     }
@@ -413,6 +417,11 @@ impl PyGraphPosterior {
         let names = first.names.clone();
         let mut inner = Vec::with_capacity(posteriors.len());
         for posterior in &posteriors {
+            if posterior.configured_exact().is_some() {
+                return Err(crate::value_err(
+                    "pooling exact structure posteriors supports the uncapped Gaussian BIC search",
+                ));
+            }
             if posterior.names != names {
                 return Err(crate::value_err(
                     "the imputations' posteriors must be over the same variables in the same order",
@@ -667,6 +676,17 @@ fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams 
     params
 }
 
+pub(crate) fn exact_score_family(score: &str) -> PyResult<antecedent::state::GraphScoreFamily> {
+    use antecedent::state::GraphScoreFamily;
+    match score {
+        "gaussian_bic" => Ok(GraphScoreFamily::GaussianBic),
+        "gaussian_signed_uniform" => Ok(GraphScoreFamily::GaussianSignedUniform),
+        other => Err(crate::value_err(format!(
+            "unknown exact DAG score {other:?}; use gaussian_bic or gaussian_signed_uniform"
+        ))),
+    }
+}
+
 /// Per-edge prior probabilities and soft tiers of a posterior search, by variable name.
 ///
 /// `edge_priors` lists `(from, to, probability)`; `edge_prior_default` is the probability of the
@@ -815,6 +835,8 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
     names,
     columns,
     *,
+    score="gaussian_bic",
+    max_parents=None,
     seed=1,
     threads=None,
     equivalence_classes=false,
@@ -827,6 +849,8 @@ fn discover_exact_dag_posterior(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<NumericColumn<'_>>,
+    score: &str,
+    max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
     equivalence_classes: bool,
@@ -835,12 +859,14 @@ fn discover_exact_dag_posterior(
     soft_tiers: Option<Vec<Vec<String>>>,
     soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
+    let family = exact_score_family(score)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let mut params = bayesian_params();
+        let mut params = bayesian_params_capped(max_parents);
+        params.score_family = family;
         PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
             &mut params,
             &names,
@@ -853,7 +879,10 @@ fn discover_exact_dag_posterior(
             &ctx,
             posterior_of,
         )?;
-        Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
+        let configured =
+            family != antecedent::state::GraphScoreFamily::GaussianBic || max_parents.is_some();
+        let accepted = configured.then(|| route.accepted_posterior()).transpose()?;
+        Ok(PyGraphPosterior::from_rust(names, post).with_route(route).with_accepted(accepted))
     })
 }
 
@@ -925,6 +954,7 @@ fn discover_pag_mcmc(
     names,
     columns,
     *,
+    score="gaussian_bic",
     max_parents=None,
     seed=1,
     threads=None,
@@ -937,6 +967,7 @@ fn discover_exact_dag_marginals(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<NumericColumn<'_>>,
+    score: &str,
     max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
@@ -945,12 +976,14 @@ fn discover_exact_dag_marginals(
     soft_tiers: Option<Vec<Vec<String>>>,
     soft_tier_penalty: Option<f64>,
 ) -> PyResult<(Vec<f64>, f64)> {
+    let family = exact_score_family(score)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut params = bayesian_params_capped(max_parents);
+        params.score_family = family;
         PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
             &mut params,
             &names,
@@ -1148,6 +1181,11 @@ fn discover_pooled_posterior(
     // The search, as a function of the searched variables.
     let build: SearchBuilder = match algorithm {
         "exact_dag_posterior" => {
+            if !settings.is_empty() {
+                return Err(crate::value_err(
+                    "pooling exact structure posteriors supports the uncapped Gaussian BIC search",
+                ));
+            }
             let prior = prior.clone();
             let names = names.clone();
             Box::new(move |variables| {
@@ -1326,7 +1364,7 @@ fn discover_pooled_posterior(
             }
             _ => None,
         };
-        Ok(PyGraphPosterior::from_rust(names, pooled).with_pooled(accepted))
+        Ok(PyGraphPosterior::from_rust(names, pooled).with_accepted(accepted))
     })
 }
 

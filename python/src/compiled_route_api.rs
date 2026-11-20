@@ -250,6 +250,9 @@ pub(crate) fn provenance_map(
     out.insert("claim".to_owned(), hex(&provenance.claim));
     out.insert("review".to_owned(), provenance.review.to_string());
     out.insert("resolved_marks".to_owned(), provenance.resolved_marks.to_string());
+    if let Some(score) = provenance.graph_score() {
+        out.insert("graph_score".to_owned(), score.to_string());
+    }
     if let Some(statement) = &provenance.structure_prior {
         out.insert("structure_prior".to_owned(), statement.to_string());
     }
