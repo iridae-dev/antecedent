@@ -24557,3 +24557,66 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_latent_soft_intervention.py"
 gates = ["inventory"]
+
+[[test]]
+id = "bridge-transport-decision-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_bridge_transport_decision.py"
+gates = ["inventory"]
+
+[[test]]
+id = "bundle-decisions-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_bundle_decisions.py"
+gates = ["inventory"]
+
+[[test]]
+id = "chain-decisions-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_chain_decisions.py"
+gates = ["inventory"]
+
+[[test]]
+id = "cyclic-decisions-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_cyclic_decisions.py"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-decisions-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_graph_imputation_decisions.py"
+gates = ["inventory"]
+
+[[test]]
+id = "policy-reliability-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_policy_reliability_routes.py"
+gates = ["inventory"]
+
+[[test]]
+id = "sampling-assumption-union-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_sampling_assumption_union.py"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-path-transport-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_path_transport.py"
+gates = ["inventory"]
+
+[[test]]
+id = "transport-decisions-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_transport_decisions.py"
+gates = ["inventory"]
