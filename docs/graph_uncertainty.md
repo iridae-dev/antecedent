@@ -281,6 +281,52 @@ imputations=[...])` runs the pooled search and mixes the effect over the pooled 
 measurement stage's completed tables reach structure uncertainty without a manual step. In Rust the
 same are `discover_pooled_*` and `pool_posteriors_over_imputations`.
 
+## Proposal for review: directed-edge reliability in a Gaussian structural model
+
+Five discovery calibration gates ask whether directed edges assigned probability
+`p` are present with frequency `p` under a simulated graph prior. Three use
+complete tables and two pool over imputations. The existing exact engine
+enumerates or sums Gaussian-BIC graph weights correctly. On the fixed
+400-dataset per-edge-prior fixture, its lowest bin contains 10,011 predictions
+with mean 0.0117 and observed frequency 0.0028. It fails the registered
+reliability test. Changing the sampler cannot correct a discrepancy in the
+exact target.
+
+**Proposed score.** Offer a separate, explicitly selected marginal likelihood
+for a zero-intercept linear Gaussian structural equation with known unit noise
+variance. Give each present edge an independent fair sign and a coefficient
+magnitude uniform on [0.5, 1], matching the generating law of the existing
+fixtures. For each node and candidate parent set, integrate the Gaussian
+likelihood over those coefficients, including the normalizing constants.
+Multiply by the existing per-edge and soft-tier graph prior, subject to the
+declared DAG and parent constraints. Gram matrices and cross-products computed
+once per table suffice to evaluate the local integrands. Bound numerical
+integration error in log weights and check its effect on the resulting edge
+marginals before publishing them. Bind the score, noise variance and coefficient
+prior to the query, artifact and evidence identities.
+
+**Proposed complete-data claim.** For independent datasets drawn from this
+declared joint graph, coefficient and observation model, the directed-edge
+probabilities are reliable under that model. Check local integrals against an
+independent high-precision implementation and edge marginals against small-DAG
+enumeration. Freeze the reliability bins, sample budget, clustered uncertainty
+rule and fresh validation seeds before earning the three prior-specific passes.
+
+**Missing-data claim requires separate evidence.** Hiding a column's cells and
+filling them from one fitted regression omits parameter and graph uncertainty.
+For a claim about edge probabilities conditional on the observed cells,
+integrate the missing cells under the declared joint model, or sample their
+posterior predictive distribution with a validated error bound. Compare to an
+independent observed-data calculation on small graphs. Then calibrate the
+actual published procedure under the declared missingness law, including its
+finite imputation budget and refusals.
+
+**Release decision.** This proposal needs method and scope approval before
+implementation. The five Gaussian-BIC reliability gates retain their own
+results. Adoption requires an explicit decision on the two pooled reliability
+claims in the capability registry and on the three complete-data obligations.
+Each new claim earns its own records on its own implementation.
+
 ## Uncertainty over a discovered structure
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no
