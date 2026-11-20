@@ -675,10 +675,12 @@ pub(crate) mod tests {
             parameters: vec![CyclicParameter::Weight { equation: 0, parent: 1 }],
             training,
             prior_sd: 1.0,
-            chains: 2,
-            warmup: 300,
-            draws_per_chain: 300,
-            proposal_scale: 0.08,
+            // The random-walk step is about 2.4 posterior standard deviations (0.065 here);
+            // four chains of 1500 draws meet the R-hat and ESS gate.
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.16,
             worlds: vec![
                 vec![Clamp { variable: 2, value: 0.0 }],
                 vec![Clamp { variable: 2, value: 1.0 }],

@@ -34,7 +34,7 @@ evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.
 evidence_assertion = "cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence"
 kind = "posterior"
 fixtures = []
-why = "A cyclic feedback posterior (two chains of 300 warmup and 300 draws over 260 intervention-labelled rows) is refitted from its raw evidence by the bundle recomputation compiler and reproduces the embedded chain terminal; the portable artifact replays under independently retained bundle and program identities and a changed identity or producer artifact is refused. This source assertion is unearned."
+why = "A cyclic feedback posterior (four chains of 500 warmup and 1,500 draws over 260 intervention-labelled rows) is refitted from its raw evidence by the bundle recomputation compiler and reproduces the embedded chain terminal; the portable artifact replays under independently retained bundle and program identities and a changed identity or producer artifact is refused. This source assertion is unearned."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"

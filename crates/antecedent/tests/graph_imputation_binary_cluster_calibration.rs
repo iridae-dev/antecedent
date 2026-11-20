@@ -58,7 +58,7 @@ fn decision(effect: &ScientificQuantity) -> DecisionContract {
                 id: "hold".into(),
                 kind: ActionKind::External,
                 inputs: vec![effect.clone()],
-                utility: UtilityExpr::Const(0.0),
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
             },
         ],
         utility_units: "score".into(),

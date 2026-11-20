@@ -77,7 +77,7 @@ fn contract() -> DecisionContract {
                 id: "baseline".into(),
                 kind: ActionKind::Policy,
                 inputs: vec![quantity()],
-                utility: UtilityExpr::Const(0.0),
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
             },
         ],
         utility_units: "units".into(),

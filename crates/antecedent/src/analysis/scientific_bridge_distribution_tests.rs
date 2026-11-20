@@ -132,6 +132,14 @@ fn contract(
     }
 }
 
+/// The predictive source law (`study-1`) and the trial-level validation trials that fit the
+/// line are separate studies, declared independent: a fitted line refuses an undeclared one.
+fn disjoint_validation_trials() -> SourceMappingDependence {
+    SourceMappingDependence::Independent {
+        evidence: "study-1 is not among the source validation trials".into(),
+    }
+}
+
 #[test]
 fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
     let mut declaration =
@@ -222,7 +230,11 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
         applies_to: BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
         evidence: Some("independent-target-validation".into()),
     };
-    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    let mut declaration = contract(
+        BridgeMapping::TrialLevelLinear(source.clone()),
+        None,
+        Some(disjoint_validation_trials()),
+    );
     declaration.source_value = ValueKind::PredictiveLaw;
     declaration.target_value = ValueKind::PredictiveLaw;
     declaration.evidence_scope = premise.established_in.clone();
@@ -670,7 +682,11 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
         applies_to: BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
         evidence: Some("independent-target-validation".into()),
     };
-    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    let mut declaration = contract(
+        BridgeMapping::TrialLevelLinear(source.clone()),
+        None,
+        Some(disjoint_validation_trials()),
+    );
     declaration.source_value = ValueKind::PredictiveLaw;
     declaration.target_value = ValueKind::PredictiveLaw;
     declaration.evidence_scope = premise.established_in.clone();

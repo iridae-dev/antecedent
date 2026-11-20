@@ -2101,10 +2101,12 @@ mod tests {
             parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
             training,
             prior_sd: 1.0,
-            chains: 2,
-            warmup: 300,
-            draws_per_chain: 300,
-            proposal_scale: 0.08,
+            // The random-walk step is about 2.4 posterior standard deviations (0.0125 here);
+            // four chains of 1500 draws meet the R-hat and ESS gate.
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.03,
         };
         let quantities: Vec<_> = ["ordinary", "promoted"]
             .iter()
@@ -2424,10 +2426,12 @@ mod tests {
             parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
             training,
             prior_sd: 1.0,
-            chains: 2,
-            warmup: 300,
-            draws_per_chain: 300,
-            proposal_scale: 0.08,
+            // The random-walk step is about 2.4 posterior standard deviations (0.0125 here);
+            // four chains of 1500 draws meet the R-hat and ESS gate.
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.03,
         };
         let quantities: Vec<_> = ["ordinary", "promoted"]
             .iter()
@@ -2602,10 +2606,12 @@ mod tests {
             parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
             training,
             prior_sd: 1.0,
-            chains: 2,
-            warmup: 300,
-            draws_per_chain: 300,
-            proposal_scale: 0.08,
+            // The random-walk step is about 2.4 posterior standard deviations (0.0125 here);
+            // four chains of 1500 draws meet the R-hat and ESS gate.
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.03,
         };
         let quantities: Vec<_> = ["ordinary", "promoted"]
             .iter()

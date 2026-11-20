@@ -885,10 +885,12 @@ mod tests {
             parameters: vec![CyclicParameter::Weight { equation: 0, parent: 1 }],
             training,
             prior_sd: 1.0,
-            chains: 2,
-            warmup: 300,
-            draws_per_chain: 300,
-            proposal_scale: 0.08,
+            // The random-walk step is about 2.4 posterior standard deviations (0.075 here);
+            // four chains of 1500 draws meet the R-hat and ESS gate.
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.18,
             worlds: vec![
                 vec![Clamp { variable: 2, value: 0.0 }],
                 vec![Clamp { variable: 2, value: 1.0 }],
@@ -985,7 +987,7 @@ mod tests {
         assert_eq!(plan.plan_view().route().as_str(), "CyclicPosteriorActionDecision");
         let result = plan.execute(&ctx).expect("joint fitted predictive worlds");
         assert!(result.posterior.diagnostics_pass);
-        assert_eq!(result.decision.decision.n_draws, 600);
+        assert_eq!(result.decision.decision.n_draws, 6000);
         let bytes =
             plan.export(&result, "cyclic-fitted-worlds", &ctx).expect("portable fitted decision");
         let replay =

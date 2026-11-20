@@ -1022,7 +1022,7 @@ mod compiled_tests {
                     id: "hold".into(),
                     kind: ActionKind::External,
                     inputs: vec![quantity.clone()],
-                    utility: UtilityExpr::Const(0.0),
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
                 },
             ],
             utility_units: "outcome_units".into(),
