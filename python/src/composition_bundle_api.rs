@@ -176,7 +176,7 @@ pub(crate) fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
 /// dependency edges and evidence relationships.
 #[pyclass(name = "CompositionBundleBuilder", skip_from_py_object)]
 pub(crate) struct PyBundleBuilder {
-    inner: BundleBuilder,
+    pub(crate) inner: BundleBuilder,
 }
 
 #[pymethods]
@@ -297,7 +297,7 @@ impl PyBundleBuilder {
 /// A sealed composed result.
 #[pyclass(name = "CompositionBundle", skip_from_py_object)]
 pub(crate) struct PyCompositionBundle {
-    bundle: CompositionBundle,
+    pub(crate) bundle: CompositionBundle,
 }
 
 #[pymethods]
