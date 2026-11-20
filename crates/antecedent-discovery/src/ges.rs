@@ -148,6 +148,11 @@ impl Ges {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.validate_request(variables)?;
+        if self.score_family == GraphScoreFamily::GaussianSignedUniform {
+            return Err(DiscoveryError::unsupported(
+                "GaussianSignedUniform requires an exact DAG search",
+            ));
+        }
         let score_data = ges_score_data(data, variables)?;
         if self.screen_pc {
             crate::ci::ensure_ci_decisions_meaningful(

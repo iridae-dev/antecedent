@@ -761,6 +761,11 @@ pub enum DiscoverFault {
         "a structure prior lists probabilities in (0, 1) over searched variables only, no self or repeated edge, and a soft-tier penalty exactly when tiers are listed"
     )]
     StructurePrior,
+    /// The signed-uniform structural model supports only exact complete-data DAG searches.
+    #[error(
+        "GaussianSignedUniform requires an exact DAG search and at most three parents per node"
+    )]
+    SignedUniformScope,
 }
 
 /// Why a simulation declaration on a fitted structural model is refused,

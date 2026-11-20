@@ -634,6 +634,11 @@ pub fn discover_pooled_exact_dag_posterior(
     params: &BayesianDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<GraphPosterior, CausalError> {
+    if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform {
+        return Err(antecedent_discovery::DiscoveryError::unsupported(
+            "GaussianSignedUniform requires complete observations; the model has no observed-data likelihood for pooled imputations",
+        ).into());
+    }
     let posteriors = tables
         .iter()
         .map(|table| discover_exact_dag_posterior(table, variables, params, ctx))
@@ -654,6 +659,11 @@ pub fn discover_pooled_exact_dag_marginals(
     params: &BayesianDiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<ExactDagMarginals, CausalError> {
+    if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform {
+        return Err(antecedent_discovery::DiscoveryError::unsupported(
+            "GaussianSignedUniform requires complete observations; the model has no observed-data likelihood for pooled imputations",
+        ).into());
+    }
     let parts = tables
         .iter()
         .map(|table| discover_exact_dag_marginals(table, variables, params, ctx))

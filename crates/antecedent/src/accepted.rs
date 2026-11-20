@@ -373,6 +373,12 @@ pub struct StructurePooling {
 pub const STRUCTURE_STAGE_ASSUMPTION_ID: &str = "estimate.structure_posterior";
 
 impl StructureProvenance {
+    /// Explicit probability score bound by this accepted exact discovery program.
+    #[must_use]
+    pub fn graph_score(&self) -> Option<&str> {
+        self.search_bounds.rsplit_once("; graph_score=").map(|(_, score)| score)
+    }
+
     /// The statement of the stage a result consumed: the search and its declared structure
     /// prior and, when pooled, the pooling over imputations and what produced them.
     #[must_use]

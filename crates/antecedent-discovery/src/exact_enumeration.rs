@@ -107,9 +107,12 @@ impl ExactDagPosterior {
         }
 
         let score_data = tabular_score_data(data, variables)?;
-        if !matches!(score_family, GraphScoreFamily::GaussianBic) {
+        if !matches!(
+            score_family,
+            GraphScoreFamily::GaussianBic | GraphScoreFamily::GaussianSignedUniform
+        ) {
             return Err(DiscoveryError::unsupported(
-                "exact DAG posterior currently supports GaussianBic only",
+                "exact DAG posterior supports GaussianBic or GaussianSignedUniform",
             ));
         }
 
@@ -125,8 +128,12 @@ impl ExactDagPosterior {
             )));
         }
 
+        let scorer = if score_family == GraphScoreFamily::GaussianSignedUniform {
+            DagScorer::signed_uniform(&score_data, prior, variables, ctx)?
+        } else {
+            DagScorer::new(n, &score_data, score_family, prior, variables)
+        };
         let masks = enumerate_unique_dags(n);
-        let scorer = DagScorer::new(n, &score_data, score_family, prior, variables);
         let scored = ctx.map_indexed(masks.len(), |index, inner| {
             if inner.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
@@ -162,7 +169,11 @@ impl ExactDagPosterior {
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(n, &weights, &kept_masks);
         let mut diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        if rejected > 0 {
+        if rejected > 0 && score_family == GraphScoreFamily::GaussianSignedUniform {
+            diagnostics
+                .notes
+                .push(format!("{rejected} graph(s) excluded by the declared prior").into());
+        } else if rejected > 0 {
             diagnostics.notes.push(std::sync::Arc::from(format!(
                 "{rejected} graph(s) excluded: constraint-violating or no finite BIC score \
                  (e.g. a deterministic relation)"
@@ -176,7 +187,13 @@ impl ExactDagPosterior {
             orient,
             SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
         )
-        .map(|posterior| posterior.with_algorithm("exact_dag_posterior"))
+        .map(|posterior| {
+            posterior.with_algorithm(if score_family == GraphScoreFamily::GaussianSignedUniform {
+                "exact_dag_posterior.gaussian_signed_uniform"
+            } else {
+                "exact_dag_posterior"
+            })
+        })
     }
 }
 

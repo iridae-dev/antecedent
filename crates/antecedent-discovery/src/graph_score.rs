@@ -2,6 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod signed_uniform;
+pub(crate) use signed_uniform::signed_uniform_local_table;
+
 use std::sync::Arc;
 
 use antecedent_core::VariableId;

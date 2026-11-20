@@ -472,6 +472,9 @@ impl DiscoverySpec {
             return "discovery.gaussian_mag_bic_marginal";
         }
         match family {
+            Some(antecedent_state::GraphScoreFamily::GaussianSignedUniform) => {
+                SIGNED_UNIFORM_SCORE
+            }
             Some(antecedent_state::GraphScoreFamily::LaplaceBic) => {
                 "discovery.laplace_bic_marginal"
             }
@@ -497,6 +500,26 @@ impl DiscoverySpec {
     ) -> Result<DiscoverQuery, antecedent_core::QueryError> {
         let mut query = DiscoverQuery::new(variables, self.method.clone(), self.bounds());
         query.validate()?;
+        if let SearchParams::Bayesian(params) | SearchParams::Screened { bayesian: params, .. } =
+            &self.search
+            && params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform
+        {
+            let method = match &self.method {
+                DiscoveryMethod::ClassPosterior { base } => base.as_ref(),
+                method => method,
+            };
+            let possible = query.variables.len() - 1;
+            if !matches!(
+                method,
+                DiscoveryMethod::ExactDagPosterior { .. }
+                    | DiscoveryMethod::ExactDagMarginals { .. }
+            ) || params.prior.constraints.max_parents.unwrap_or(possible).min(possible) > 3
+            {
+                return Err(antecedent_core::QueryError::InvalidDiscover(
+                    antecedent_core::DiscoverFault::SignedUniformScope,
+                ));
+            }
+        }
         query.bounds.configuration = self.configuration();
         Ok(query)
     }
@@ -609,6 +632,11 @@ impl DiscoverySpec {
         };
         if gaussian_score && uses_dag_bic(&self.method) {
             writer.text("antecedent.discovery.gaussian_bic.coefficients_and_variance.v2");
+        }
+        if matches!(&self.search, SearchParams::Bayesian(params)
+            if params.score_family == antecedent_state::GraphScoreFamily::GaussianSignedUniform)
+        {
+            writer.text("antecedent.discovery.gaussian_signed_uniform.zero_intercept.unit_noise.independent_signed_half_to_one.v1");
         }
         match &self.regimes {
             Some(assignment) => {
@@ -968,6 +996,8 @@ impl DiscoveredStructure {
         })
     }
 }
+
+pub(crate) const SIGNED_UNIFORM_SCORE: &str = "discovery.gaussian_signed_uniform_unit_noise_marginal";
 
 /// The answer of a compiled structure search.
 #[derive(Clone, Debug)]

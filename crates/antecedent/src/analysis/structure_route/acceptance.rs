@@ -232,12 +232,23 @@ pub fn accept_discovered_posterior(
              schema's columns in order to accept the posterior as the study's structure"
         ));
     }
+    let mut bounds = bounds_label(&payload.query);
+    if matches!(
+        posterior.algorithm().map(AsRef::as_ref),
+        Some(
+            "exact_dag_posterior.gaussian_signed_uniform"
+                | "class_posterior(exact_dag_posterior.gaussian_signed_uniform)"
+        )
+    ) {
+        bounds.push_str("; graph_score=");
+        bounds.push_str(super::SIGNED_UNIFORM_SCORE);
+    }
     let provenance = StructureProvenance {
         method: Arc::from(payload.query.method.id()),
         inference: Arc::from(payload.query.inference().as_str()),
         discovered_class: Arc::from(payload.query.output().as_str()),
         query: query_digest(&payload.query),
-        search_bounds: Arc::from(bounds_label(&payload.query)),
+        search_bounds: Arc::from(bounds),
         data_snapshot: *executed.identities.data_snapshot.as_bytes(),
         program: *program.as_bytes(),
         claim: *claim.claim_id.as_bytes(),

@@ -117,7 +117,7 @@ impl ExactDagMarginals {
     }
 }
 
-/// Exact `P(i → j)` of the Gaussian-BIC DAG posterior of `variables`.
+/// Exact `P(i → j)` of the specified DAG posterior of `variables`.
 ///
 /// The prior, its edge probabilities and every constraint (forbidden and required edges,
 /// tiers, the parent cap) are those of [`crate::ExactDagPosterior`] and the samplers: the
@@ -126,8 +126,7 @@ impl ExactDagMarginals {
 ///
 /// # Errors
 ///
-/// Invalid constraints, more than [`EXACT_MARGINAL_MAX_NODES`] variables, a score family other
-/// than Gaussian BIC, data that cannot be scored, no constraint-valid DAG with a finite score,
+/// Invalid constraints, more than [`EXACT_MARGINAL_MAX_NODES`] variables, a score family outside the supported Gaussian families, data that cannot be scored, no constraint-valid DAG with a finite score,
 /// or cancellation.
 pub fn exact_dag_marginals(
     data: &TabularData,
@@ -152,9 +151,21 @@ pub fn exact_dag_marginals(
              (EXACT_MARGINAL_MAX_NODES); use order_mcmc or structure_mcmc",
         ));
     }
+    if score_family == GraphScoreFamily::GaussianSignedUniform {
+        let data = tabular_score_data(data, variables)?;
+        let (prior_table, mut factors) =
+            crate::graph_score::signed_uniform_local_table(&data, prior, variables, ctx)?;
+        for (node, row) in factors.iter_mut().enumerate() {
+            for (subset, score) in row.iter_mut().enumerate().filter(|(_, s)| s.is_finite()) {
+                let parents = AdjacencyMask::from_word(subset as u64);
+                *score += prior_table.node_log_prior(node, &parents).expect("admissible family");
+            }
+        }
+        return marginals_from_factors(n, &factors, ctx);
+    }
     if !matches!(score_family, GraphScoreFamily::GaussianBic) {
         return Err(DiscoveryError::unsupported(
-            "exact DAG marginals currently support GaussianBic only",
+            "exact DAG marginals support GaussianBic or GaussianSignedUniform",
         ));
     }
     let score_data = tabular_score_data(data, variables)?;
