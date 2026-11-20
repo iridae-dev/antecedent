@@ -203,6 +203,7 @@ pub(crate) struct GraphImputationDeclaration {
 
 impl GraphImputationDeclaration {
     /// Compile the declared mixture again on `ctx`; the program identity is the handle's.
+    #[allow(clippy::result_large_err, reason = "the facade's refusal type is returned as compiled")]
     pub(crate) fn compile(
         &self,
         ctx: &antecedent::prelude::ExecutionContext,

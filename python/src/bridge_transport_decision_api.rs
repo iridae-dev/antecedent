@@ -130,14 +130,14 @@ fn io_refusal(error: &IoError, stage: &str) -> PyResult<String> {
 
 // The evaluator's error type is not reachable through the facade, so it is reported by its
 // message, as the chain decision binding reports it.
-fn evaluation_refusal(error: &impl std::fmt::Display) -> PyResult<String> {
-    Ok(RefusalJson::new(
+fn evaluation_refusal(error: &impl std::fmt::Display) -> String {
+    RefusalJson::new(
         antecedent::reason::reason_code!("decision_contract_unsatisfied"),
         DECISION_STAGE,
         EVALUATION_REFUSED,
         &error.to_string(),
     )
-    .json())
+    .json()
 }
 
 fn chain_refusal(error: &ChainDecisionError) -> PyResult<String> {
@@ -155,7 +155,7 @@ fn chain_refusal(error: &ChainDecisionError) -> PyResult<String> {
         })
         .to_string()),
         ChainDecisionError::Contract(inner) => Ok(external_refusal_json(&inner.to_refusal())),
-        ChainDecisionError::Evaluation(inner) => evaluation_refusal(inner),
+        ChainDecisionError::Evaluation(inner) => Ok(evaluation_refusal(inner)),
         ChainDecisionError::Io(inner) => io_refusal(inner, DECISION_STAGE),
         ChainDecisionError::Coordinate(message) => {
             Ok(binding_refusal(DECISION_STAGE, COORDINATE_REFUSED, message))

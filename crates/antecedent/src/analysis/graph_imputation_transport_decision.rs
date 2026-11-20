@@ -720,7 +720,7 @@ pub(crate) fn imputation_pooled_interval_95(
     tables: usize,
     df_complete: Option<f64>,
 ) -> Option<(f64, f64)> {
-    if tables < 2 || draws.len() % tables != 0 || draws.len() / tables < 2 {
+    if tables < 2 || !draws.len().is_multiple_of(tables) || draws.len() / tables < 2 {
         return None;
     }
     let block = draws.len() / tables;

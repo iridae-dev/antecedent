@@ -164,6 +164,7 @@ fn dependencies_json(dependencies: &[ReplayedBundleDependency]) -> Json {
     )
 }
 
+#[allow(clippy::large_enum_variant, reason = "one plan is held per handle")]
 enum Plan {
     Chain(CompiledChainBundleRecomputation),
     Decision { plan: CompiledDecisionBundleRecomputation, posterior: bool },

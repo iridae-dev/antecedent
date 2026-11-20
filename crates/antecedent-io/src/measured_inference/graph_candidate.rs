@@ -1546,7 +1546,7 @@ fn execute(
         let mut flags = Vec::new();
         let mut keys = Vec::new();
         let mut effects = Vec::new();
-        let mut world_atoms: Vec<(u64, f64, Vec<[f64; 2]>, Vec<[f64; 2]>)> = Vec::new();
+        let mut world_atoms: Vec<WorldAtom> = Vec::new();
         let mut assumptions = AssumptionSet::new();
         let mut total = 0.0;
         let mut value_count: u64 = 0;
@@ -2038,6 +2038,10 @@ fn execute(
 /// did not vary, which pulls the transported effect toward the source-average effect. Each
 /// retained graph's adjustment set and each selection target therefore enters the imputation
 /// model as a product with treatment (passive imputation).
+/// One retained graph's paired world draws: its mask, posterior weight, the world values and
+/// the success probabilities behind them.
+type WorldAtom = (u64, f64, Vec<[f64; 2]>, Vec<[f64; 2]>);
+
 fn congenial_imputer(
     rec: &Reconstructed,
     target: TransportTarget<'_>,

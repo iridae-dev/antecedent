@@ -136,7 +136,7 @@ def test_policy_subsampling_compiles_its_schedule_and_replays_every_refit() -> N
     assert candidate.lower <= candidate.upper
     assert candidate.level == 0.95
     assert candidate.calibration == candidate.slot["status"]
-    assert candidate.basis["key"]["interval_method"] == "cross_fitted_policy_subsampling_basic_v1"
+    assert candidate.basis["key"]["interval_method"] == "cross_fitted_policy_subsampling_basic_v2"
 
     artifact = candidate.export()
     assert artifact.expectation is not None
