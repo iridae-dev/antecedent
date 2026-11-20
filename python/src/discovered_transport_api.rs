@@ -25,7 +25,7 @@ use antecedent::analysis::discovered_transport_estimate::{
 use antecedent::analysis::discovered_transport_temporal::{
     DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
     estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
-    transport_discovered_temporal_structure_with_context, transport_temporal_class,
+    transport_discovered_temporal_structure_with_context, transport_temporal_class_with_context,
 };
 use antecedent::analysis::selective_discovery::{DiscoveryOutcome, SelectiveDiscoveryError};
 use antecedent::prelude::VariableId;
@@ -546,9 +546,14 @@ pub(crate) fn across_temporal_outcome(
 }
 
 /// The temporal transport verdict across a temporal graph held in Python (a `TemporalDag`,
-/// `TemporalCpdag` or `TemporalPag`).
+/// `TemporalCpdag` or `TemporalPag`), under the caller's identification memory limit and
+/// cancellation.
 #[pyfunction]
-#[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0))]
+#[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0, *, threads=None, cancel=None, memory_bytes=None))]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one request: graph, query, horizon, bounds, controls"
+)]
 fn discovered_temporal_graph_transport(
     py: Python<'_>,
     graph: &Bound<'_, PyAny>,
@@ -558,6 +563,9 @@ fn discovered_temporal_graph_transport(
     history: Option<u32>,
     member_bound: Option<usize>,
     exhausted_search_bounds: usize,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<Reply> {
     enum Owned {
         Dag(antecedent::graph::TemporalDag),
@@ -577,6 +585,8 @@ fn discovered_temporal_graph_transport(
     } else {
         return Err(crate::value_err("graph must be a TemporalDag, TemporalCpdag or TemporalPag"));
     };
+    // The verdict is structural: no draw is taken, so the context seed is fixed.
+    let ctx = crate::chain_decision_api::context(0, threads, cancel, memory_bytes);
     // Member enumeration is bounded only by the caller's `member_bound`: run it detached.
     let report = crate::detach_catch(py, move || {
         let class = match &owned {
@@ -584,7 +594,15 @@ fn discovered_temporal_graph_transport(
             Owned::Cpdag(cpdag) => TemporalClass::Cpdag(cpdag),
             Owned::Pag(pag) => TemporalClass::Pag(pag),
         };
-        Ok(transport_temporal_class(class, exhausted_search_bounds, horizon, &ids, &query, bound))
+        Ok(transport_temporal_class_with_context(
+            class,
+            exhausted_search_bounds,
+            horizon,
+            &ids,
+            &query,
+            bound,
+            &ctx,
+        ))
     })?;
     match report {
         Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),

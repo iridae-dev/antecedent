@@ -8367,6 +8367,28 @@ class CompositionBundleBuilder:
     def connect(self, upstream: str, dependent: str) -> str | None: ...
     def relate(self, left: str, right: str, relationship: str) -> tuple[str | None, str | None]: ...
     def build(self) -> tuple[CompositionBundle | None, str | None]: ...
+    def add_predictive_fit(
+        self,
+        kind: str,
+        node_id: str,
+        artifact: bytes,
+        program: str,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> str | None: ...
+    def add_predictive_chain_decision(
+        self,
+        node_id: str,
+        artifact: bytes,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> str | None: ...
 
 def consume_composition_bundle(
     data: bytes,
@@ -10555,6 +10577,10 @@ def discovered_temporal_graph_transport(
     history: int | None = None,
     member_bound: int | None = None,
     exhausted_search_bounds: int = 0,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
 def discovered_temporal_transport_estimate_run(
     contract_json: str,
@@ -12654,3 +12680,173 @@ def events_prepare(
     cancel: CancellationToken | None = None,
 ) -> NativePreparedEventProgram: ...
 def events_provider_request_id(request: str) -> str: ...
+
+# Decisions compiled with their propagation chain, and their independent replay.
+class ChainDecisionPlanHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[ChainDecisionRunHandle | None, str | None]: ...
+
+class ChainDecisionRunHandle:
+    program_identity: str
+    def decision_json(self) -> str: ...
+    def chain(
+        self,
+    ) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class ChainRobustDecisionPlanHandle:
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[ChainRobustDecisionRunHandle | None, str | None]: ...
+
+class ChainRobustDecisionRunHandle:
+    program_identity: str
+    def decision_json(self) -> str: ...
+    def chain(
+        self,
+    ) -> tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]: ...
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+def chain_decision_compile(
+    record_json: str,
+    contract_json: str,
+    *,
+    action_worlds: bool = False,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainDecisionPlanHandle | None, str | None]: ...
+def chain_decision_compile_transported(
+    response: TransportedResponseHandle,
+    contract_json: str,
+    unsupported: str,
+    weakest_support: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainDecisionPlanHandle | None, str | None]: ...
+def chain_decision_consume(
+    data: bytes,
+    expected_identity: str | None = None,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[ChainDecisionRunHandle | None, str | None]: ...
+def chain_robust_decision_compile(
+    record_json: str,
+    contract_json: str,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[ChainRobustDecisionPlanHandle | None, str | None]: ...
+def chain_robust_decision_consume(
+    data: bytes,
+    expected_identity: str | None = None,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[ChainRobustDecisionRunHandle | None, str | None]: ...
+
+# Live recomputation of a composition bundle's chain, decision or predictive-fit terminal.
+class BundleRecomputationPlanHandle:
+    route: str
+    program_identity: str
+    def plan_view_json(self) -> str: ...
+    def execute(
+        self,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+    def export_portable(
+        self,
+        run: BundleRecomputationRunHandle,
+        *,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+class BundleRecomputationRunHandle:
+    def receipt_json(self) -> str: ...
+
+def chain_bundle_recomputation_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    record_json: str | None = None,
+    *,
+    cancel: CancellationToken | None = None,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def chain_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+def decision_bundle_recomputation_compile(
+    bundle: CompositionBundle,
+    terminal_node: str,
+    contract_json: str,
+    source: JointDistributionArtifact,
+    *,
+    posterior: bool = False,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def decision_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    posterior: bool = False,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+def predictive_fit_decision_bundle_compile(
+    bundle: CompositionBundle,
+    producer: str,
+    chain: str,
+    terminal: str,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def predictive_fit_decision_bundle_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+
+# Whether an estimator targets the quantity of a support-matrix coordinate.
+def support_cell_estimator_target(
+    coordinate: str, estimator: str
+) -> tuple[bool, str | None, str | None]: ...

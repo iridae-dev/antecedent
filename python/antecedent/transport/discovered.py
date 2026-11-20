@@ -872,6 +872,7 @@ def transport_temporal_graph(
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
     exhausted_search_bounds: int = 0,
+    execution: Execution | None = None,
 ) -> TemporalStructuralEnvelope:
     """The structural verdict across a temporal graph you hold, for example an LPCMCI result.
 
@@ -879,8 +880,10 @@ def transport_temporal_graph(
     the graph's variable names in id order. A circle endpoint of a ``TemporalPag`` is
     enumerated and never read as the absence of confounding. ``exhausted_search_bounds``
     (default ``0``) is the number of search bounds the discovery that produced ``graph``
-    exhausted; a nonzero count refuses as an incomplete search. Other parameters and defaults as
-    :func:`transport_across_temporal_class`.
+    exhausted; a nonzero count refuses as an incomplete search. The member enumeration and each
+    member's identification run under ``execution``: its memory limit bounds identification and
+    its cancellation stops the enumeration, each refused with its typed reason. Other parameters
+    and defaults as :func:`transport_across_temporal_class`.
 
     Returns:
         The :class:`TemporalStructuralEnvelope`; read ``status`` first.
@@ -903,8 +906,19 @@ def transport_temporal_graph(
     steps, window = _horizon(horizon_steps, history)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
     exhausted = count(exhausted_search_bounds, "exhausted_search_bounds", minimum=0)
-    text, refusal = _native.discovered_temporal_graph_transport(
-        graph, steps, query, _target_ids(names, selection_targets), window, bound, exhausted
+    text, refusal = call_native(
+        execution,
+        _native.discovered_temporal_graph_transport,
+        graph,
+        steps,
+        query,
+        _target_ids(names, selection_targets),
+        window,
+        bound,
+        exhausted,
+        cancel="cancel",
+        memory="memory_bytes",
+        threads="threads",
     )
     _raise_transport(refusal, names)
     assert text is not None

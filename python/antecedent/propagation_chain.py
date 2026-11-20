@@ -37,6 +37,14 @@ The record is retained (``propagation_chain_v1`` for point/spread/enclosure read
 identical bits. Every rule, number, identity and refusal is computed in Rust; this module declares
 chains and decodes results.
 
+A decision is compiled together with the chain whose law it reads: :func:`compile_chain_decision`
+binds a posterior or predictive chain (or a transported law carried through the chain compiler)
+and a :class:`~antecedent.decision.Contract` into one six-layer program, and
+:func:`compile_chain_robust_decision` binds an ``assumption_envelope`` chain and a
+maximin-over-structures contract into a conservative dominance decision. Each executed decision
+exports an artifact that :func:`consume_chain_decision` or :func:`consume_chain_robust_decision`
+recompiles and re-executes under the program identity the consumer retained.
+
 A value under a supported chain is labelled ``point_only``, its spread ``uncalibrated_spread``,
 posterior draws ``posterior_propagation``, predictive draws ``predictive_propagation``, and an
 enclosure ``propagation_enclosure``. No label is a coverage statement:
@@ -49,24 +57,32 @@ import json
 import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from . import _native
 from ._artifact_protocol import (
+    ArtifactExpectation,
     ExportedArtifact,
+    artifact_consumer,
     artifact_export,
     artifact_from_receipt,
     container_bytes,
 )
 from ._float_bits import float_bits as _bits
 from ._refusal import StructuredRefusal, raise_refusal
+from ._scientific import ScientificResult
 from ._validate import finite_float_protocol as _real
+from .decision import ActionOutcome, ConstraintExclusion, Contract, Verdict
 from .errors import CausalTypeError, CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 from .joint_distribution import ScientificQuantity
-from .outcomes import outcome_operation
+from .outcomes import outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .composition import SupportPolicy
+    from .transported_response import TransportedResponse
 
 __all__ = [
     "ChainSource",
@@ -74,14 +90,25 @@ __all__ = [
     "ChainLaw",
     "ChainJointLaw",
     "ChainAssumptionEnvelope",
+    "ChainDecision",
+    "ChainDecisionRefusal",
+    "ChainRobustDecision",
+    "CompiledChainDecision",
+    "CompiledChainRobustDecision",
     "ConsumedPropagationChain",
     "FamilyEstimate",
     "FamilyTable",
     "PropagationChain",
     "PropagationChainRefusal",
+    "RobustActionBound",
+    "RobustConstraintBound",
     "StageResult",
     "affine",
     "binary",
+    "compile_chain_decision",
+    "compile_chain_robust_decision",
+    "consume_chain_decision",
+    "consume_chain_robust_decision",
     "consume_propagation_chain",
     "divide",
     "draws",
@@ -1360,3 +1387,518 @@ def family_table(
         covariance=np.asarray(matrix, dtype=np.float64).reshape(k, k),
         authority=tuple((str(a), str(b)) for a, b in bindings),
     )
+
+
+# ---------------------------------------------------------------------- decisions
+
+_DECISION_KIND = "chain_decision_v1"
+_ROBUST_DECISION_KIND = "chain_robust_decision_v1"
+
+
+class ChainDecisionRefusal(PropagationChainRefusal):
+    """A typed refusal of a decision compiled together with its chain.
+
+    A :class:`PropagationChainRefusal`. A chain refusal keeps its ``propagation_chain.*`` detail
+    and :attr:`next_attempt`, and a contract refusal its ``decision_contract.*`` detail. A law the
+    contract cannot be answered from (posterior parameter draws read as outcome risk, a coordinate
+    the chain does not retain, action worlds without a shared declared factor, a transported law
+    below the support policy) is ``decision_contract_unsatisfied`` with detail
+    ``chain_decision.refused``. An artifact whose replay or program differs from the one the
+    consumer retained is ``external_binding_mismatch`` with ``chain_decision.replay_refused``.
+    ``expected`` and ``supplied`` carry the compared semantics when the refusal names them.
+    """
+
+    def __init__(self, refusal: Mapping[str, Any], *, text: str | None = None) -> None:
+        super().__init__(refusal, text=text)
+        self.expected: str | None = refusal.get("expected")
+        self.supplied: str | None = refusal.get("supplied")
+
+
+def _decided(pair: tuple[Any, str | None]) -> Any:
+    value, refusal = pair
+    raise_refusal(refusal, ChainDecisionRefusal)
+    assert value is not None
+    return value
+
+
+def _controls(execution: Execution) -> dict[str, Any]:
+    return native_controls(
+        execution, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+    )
+
+
+def _number(value: float | None) -> float:
+    return float("nan") if value is None else float(value)
+
+
+def _verdict(wire: Any) -> Verdict:
+    if wire == "no_admissible_action":
+        return Verdict("no_admissible_action", ())
+    ((kind, value),) = wire.items()
+    if kind == "uniquely_optimal":
+        return Verdict("uniquely_optimal", (str(value),))
+    return Verdict("indistinguishable", tuple(str(action) for action in value))
+
+
+def _outcomes(wire: Sequence[Mapping[str, Any]]) -> tuple[ActionOutcome, ...]:
+    return tuple(
+        ActionOutcome(
+            id=str(action["id"]),
+            admissible=bool(action["admissible"]),
+            exclusions=tuple(
+                ConstraintExclusion(
+                    str(exclusion["constraint_id"]),
+                    float(exclusion["probability"]),
+                    float(exclusion["required"]),
+                )
+                for exclusion in action["exclusions"]
+            ),
+            expected_utility=_number(action["expected_utility"]),
+            value=_number(action["value"]),
+            standard_error=action["standard_error"],
+            expected_regret=action["expected_regret"],
+            max_regret=action["max_regret"],
+        )
+        for action in wire
+    )
+
+
+def _exported(data: bytes, kind: str, identity: str) -> ExportedArtifact[Any]:
+    return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, identity))
+
+
+def _forwarded(result: ScientificResult, kind: str, identity: str) -> ExportedArtifact[Any]:
+    data = getattr(result, "_artifact_bytes", None)
+    if data is None:
+        raise CausalTypeError("this decision retains neither its compiled program nor its bytes")
+    return _exported(data, kind, identity)
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class ChainDecision(ScientificResult):
+    """A multi-action decision scored on the law its compiled chain retained.
+
+    ``chain`` is the executed :class:`PropagationChain`; its ``program_identity`` is the joint
+    chain-and-decision program. ``actions`` are the per-action
+    :class:`~antecedent.decision.ActionOutcome` values in declaration order and ``verdict`` the
+    :class:`~antecedent.decision.Verdict`; a sampled-law ranking carries no statistical guarantee.
+    ``assumptions`` state what the decision rests on: the chain law is model-conditional with no
+    measured coverage, and a transported law is a declared input whose fitting is not replayed.
+    ``program_identity`` is the identity a consumer retains for :func:`consume_chain_decision`;
+    ``replayed`` is ``True`` for a decision an independent consumer recomputed.
+    """
+
+    chain: PropagationChain
+    contract_identity: str
+    criterion_label: str
+    actions: tuple[ActionOutcome, ...]
+    verdict: Verdict
+    evpi: float | None
+    n_draws: int
+    effective_draws: float
+    assumptions: tuple[str, ...]
+    program_identity: str
+    replayed: bool = False
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @property
+    def selected(self) -> tuple[str, ...]:
+        """The leader and any action it cannot be told apart from; empty if none is admissible."""
+        return self.verdict.actions
+
+    @artifact_export
+    def export(self, *, artifact_id: str = "chain-decision") -> ExportedArtifact[ChainDecision]:
+        """The versioned artifact :func:`consume_chain_decision` recompiles and re-executes.
+
+        It carries the chain record, the contract and the decision fingerprint; its expectation
+        is :attr:`program_identity`. A replayed decision forwards the bytes it was read from.
+
+        Raises:
+            ChainDecisionRefusal: the artifact exceeds its byte bound or cannot be encoded.
+        """
+        if self._handle is None:
+            return _forwarded(self, _DECISION_KIND, self.program_identity)
+        data = _decided(self._handle.export(_text(artifact_id, "artifact_id")))
+        return _exported(data, _DECISION_KIND, self.program_identity)
+
+
+def _decision_of(run: Any, *, replayed: bool) -> ChainDecision:
+    body = json.loads(run.decision_json())
+    return ChainDecision(
+        chain=_chain(run.chain()),
+        contract_identity=str(body["contract_identity"]),
+        criterion_label=str(body["criterion_label"]),
+        actions=_outcomes(body["actions"]),
+        verdict=_verdict(body["verdict"]),
+        evpi=None if body["evpi"] is None else float(body["evpi"]),
+        n_draws=int(body["n_draws"]),
+        effective_draws=float(body["effective_draws"]),
+        assumptions=tuple(str(assumption) for assumption in body["assumptions"]),
+        program_identity=str(run.program_identity),
+        replayed=replayed,
+        _handle=None if replayed else run,
+    )
+
+
+class CompiledChainDecision:
+    """A chain law and a decision contract compiled into one six-layer program.
+
+    Compilation evaluates neither a chain stage nor a utility. :attr:`program_identity` is the
+    identity of the joint program, the one an executed decision carries and a consumer retains;
+    :meth:`plan_view` shows every layer and :meth:`execute` runs the chain and scores the
+    contract on its retained output law.
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the joint chain-and-decision program (lowercase hex)."""
+        return str(self._handle.program_identity)
+
+    def plan_view(self) -> dict[str, Any]:
+        """Every layer of the compiled program, with nothing executed."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> ChainDecision:
+        """Execute the retained chain and score the contract on its aligned output rows.
+
+        The scoring runs under the execution's memory admission and cancellation; a cancelled run
+        raises :class:`~antecedent.errors.CausalCancelledError`.
+
+        Raises:
+            ChainDecisionRefusal: the output law was withdrawn or the evaluation refuses.
+        """
+        policy = resolve_execution(execution)
+        run = _decided(policy._call(self._handle.execute, **_controls(policy)))
+        return _decision_of(run, replayed=False)
+
+    def __repr__(self) -> str:
+        return f"CompiledChainDecision(program_identity={self.program_identity[:12]!r})"
+
+
+def _contract(contract: object) -> Contract:
+    contract = require_success(contract)
+    if not isinstance(contract, Contract):
+        raise CausalTypeError(
+            f"contract must be a decision.Contract, not {type(contract).__name__}"
+        )
+    return contract
+
+
+@outcome_operation
+def compile_chain_decision(
+    source: PropagationChain | TransportedResponse,
+    contract: Contract,
+    *,
+    action_worlds: bool = False,
+    support_policy: SupportPolicy | None = None,
+    execution: Execution | None = None,
+) -> CompiledChainDecision:
+    """Compile a chain and a multi-action decision over its retained output law into one program.
+
+    ``source`` is a :class:`PropagationChain` with a ``posterior`` or ``predictive`` reading and a
+    declared ``output_quantity`` (several aligned coordinates through ``joint_outputs``). Every
+    action input must name one of those exact coordinates, and an input with the ``outcome``
+    functional needs a ``predictive`` reading: posterior parameter draws are not outcome risk.
+    Utilities may be nonlinear, the criterion any :class:`~antecedent.decision.Criterion`, with
+    hard chance constraints and regret; the law is read from the chain's replayable output rows,
+    never rebuilt from a mean or variance.
+
+    ``action_worlds=True`` declares that each action reads its own intervention, regime or policy
+    world of one jointly aligned, fully disclosed draw table whose sources share a declared
+    ``model``, ``parameter`` or ``disturbance`` factor. The cross-world coupling regret and
+    nonlinear utilities read is that declared one; it is not identified from the marginals.
+
+    ``source`` may instead be a :class:`~antecedent.transported_response.TransportedResponse`
+    carrying a jointly aligned law: its columns become chain sources bound to the transport
+    receipt, positive row weights become the chain's reweighting and zero-weight rows are dropped.
+    ``support_policy`` (a :class:`~antecedent.composition.SupportPolicy`, by default
+    ``SupportPolicy.require_all("supported")``) must accept the receipt's support label, so an
+    ``extrapolative`` transport needs ``SupportPolicy.require_all("extrapolative")``. The transport
+    is a declared input: it is neither refitted nor recalibrated.
+
+    Raises:
+        CausalTypeError: ``source``, ``contract`` or ``support_policy`` has the wrong type.
+        CausalValueError: ``action_worlds`` or ``support_policy`` does not apply to ``source``.
+        ChainDecisionRefusal: the chain, the contract or the law cannot support the decision.
+    """
+    from .composition import SupportPolicy
+    from .transported_response import TransportedResponse
+
+    source = require_success(source)
+    declaration = json.dumps(_contract(contract)._wire())
+    if not isinstance(action_worlds, bool):
+        raise CausalTypeError("action_worlds must be True or False")
+    policy = resolve_execution(execution)
+    if isinstance(source, PropagationChain):
+        if support_policy is not None:
+            raise CausalValueError("support_policy applies to a transported law, not to a chain")
+        handle = _decided(
+            policy._call(
+                _native.chain_decision_compile,
+                source._record,
+                declaration,
+                action_worlds=action_worlds,
+                cancel=policy.cancel,
+            )
+        )
+        return CompiledChainDecision(handle)
+    if isinstance(source, TransportedResponse):
+        if action_worlds:
+            raise CausalValueError(
+                "action worlds are declared on a chain's joint draw table, not on a transported law"
+            )
+        accepted = (
+            SupportPolicy.require_all("supported") if support_policy is None else support_policy
+        )
+        if not isinstance(accepted, SupportPolicy):
+            raise CausalTypeError("support_policy must be a composition.SupportPolicy")
+        handle = _decided(
+            policy._call(
+                _native.chain_decision_compile_transported,
+                source._handle,
+                declaration,
+                accepted.unsupported,
+                accepted.weakest_support,
+                cancel=policy.cancel,
+            )
+        )
+        return CompiledChainDecision(handle)
+    raise CausalTypeError(
+        "source must be a PropagationChain or a transported_response.TransportedResponse, "
+        f"not {type(source).__name__}"
+    )
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="propagation_chain.consume_chain_decision: consumes the chain record and the contract, "
+    "recompiles their joint program under the retained identity, re-executes the chain law and "
+    "the decision and compares the complete decision fingerprint",
+    replayable=True,
+)
+def consume_chain_decision(
+    artifact: bytes,
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+) -> ChainDecision:
+    """Independently consume a chain decision artifact (plain, action-world or transported law).
+
+    The chain record and the contract are consumed and recompiled into their joint program, the
+    chain re-executed and the decision rescored; the complete decision must match the stored
+    fingerprint bit for bit. ``expected_identity`` is the :attr:`ChainDecision.program_identity`
+    the consumer retained independently of the bytes.
+
+    Raises:
+        CausalValueError: ``expected_identity`` is not a 64-hex identity.
+        ChainDecisionRefusal: a foreign version, a changed declaration or result, or a program
+            other than the expected one (``external_binding_mismatch``).
+    """
+    data = container_bytes(artifact)
+    policy = resolve_execution(execution)
+    run = _decided(
+        policy._call(_native.chain_decision_consume, data, expected_identity, **_controls(policy))
+    )
+    return _decision_of(run, replayed=True)
+
+
+@dataclass(frozen=True, slots=True)
+class RobustConstraintBound:
+    """Probability bounds for one hard constraint under every admissible assumption.
+
+    ``probability_lower`` is the weight of rows that satisfy the constraint for every assumption,
+    ``probability_upper`` of rows that satisfy it for at least one; ``required`` is the contract's
+    minimum probability.
+    """
+
+    id: str
+    probability_lower: float
+    probability_upper: float
+    required: float
+
+
+@dataclass(frozen=True, slots=True)
+class RobustActionBound:
+    """Conservative expected-utility bounds and feasibility of one action.
+
+    ``utility_lower`` and ``utility_upper`` enclose the expected utility under every fixed
+    admissible assumption. ``certainly_admissible`` holds when every hard constraint is certified
+    for every assumption and ``certainly_excluded`` when one fails under every assumption.
+    """
+
+    id: str
+    utility_lower: float
+    utility_upper: float
+    constraints: tuple[RobustConstraintBound, ...]
+    certainly_admissible: bool
+    certainly_excluded: bool
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class ChainRobustDecision(ScientificResult):
+    """A conservative dominance decision over a chain's draw-indexed assumption envelope.
+
+    Each chain row fixes its draw and encloses every admissible interval assumption; utilities and
+    constraints are evaluated by interval arithmetic. ``dominant_action`` is an action only when
+    its lower utility exceeds the upper utility of every competitor that may be admissible, and
+    ``None`` otherwise. It is conditional on the declared draws and assumption boxes, with no
+    coverage or exact-minimax claim. ``program_identity`` is the identity a consumer retains for
+    :func:`consume_chain_robust_decision`.
+    """
+
+    chain: PropagationChain
+    contract_identity: str
+    actions: tuple[RobustActionBound, ...]
+    dominant_action: str | None
+    program_identity: str
+    replayed: bool = False
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @artifact_export
+    def export(
+        self, *, artifact_id: str = "chain-robust-decision"
+    ) -> ExportedArtifact[ChainRobustDecision]:
+        """The versioned artifact :func:`consume_chain_robust_decision` replays.
+
+        Its expectation is :attr:`program_identity`. A replayed decision forwards the bytes it was
+        read from.
+
+        Raises:
+            ChainDecisionRefusal: the artifact exceeds its byte bound or cannot be encoded.
+        """
+        if self._handle is None:
+            return _forwarded(self, _ROBUST_DECISION_KIND, self.program_identity)
+        data = _decided(self._handle.export(_text(artifact_id, "artifact_id")))
+        return _exported(data, _ROBUST_DECISION_KIND, self.program_identity)
+
+
+def _robust_of(run: Any, *, replayed: bool) -> ChainRobustDecision:
+    body = json.loads(run.decision_json())
+    return ChainRobustDecision(
+        chain=_chain(run.chain()),
+        contract_identity=str(body["contract_identity"]),
+        actions=tuple(
+            RobustActionBound(
+                id=str(action["id"]),
+                utility_lower=float(action["utility_lower"]),
+                utility_upper=float(action["utility_upper"]),
+                constraints=tuple(
+                    RobustConstraintBound(
+                        id=str(bound["id"]),
+                        probability_lower=float(bound["probability_lower"]),
+                        probability_upper=float(bound["probability_upper"]),
+                        required=float(bound["required"]),
+                    )
+                    for bound in action["constraints"]
+                ),
+                certainly_admissible=bool(action["certainly_admissible"]),
+                certainly_excluded=bool(action["certainly_excluded"]),
+            )
+            for action in body["actions"]
+        ),
+        dominant_action=body["dominant_action"],
+        program_identity=str(run.program_identity),
+        replayed=replayed,
+        _handle=None if replayed else run,
+    )
+
+
+class CompiledChainRobustDecision:
+    """An assumption-envelope chain and a maximin contract compiled into one program.
+
+    :attr:`program_identity` is the identity an executed decision carries and a consumer retains;
+    :meth:`plan_view` shows every layer and :meth:`execute` bounds every action.
+    """
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the joint chain-and-decision program (lowercase hex)."""
+        return str(self._handle.program_identity)
+
+    def plan_view(self) -> dict[str, Any]:
+        """Every layer of the compiled program, with nothing executed."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> ChainRobustDecision:
+        """Replay the rowwise assumption bounds and bound every action's utility and constraints.
+
+        Raises:
+            ChainDecisionRefusal: the envelope was withdrawn or a utility enclosure is not finite.
+        """
+        policy = resolve_execution(execution)
+        run = _decided(policy._call(self._handle.execute, **_controls(policy)))
+        return _robust_of(run, replayed=False)
+
+    def __repr__(self) -> str:
+        return f"CompiledChainRobustDecision(program_identity={self.program_identity[:12]!r})"
+
+
+@outcome_operation
+def compile_chain_robust_decision(
+    chain: PropagationChain,
+    contract: Contract,
+    *,
+    execution: Execution | None = None,
+) -> CompiledChainRobustDecision:
+    """Compile a conservative dominance decision over a chain's assumption envelope.
+
+    ``chain`` has the ``assumption_envelope`` reading and a declared ``output_quantity``; every
+    action input must be that coordinate and the contract's criterion
+    :meth:`~antecedent.decision.Criterion.maximin_over_structures`. The chain and the contract
+    occupy one six-layer program.
+
+    Raises:
+        CausalTypeError: ``chain`` or ``contract`` has the wrong type.
+        ChainDecisionRefusal: the reading, the criterion, a coordinate or the contract refuses.
+    """
+    chain = require_success(chain)
+    if not isinstance(chain, PropagationChain):
+        raise CausalTypeError(f"chain must be a PropagationChain, not {type(chain).__name__}")
+    declaration = json.dumps(_contract(contract)._wire())
+    policy = resolve_execution(execution)
+    handle = _decided(
+        policy._call(
+            _native.chain_robust_decision_compile, chain._record, declaration, cancel=policy.cancel
+        )
+    )
+    return CompiledChainRobustDecision(handle)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="propagation_chain.consume_chain_robust_decision: consumes the chain record and the "
+    "contract, recompiles their joint program under the retained identity, replays the rowwise "
+    "assumption bounds and compares the complete result fingerprint",
+    replayable=True,
+)
+def consume_chain_robust_decision(
+    artifact: bytes,
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+) -> ChainRobustDecision:
+    """Independently replay a robust chain decision under a retained program identity.
+
+    ``expected_identity`` is the :attr:`ChainRobustDecision.program_identity` the consumer
+    retained independently of the bytes.
+
+    Raises:
+        CausalValueError: ``expected_identity`` is not a 64-hex identity.
+        ChainDecisionRefusal: a changed declaration, enclosure, contract, program or result.
+    """
+    data = container_bytes(artifact)
+    policy = resolve_execution(execution)
+    run = _decided(
+        policy._call(
+            _native.chain_robust_decision_consume, data, expected_identity, **_controls(policy)
+        )
+    )
+    return _robust_of(run, replayed=True)
