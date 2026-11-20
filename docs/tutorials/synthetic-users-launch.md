@@ -1,21 +1,20 @@
 # The smallest defensible test: from synthetic users to a launch decision
 
-A product team has recent human clickstreams from its existing website and thousands of agent sessions on both the existing and redesigned sites. The redesign is confidential. The team wants to learn enough from a small human pilot to decide whether to launch. Causal inference helps separate what the agents predict from what would justify transferring that prediction to humans—and helps choose the next experiment when the prediction fails.
+A team has redesigned a website and wants as few people as possible to see it before launch. Thousands of software agents have tried both versions. Customers have used only the old one. How many people should try the redesign before the team decides whether to launch?
 
-The useful proposition is **historical human evidence + a large synthetic dataset + a small human test can support the decision that otherwise needs a much larger new human test**. This tutorial executes that comparison. Antecedent carries the declared prior, checks transport requirements, evaluates the launch contract, values further observations and checks which follow-up designs could identify the unresolved effect.
+The team requires at least 82% of human users to complete checkout on the new site. You’ll use the agents’ results to predict how people will do, then update that prediction as the first human checkout results arrive.
 
-In the successful branch, 32 newly exposed humans support the same launch choice as a separate 128-person human-only comparator. In the conflicting branch, 16 humans are enough to withhold launch and change the scientific question: an eight-person authentication experiment is worth more than another undifferentiated sample.
+The script simulates two pilots. In one, 32 people provide enough evidence to launch under the team’s rule. In the other, just seven of the first 16 people complete checkout. The team holds the launch and considers a smaller experiment to find out whether changing authentication would help.
 
-These are decisions under explicit models, not interchangeable datasets. The two analyses need not have the same posterior, precision or power. The small test earns its role by informing this decision with the earlier evidence, rather than reproducing every result a large experiment could establish.
+All sessions in this example are simulated, including those labeled human. The two pilots illustrate how different observations can change the decision under the same rule.
 
-- **You will learn** how to turn agent sessions and historical human data into a declared, revisable prior, how a launch contract and exposure costs choose and stop a human pilot, how a conflict between prediction and pilot is reported, and how an identification check and the value of information select a targeted follow-up study.
-- **Before you start:** [installation](../start/installation.md), [stop, continue or run longer](decide-under-uncertainty.md) for decision contracts and the value of a study, and [when the causal assumptions stop holding](when-assumptions-change.md) for evidence plans. Posterior probabilities and binomial likelihoods are assumed.
-- **Time:** the example runs in about two seconds locally; allow up to a minute.
-- **Run it:** `python examples/python/synthetic_users_launch.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/synthetic_users_launch.ipynb). The complete script is embedded [below](#run-the-complete-investigation).
+Run `python examples/python/synthetic_users_launch.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/synthetic_users_launch.ipynb). See the [complete example](#run-the-complete-investigation).
+
+The pilot analysis uses posterior probabilities and a binomial model for the number of successful checkouts.
 
 ## The task and the launch contract
 
-The dataset consists of synthetic clickstream summaries, one independent user or agent per row. Each session attempts navigation, product discovery and checkout microtasks. Each task produces a binary success indicator. These are separately attempted tasks, **not conditional funnel conversion rates**: a failed navigation task does not remove a person from the checkout denominator. Historical sessions also contain a separate authentication-recovery probe.
+Each user or agent attempts navigation, product discovery and checkout separately. Someone who fails navigation still attempts checkout, so the checkout rate counts everyone who tried the site. Historical sessions include an additional task that tests recovery from an authentication problem.
 
 Before collecting any new human observations, declare:
 
@@ -41,7 +40,7 @@ E[launch utility] = P(requirement holds) − 19 P(requirement fails)
 
 Launch beats withholding exactly when that probability exceeds 0.95. The native decision contract reads a posterior over the indicator `requirements_hold`. Its uncertainty is uncertainty about a population completion probability, not the probability that one particular visitor completes checkout.
 
-The application exposes three workflow outcomes: **launch**, **investigate**, and **do not launch**. Antecedent evaluates the terminal launch-versus-withhold comparison. The predeclared application controller distinguishes an unresolved question worth investigating from a version the evidence says to abandon. That controller is application code, visible in the example.
+The contract compares launching with withholding. When it withholds, the application chooses between **investigate** and **do not launch** according to whether a further study could change the decision.
 
 ## 1. Learn what the old site can tell us
 
@@ -105,9 +104,9 @@ The evidence ledger records the three source datasets and their row identities. 
 
 Before seeing the pilot, rank initial cohorts of 8, 16 and 32 people by expected value of sample information, net of exposure cost. Each candidate supplies a predictive distribution for its checkout count. Antecedent updates the finite signal law, integrates the best terminal action after the observation, and subtracts the declared cost.
 
-In this fixture, 16 is the best initial cohort in that catalog and has positive net value. Eight is too small to be worth its cost for this launch decision; 32 costs more than its initial information is worth. The initial cohort has an interim safety look at eight. It is a committed 16-person study unless a conflict requires an earlier pause; the eight-person look is not presented as an independently sufficient launch study. After the initial cohort, the controller can request the next declared batch or stop.
+Of the three initial cohorts, 16 people offer the greatest expected gain after exposure costs. The team commits to 16 and checks after eight for an early conflict that would warrant a pause. After 16 it can decide whether to recruit the next batch.
 
-This is the sense in which the example seeks the smallest defensible test: it compares declared studies for a declared decision, under exposure costs and a predeclared protocol. It does not prove a globally smallest sample size across every possible experiment or stopping policy.
+Here “smallest” refers to the cohorts and stopping rules the team actually considered. Change the cost of exposing the redesign and a different cohort may be worth recruiting.
 
 At each checkpoint, update the **original** mixture with all observations collected so far:
 
@@ -131,7 +130,7 @@ The hidden generating mechanism has human checkout completion of 0.88, close to 
 | 16 | 14 | 0.927 | Continue to the next checkpoint |
 | 32 | 29 | 0.974 | Launch; stop further testing |
 
-At 16, a favorable observed rate alone is insufficient: the contract still withholds launch. At 32, the risk rule is met, and another 32-person batch has net information value about `−0.142` utility units. Further full-site exposure is not justified by that candidate's value for this decision.
+After 16 people the team still has too little evidence to launch. At 32 the pilot crosses the risk threshold. Recruiting 32 more people would cost about 0.142 utility units more than the expected gain from their results.
 
 Now make the comparison that motivates the tutorial:
 
@@ -143,7 +142,7 @@ Now make the comparison that motivates the tutorial:
 
 The larger comparator is a separate, predeclared reference study. It shares the first 32 observations and adds independent humans from the same synthetic population. It is not a universal sample-size recommendation. The human-only grid calculation is independently checked against the exact Beta-posterior tail, using its binomial-CDF identity.
 
-The earlier evidence changes what the small sample can establish **for the decision**. It supports the same launch action as the larger comparator while exposing one quarter as many humans to confidential content. It does not make the 32-person and 128-person datasets statistically equivalent.
+With the historical and agent evidence, the team reaches the same launch decision after exposing 32 people to the redesign as the human-only comparison reaches after 128. The two analyses still give different estimates of uncertainty.
 
 ### Test how much that conclusion relies on transfer
 
@@ -167,7 +166,7 @@ The lower-tail probability of this checkout count under the original transferred
 
 All three alternative explanations retain equal posterior mass because they predict the same distribution of the observed task summaries. That equality is checked. The analysis has located a checkout discrepancy, but it has not identified its cause. More observations of the same summaries can sharpen the completion rate while leaving that causal ambiguity unresolved.
 
-The application reports **investigate**: launch is withheld, and an actionable causal question remains. The `do_not_launch` branch is reserved for a clear regression with little remaining support for a useful authentication remedy. This example executes agreement and investigation; it does not manufacture a third observed dataset solely to exercise every workflow label.
+The application reports **investigate**. The pilot gives the team a reason to withhold launch, and an authentication change could still improve checkout. It would report `do_not_launch` if the evidence pointed to a regression with little prospect of a useful repair.
 
 ## 5. Repair identification, then choose a targeted study
 
@@ -205,9 +204,9 @@ The native ranker accepts equally weighted state draws. Application code therefo
 
 ## What this established
 
-The successful path uses a large agent dataset and historical human observations to make a much smaller new human study decision-relevant. Antecedent guides the initial pilot choice, updates the decision as evidence arrives, and helps determine when further confidential exposure is not worth its cost. The comparison with the larger human-only study makes the benefit visible in the action taken, without equating the underlying evidence.
+When the human pilot agreed with the agent prediction, 32 new human sessions were enough to meet the team’s launch threshold. Under its stated costs, testing another batch would have been more expensive than the information it provided.
 
-The failed-transfer path uses the small pilot to ask a better next question. A prior conflict reduces trust in the synthetic prediction; an identification check distinguishes a targeted intervention from more of the same observations; information value and exposure cost select the next study.
+When the prediction failed, the pilot ruled out launching on current evidence. Testing an authentication bypass with eight additional people offered more decision value than another sample of ordinary checkout sessions.
 
 The application supplies the finite hypothesis family, binomial likelihoods, numerical prior projection and checkpoint controller. Antecedent supplies the prior-composition, mechanism-transport, decision, identification-repair and study-ranking operations they call. The complete example makes that boundary executable.
 
@@ -215,7 +214,7 @@ The application supplies the finite hypothesis family, binomial likelihoods, num
 
 The investigation did not establish agent-to-human equivalence, the cause of the checkout discrepancy or the effect of an authentication repair. The targeted study is a recommendation under declared likelihoods, not a result.
 
-**Synthetic data helps determine which real-world evidence is necessary. It does not replace the need for that evidence.**
+The next empirical question is whether people assigned to the bypass complete checkout more often.
 
 ## Where to go next
 
@@ -228,3 +227,5 @@ If the launch also faces bursts of outside activity, [When outside events interr
 The example needs no additional dependencies, credentials, network access or confidential content. It generates all observations, keeps the generating truth separate, and runs both paths in about two seconds locally. The pilot counts are illustrative seeded realizations; other observations can lead to more testing or to withholding launch.
 
 <!-- example: examples/python/synthetic_users_launch.py -->
+
+[Open the Python script](../../examples/python/synthetic_users_launch.py)

@@ -1,13 +1,12 @@
 # Beyond a fixed intervention: write and replay your own causal policies
 
-A retailer wants to manage prices and replenishment over 12 weeks. Setting every price to 10 is one possible intervention. Discounting only when stock is high, or ordering next week's inventory from this week's conditions, asks a richer causal question. Antecedent lets you express those rules as programs, check their dependencies, run them through a structural model and replay them for the same stores.
+A retailer orders stock a week before it arrives. A discount might sell surplus inventory today and leave the store empty tomorrow. How would sales, stockouts and profit change if the retailer adjusted prices and orders together?
 
-This tutorial compares a fixed price, a conditional discount and an adaptive pricing-and-ordering rule. The policies are supplied by the researcher; Antecedent evaluates them. A rule that sells more need not earn more, and successful execution does not itself identify the effect of deploying the rule.
+You’ll compare three rules over the same 12 weeks in 24 simulated stores. One fixes the price at 10, one discounts when stock is high, and one uses stock and recent sales to set both price and the next order.
 
-- **You will learn** the difference between assigning a value and transforming a generated one, how to write conditional and history-dependent rules as expressions, how dependency checks refuse a circular or history-less rule, how a counterfactual replay differs from a forward forecast, and how to export, verify and reuse a policy program.
-- **Before you start:** [installation](../start/installation.md) and [interventions and worlds](../concepts/interventions-and-worlds.md). The example needs NumPy. [One feedback system, three questions](feedback-three-questions.md) is a shorter introduction to asking different interventions of one model.
-- **Time:** the example runs in under a second locally; allow up to a minute.
-- **Run it:** `python examples/python/programmable_policies.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/programmable_policies.ipynb). The complete script is embedded [below](#run-the-complete-example).
+Run `python examples/python/programmable_policies.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/programmable_policies.ipynb). See the [complete example](#run-the-complete-example).
+
+If interventions are new to you, start with [interventions and worlds](../concepts/interventions-and-worlds.md).
 
 ## The task
 
@@ -76,7 +75,7 @@ circular = assign("price", var("sales"))
 # sample_policy(...) refuses: policy_dependency_circular
 ```
 
-The complete example asserts that refusal, then executes the corrected inventory-based rule. Moving a read into an expression does not make an impossible within-week dependency meaningful.
+Current stock is available when the store sets its price. This week’s sales depend on that price, so the price rule can only use sales from an earlier week.
 
 ## 3. Add history and delayed replenishment
 
@@ -109,11 +108,11 @@ adaptive_order = assign(
 
 The price responds to current stock and previous sales. The order responds to previous sales and the gap between current stock and a target of 70. Lagged sales are available even though current sales would create a cycle in the price rule. These formulas are candidate business rules, not an optimum discovered by the compiler.
 
-Pass a one-week history window and explicit prehistory to `sample_temporal_policy`. The example intentionally omits that history once and checks `policy_history_unavailable`. An execution seed cannot supply missing scientific history. Every store's initial values are provided before the first simulated week, in a fixed store order.
+Pass a one-week history window and each store’s starting values to `sample_temporal_policy`. Keep the stores in the same order as the panel. Without those values the first week has no previous sales or order to read, and the call returns `policy_history_unavailable`.
 
 ## 4. Forecast new worlds and replay the same stores
 
-A forward rollout draws new disturbances from the fitted model. A counterfactual rollout asks about particular factual stores, using the disturbances abduced from their factual store-week records:
+A forecast draws fresh price and demand disturbances. A counterfactual replay asks what would have happened in these particular stores. It infers their disturbances from the recorded weeks and uses them again under the new policy.
 
 ```python
 replayed = counterfactual_temporal_policy(
@@ -128,7 +127,7 @@ The script independently computes those paths with a NumPy recurrence using the 
 
 ### Compare business outcomes, not only units sold
 
-Contribution charges 6 per unit sold, 0.10 per unit of end-of-week inventory, and 0.05 handling cost per unit ordered. Acquisition cost is charged on sold units rather than charged again on every order. This is a declared contribution measure, not a cash-flow statement.
+To calculate contribution, start with sales revenue. Subtract 6 per unit sold, 0.10 per unit of inventory left at the end of each week, and 0.05 per unit ordered for handling. Subtracting acquisition cost when a unit sells counts that cost once.
 
 The runnable example produces these mean 12-week results per store, rounded here:
 
@@ -139,7 +138,7 @@ The runnable example produces these mean 12-week results per store, rounded here
 | Conditional discount | 1,418.74 | −23.19 | 188.33 | 0.95 |
 | Adaptive price and orders | 1,285.51 | −156.42 | 203.55 | 0.00 |
 
-The adaptive rule removes stockouts and sells more, but its margins and inventory costs leave contribution below the baseline. Programmability makes the proposed rule evaluable; it does not make the rule desirable. A service-level objective could value these outcomes differently.
+The adaptive rule eliminates stockouts and sells the most units. Lower margins and the cost of carrying extra stock still reduce average contribution per store below the baseline. A retailer that values keeping an item available could include that benefit in its comparison.
 
 The script also prints the contribution change for the first three stores (`unit_changes_first_three`) and checks that the mean of their paired changes equals the difference in aggregate means. Those are model-based counterfactual differences for the specified stores, not observed treatment effects or uncertainty intervals.
 
@@ -194,7 +193,7 @@ Run `cargo run -p antecedent --example evaluate_fixed_policies`.
 
 ## What this established
 
-The three policies have explicit operational meanings, and one executor carries those meanings into forward simulation, history-dependent rollout and counterfactual replay. Independent arithmetic checks the results; dependency validation prevents circular rules; portable identities and callback recovery make the implementation inspectable and reusable.
+You can now replay a proposed pricing rule against the same 24 store histories. Using last week’s sales makes it possible to change this week’s price before sales are known. The contribution calculation shows what the extra units sold under that rule cost the retailer.
 
 ## What this did not establish
 
@@ -211,3 +210,5 @@ The temporal comparison additionally depends on the declared stock-flow equation
 The script is self-contained, runs offline, and needs no dependencies beyond Antecedent and NumPy. All reported numerical results above come from its synthetic fixture. The complete program also exercises missing history, circular dependencies, callback output validation, identity mismatch and callback recovery from source. It prints one JSON report: the four worlds' results under `worlds`, the route support under `support`, the refusal codes it met, the program identities, the reuse receipt and the callback record.
 
 <!-- example: examples/python/programmable_policies.py -->
+
+[Open the Python script](../../examples/python/programmable_policies.py)

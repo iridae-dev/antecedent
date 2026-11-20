@@ -2,16 +2,13 @@
 
 A retailer runs a geographic experiment with an advertising platform to measure incremental orders. The result suggests 1,000 additional orders per region per day, a 200% return on advertising spend and positive profit. The p-value is 0.07.
 
-Should the retailer stop because the effect is not significant at 0.05? Continue because the estimated return is positive? Or run the experiment longer? This tutorial answers with a causal result, a decision contract, a risk question, and the value of more evidence, and it shows where each step refuses and why.
+Should the retailer keep advertising, stop, or buy more evidence? At the estimated effect, the campaign makes money. To choose among those options, the retailer also needs to know how much it could lose and what another experiment would cost.
 
-- **You will learn** what a p-value does and does not say about a decision, how to declare actions and utilities as a decision contract, why a result that carries only a mean refuses a risk question, how to state a belief that can answer it, and how to value a further study against its cost.
-- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). [Reading a result](../start/reading-a-result.md) explains the fields used here.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/decide_under_uncertainty.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/decide_under_uncertainty.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/decide_under_uncertainty.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/decide_under_uncertainty.ipynb). See the [complete example](#the-complete-example).
 
 ## The task
 
-A decision to advertise is made for a population of regions, over a stretch of days, in dollars. The experiment gives an estimate of the effect on orders; the business supplies what an order is worth and what advertising costs. Antecedent connects the two and keeps the uncertainty attached.
+The experiment measures additional orders per region per day. To decide on a rollout, the retailer needs profit in dollars across all the regions and days it plans to cover.
 
 The data are simulated, and the mechanism is declared:
 
@@ -19,7 +16,7 @@ The data are simulated, and the mechanism is declared:
 orders[r] = 12,000 + 1,000 × advertised[r] + u[r]
 ```
 
-There are 40 regions. Twenty were chosen at random for advertising and 20 held back. Regional variation `u` has a standard deviation of 1,750 orders per region per day, and shoppers in one region are not affected by advertising in another. The true effect is 1,000 orders per region per day. That is a truth of this fixture and useful because every later number can be checked; it says nothing about any real retailer. The regional variation is built from equally spaced normal quantiles, used once in each arm, so the estimate equals the true effect and the standard error is a fixed number. A real experiment would not be this tidy.
+The experiment assigns 20 regions to advertising and 20 to a holdout group at random. In the simulation, advertising adds 1,000 orders per region per day and affects only shoppers in the advertised region. Regional variation has a standard deviation of 1,750 orders. Both groups use the same set of equally spaced normal quantiles, so their difference in means recovers the simulated effect exactly.
 
 | Declared | Learned |
 | --- | --- |
@@ -48,7 +45,7 @@ effect 1000 orders, standard error 553, z 1.81, p 0.071
 
 The test statistic `z` is the estimate divided by its standard error, and the p-value is two-sided against a normal reference.
 
-The p-value of 0.07 says this: if the true effect were zero, an estimate at least this far from zero would turn up about 7% of the time under the test's assumptions. It is not a 7% probability that the campaign has no effect, and 0.93 is not the probability that it works. Those are statements about the effect given the data, and they need a belief about the effect that a p-value does not contain. The section on downside risk supplies one, explicitly.
+If advertising had zero effect and the test assumptions held, a result at least this far from zero in either direction would occur about 7% of the time. To calculate the probability that advertising loses money, you need a distribution over the effect given the data. You’ll specify one below.
 
 A threshold of 0.05 is a convention for a hypothesis test. A business decision weighs what each outcome costs, and it need not share that threshold.
 
@@ -80,7 +77,7 @@ expected profit if we continue: 45.0 million dollars
 
 `contract_for` is the example's helper that builds a `decision.Contract` from the two actions above, with utility in `usd`. Continuing is worth 45 million dollars on the point estimate (1,000 × 25 − 20,000 = 5,000 dollars per region-day, times 9,000), stopping is worth zero, and the contract selects `continue`.
 
-That answer is a point value. A standard error is not a distribution of profit, and the decision reports no interval, no regret and no replayable export, because a mean retains nothing to compute them from. The next step asks for exactly what a mean cannot give.
+The point estimate tells you which action has higher expected profit. To calculate a profit interval, regret, or the chance of losing money, you also need to specify how uncertainty about the effect is distributed.
 
 ## A risk question the result refuses
 
@@ -98,7 +95,7 @@ except decision.DecisionRefusal as refusal:
 refused: decision_contract_unsatisfied
 ```
 
-A quantile needs a distribution; the result supplies a mean. Nothing is invented to fill the gap, and the refusal names what is missing, not that the arithmetic failed.
+The refusal identifies the missing input. To calculate the tenth percentile of profit, the contract needs a distribution over possible profits.
 
 The study compiler asks the same question earlier, before anything is fitted, and makes the next option concrete. `study_ranking.compile_decision_for_study` takes the study, the decision and the carrier the decision demands, and checks what the study's inference realization can publish. The example declares the same study twice, once with `posterior=False` (sampling) and once with `posterior=True` (conjugate Bayesian):
 
@@ -118,7 +115,7 @@ Under that belief the contract can ask three things.
 
 - **Expected utility** is the same 45 million dollars, because the belief's mean is the estimate.
 - **The chance of breaking even** (`Criterion.threshold_probability(0.0)`) is about 64%, the probability that the effect reaches 800 orders. Equivalently, there is about a 36% chance continuing loses money. That is the statement the p-value was being asked to make.
-- **A downside policy** declared as a hard constraint: at most a 10% chance of losing more than 10 million dollars. A loss of 10 million dollars corresponds to an effect of about 756 orders, and the belief puts probability about 0.67 on the effect being at least that, against 0.90 required. Continuing is therefore not admissible on today's evidence, and the constrained contract selects `stop`. A constraint excludes an action; it never subtracts a penalty from its utility.
+- **A limit on losses.** The retailer allows at most a 10% chance of losing more than $10 million. Staying within that loss requires about 756 extra orders per region per day. Under the declared belief, the chance of reaching that level is only about 67%. The contract therefore excludes `continue` and selects `stop`.
 
 ```python
 loss_cap = decision.Constraint(
@@ -166,7 +163,7 @@ print(ranked.explain())
 
 With a normal belief and a Gaussian study the value has a closed form, so the example computes it independently and requires agreement to a relative 1e-5; each candidate reports its integration method as `exact`. The values are about 11.6, 17.1 and 22.0 million dollars. Perfect information would be worth about 30.4 million dollars, an upper bound on any study. Net of cost the order is twenty pairs (about 13.1 million), then forty (about 10.0), then ten (about 9.6). The cheapest study is not the best, and the largest costs more than it adds.
 
-Read the answer against the three options. Continuing now is worth about 45 million dollars in expectation. Running twenty more pairs first adds about 13 million net in expectation, and it narrows the belief that the loss policy rejected. Stopping forgoes both. On these declared inputs the best move is to run the twenty-pair study, then decide. The example's last two lines say so:
+Under the expected-profit rule, advertising now is worth about $45 million. Testing 20 more pairs first and then choosing whether to advertise adds about $13 million in expected profit after the cost of testing. The script prints the comparison below.
 
 ```text
 decide today: continue is worth 45.0 million dollars
@@ -185,7 +182,7 @@ When an input to a decision is itself a corrected measurement or a pooled estima
 
 ## What this established
 
-Under the declared design and belief, continuing is worth about 45 million dollars on average, has roughly a one-in-three chance of losing money, fails a stated downside policy, and is improved most, net of cost, by running a twenty-pair study first. The p-value of 0.07 did not decide any of that. The risk question a mean-only result could not answer refused, and a declared belief answered it with its status attached.
+The choice depends on the retailer’s rule. Maximizing expected profit favors advertising. Imposing the $10 million loss limit rules it out on current evidence. For a retailer maximizing expected profit and willing to wait, testing 20 more pairs gives the largest expected gain after costs.
 
 ## What this did not establish
 
@@ -193,8 +190,10 @@ The belief itself was not established: the downside numbers are exact for the de
 
 ## Where to go next
 
-The next scientific question is whether the twenty-pair study is feasible under the same randomization and non-interference premises. If it is, the continued use is to [update the response with the new experiment](experiment-to-next-study.md) and decide again. To keep an exported decision reproducible while its sources change, see [replay and current decisions](replay-and-current-decisions.md). For the contract and the ranker in full, see [decisions](../decisions.md) and [design ranking](../design-ranking.md#ranking-studies-by-value-of-information).
+If the retailer can randomize 20 more pairs without spillover between regions, the next step is to [update the estimate with the new experiment](experiment-to-next-study.md). For the underlying calculations, see [decisions](../decisions.md) and [design ranking](../design-ranking.md#ranking-studies-by-value-of-information). For saved decisions, see [replay and current decisions](replay-and-current-decisions.md).
 
 ## The complete example
 
 <!-- example: examples/python/decide_under_uncertainty.py -->
+
+[Open the Python script](../../examples/python/decide_under_uncertainty.py)

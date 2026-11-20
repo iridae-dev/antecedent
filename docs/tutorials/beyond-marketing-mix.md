@@ -1,19 +1,18 @@
 # Beyond the marketing mix: decide what to change and what to learn next
 
-A retailer wants to allocate advertising across search, social and video. A marketing mix model can estimate delayed response, diminishing returns and channel interactions. Causal inference asks a further question: what evidence supports treating those responses as the consequences of changing spending? This tutorial follows that question through an experiment, a business decision and the value of another study.
+A retailer can spend six units a week on advertising. Should it split the money evenly across search, social and video, or concentrate on two channels? The retailer cares about revenue in week 24 and has the option to spend nothing if the expected gain is too small.
 
-The investigation uses one synthetic geographic panel and one retained response model. You declare the scientific question, inspect its evidence requirements before fitting, and carry its quantities into later computations. The known generating mechanism provides an independent numerical check. Its numbers describe this simulation, not a retailer in the world.
+You’ll use weekly data from four simulated markets to choose a proposal, then use a geographic experiment to revise its predicted gain. The same estimate goes into two decisions. Is the proposal worth its cost? Is another experiment worth paying for?
 
-- **You will learn** how to fit one response model and reuse it for every later step, how to compare spending programs on shared draws, how to read what the panel does and does not identify, how a mapped experimental summary updates the retained law, and how a stated utility drives both a decision and the ranking of further studies.
-- **Before you start:** [installation](../start/installation.md). Work through [compare a coordinated intervention program](joint-interventions.md) and [from a new experiment to the next study](experiment-to-next-study.md) first; this tutorial combines their steps on a larger model.
-- **Time:** the example runs in about 20 seconds locally; allow up to a minute.
-- **Run it:** `python examples/python/beyond_marketing_mix.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/beyond_marketing_mix.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/beyond_marketing_mix.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/beyond_marketing_mix.ipynb). See the [complete example](#the-complete-example).
+
+This example builds on two shorter tutorials about [spending schedules](joint-interventions.md) and [updating a fit with an experiment](experiment-to-next-study.md).
 
 ## The task
 
-Four geographic markets have 72 observed weeks and two weeks of recorded advertising history. Managers spend more when an observed demand indicator is high. Search, social and video have three-period carryover and a saturating response; search and video also interact. Markets have different intercepts, and revenue has seasonal variation and Gaussian noise.
+The data cover 72 weeks in four markets, plus two earlier weeks of advertising history. Managers spend more when they expect demand to rise. Advertising in any one week can affect revenue that week and the next two. Returns diminish as exposure grows, and the return on search depends partly on video spending.
 
-Compare constant spending programs over the next 24 weeks. The outcome is the **mean revenue index across these same four markets in the terminal week**, conditional on their last two observed advertising weeks and declared future demand and season paths. It is not cumulative quarterly revenue. The example uses a 24-week planning horizon throughout, so changing it to a calendar quarter would require changing the target and experimental mapping together.
+For each proposal, predict the **average week-24 revenue index across the four markets**. All proposals start with the same two weeks of spending history and use the same assumed paths for future demand and seasonality. Only the spending schedule changes.
 
 | Declared by the researcher | Learned or computed |
 | --- | --- |
@@ -86,7 +85,7 @@ assert ranked["exhaustive"] and not ranked["global_certificate"]
 assert prepared.inspect()["fits_performed"] == 1
 ```
 
-The explicit cache budget retains the fitted mechanism. Each call exhausts its pair of declared worlds; comparing the three proposal values exhausts the three proposals above. This establishes a finite candidate winner under the fitted terminal-mean objective. It supplies no continuous-allocation optimality bound. The [program search guide](../guides/joint-program-search.md) covers continuous certificates and held-out evaluation.
+The cache lets all three proposals reuse the same fit. Choose the proposal with the highest predicted week-24 revenue among those in the table. A different split of the budget might do better. For searches over a continuous range of allocations, see the [program search guide](../guides/joint-program-search.md).
 
 Every proposed program and its baseline share each complete parameter draw. The script checks that `scheduled_contrast` equals the draw-by-draw difference and verifies
 
@@ -106,11 +105,11 @@ The script asserts that arithmetic to `1e-12`, then checks the selected program'
 
 We have a fitted allocation winner. What would make its incremental effect causal?
 
-Spending follows anticipated demand. The declared model adjusts for the observed demand indicator, but an adjustment term does not itself prove that the fitted temporal mechanism evaluates an identified whole-program functional. The selected result's report has `identified` set to `False`, and the script asserts it. Among the attempts the preparation inspection lists, the whole-program randomization attempt reports that no known assignment contract was supplied, and names the missing evidence.
+Managers spend more when they expect higher demand. The model accounts for the demand indicator, but the panel supplies no assignment probabilities for complete spending schedules. Look at `identified` in the selected result. Here it is `False`. The plan lists the evidence each identification attempt would require.
 
 The next step is concrete: obtain known, positive-probability assignments of complete programs to independent units with matching histories and pretreatment context, or supply an accepted unrolled graph and an identification proof whose functional the computation reproduces. Weekly randomization alone does not identify a sustained trajectory. The smaller [joint-intervention tutorial](joint-interventions.md) executes that distinction and shows the corresponding design declarations.
 
-Keep the fitted winner as a model-conditional proposal while deciding what evidence to obtain. A good fit and a numerical search result have answered useful questions, but neither has discharged this identification obligation.
+At this stage you have a proposal worth testing and a prediction to test it against.
 
 ## 4. Incorporate a geographic experiment
 
@@ -142,7 +141,7 @@ modular_policy: frozen_joint_importance
 
 With the fixed seed, the fitted point contrast is about 3.266, against the generating truth of 3.375. The retained posterior mean moves from about 3.260 to 3.269 after the experimental mean of 3.294. These are different summaries: the optimizer point need not equal the posterior mean.
 
-The evidence changes the law. It supplies no blanket validation of every channel curve or allocation. Importance conditioning also cannot create response draws outside the retained law; a sharply conflicting experiment calls for checking the model and sampling support. The [experimental-update guide](../guides/joint-program-designs.md) explains the bridge, dependence and design contracts in more detail.
+The experiment gives more weight to draws that predict its result well. If all the draws disagree sharply with the experiment, check the fitted model and the range of draws it produced. Reweighting can only redistribute weight among those draws. See the [experimental-update guide](../guides/joint-program-designs.md).
 
 ## 5. Decide whether to implement it
 
@@ -167,7 +166,7 @@ To see why revenue maximization is insufficient, increase the implementation pri
 
 Now we have a decision under today's evidence. Which additional evidence would improve it?
 
-The example compares two ways to repeat the same terminal-contrast study. Both supply 16 independent summaries with observation variance 0.64. Their costs differ: 0.001 versus 0.05 contribution-index units. Holding the sampling model fixed isolates the effect of cost and avoids inventing an unsupported mapping to a search–video interaction experiment.
+Both candidate studies would measure the week-24 contrast using 16 independent summaries with observation variance 0.64. One costs 0.001 contribution-index units and the other costs 0.05. Because the two would collect the same information, you can compare the price of that information directly.
 
 ```python
 ranking = updated.rank_next_samples(
@@ -176,7 +175,9 @@ ranking = updated.rank_next_samples(
 )["candidates"]
 ```
 
-The terminal actions use exactly the contribution utilities above. Each possible future observation reweights the retained law; the study's gross value is the expected gain from choosing after that observation rather than now. Its net value subtracts the study cost. The script asserts equal gross values for equal sampling models, the cost arithmetic and a shared admissible-action identity. It also checks gross information value against independent Gaussian-mixture quadrature, within the quadrature error bound plus six Monte Carlo standard errors. In the seeded run, gross information value is about 0.0031 contribution-index units, with a Monte Carlo standard error of 0.00062. Net values are about 0.0021 and −0.0469. The cheaper study ranks first. That ranking does not itself say to run it: compare its net value with zero, the value of proceeding without another study, and read the Monte Carlo standard error.
+For each possible study result, update the weights and choose between spending and holding. Averaging the gain from that choice gives a gross information value of about 0.0031 contribution-index units. The script checks this value by independent integration.
+
+Subtract each study’s price. The cheaper study has a net value of about 0.0021, compared with −0.0469 for the more expensive one. Compare each value with zero, the gain from proceeding without another study. The Monte Carlo standard error of the gross value is about 0.00062.
 
 An interaction study or a study in other markets would need its own supported estimand bridge. `rank_next_studies` supports those declared regimes; the [experimental-update guide](../guides/joint-program-designs.md#decide-then-rank-further-studies) explains that route. Greater precision for this decision would still be a different achievement from obtaining a design that identifies the program effect.
 
@@ -198,8 +199,10 @@ None of this identified the effect of a whole spending program: the selected all
 
 ## Where to go next
 
-The investigation continued from marketing mix analysis into causal evidence and scientific decisions while retaining the qualifications of each result. The next question is: *what evidence would most improve tomorrow's decision?* The [experimental-update guide](../guides/joint-program-designs.md) covers the design declarations that would identify a whole program, and [design ranking](../design-ranking.md) covers valuing studies in general.
+To design an experiment that assigns complete spending schedules, see the [experimental-update guide](../guides/joint-program-designs.md). To compare studies by the decisions they would inform, see [design ranking](../design-ranking.md).
 
 ## The complete example
 
 <!-- example: examples/python/beyond_marketing_mix.py -->
+
+[Open the Python script](../../examples/python/beyond_marketing_mix.py)

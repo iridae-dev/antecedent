@@ -1,13 +1,12 @@
 # One feedback system, three questions
 
-Two quantities push on each other: A rises when B rises, and B rises when A rises. Ask "what does A do to B?" of such a system and the answer depends on what you mean. This tutorial asks three different questions of one feedback system, gets three different answers, and shows why each is the right answer to its own question. It then asks a fourth question that has no answer, and shows how Antecedent keeps that visible instead of dropping it.
+Suppose A raises B and B, in turn, raises A. When you see a high value of A, what value of B should you expect? How much would B change if you held A one unit higher? What if you gave A a one-unit push and let the feedback continue?
 
-Nothing in this tutorial is estimated from data. The system is declared by its equations, so every number is an exact consequence of those equations: a fixture truth of the stated model, not a claim about any real system.
+Two linear equations are enough to work out all three answers by hand. You’ll then ask Antecedent for each answer and examine a second loop in which an intervention leaves the equations with no solution.
 
-- **You will learn** the difference between observing, clamping (`Set`) and shocking (`Shift`) a variable in a feedback loop, how to declare each as a world and read its answer, how each world reports the way it was solved and certified, and how an intervention with no solution is reported.
-- **Before you start:** [installation](../start/installation.md). You need to be able to solve two linear equations by substitution; no earlier tutorial is assumed. [Interventions and worlds](../concepts/interventions-and-worlds.md) gives the general vocabulary.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/feedback_three_questions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/feedback_three_questions.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/feedback_three_questions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/feedback_three_questions.ipynb). See the [complete example](#the-complete-example).
+
+You can check the calculations by solving two linear equations by substitution.
 
 ## Declare the system
 
@@ -18,14 +17,14 @@ A = 0.4 B + U_A
 B = 0.5 A + U_B
 ```
 
-`U_A` and `U_B` are disturbances: everything that moves a variable apart from the other one. Here they are independent, centered at zero, with variance one. The loop gain is 0.4 × 0.5 = 0.2: a push on A comes back to A, reduced to a fifth.
+`U_A` and `U_B` represent influences from outside the loop. They are independent, each with mean zero and variance one. Raising A by one unit raises B by 0.5. That change feeds back into A with strength 0.4 × 0.5 = 0.2.
 
 A **world** is a named set of simultaneous changes to the system, and a question is asked of a world. World 0 changes nothing: it is the system as declared. The other worlds in this tutorial use two kinds of change:
 
 - A **clamp** (`Set`) holds a variable at a value you choose. The clamped variable's own mechanism is deleted, so nothing flows into it any more. The loop is cut.
 - A **shock** (`Shift`) adds an amount to a variable's disturbance. The mechanisms stay as they are, so the loop is still active.
 
-Clamping and shocking are different interventions on the same system and ask different questions.
+That gives us two ways to intervene. We can also observe the system running on its own.
 
 ## The three questions and their answers by hand
 
@@ -51,7 +50,7 @@ The slope exceeds both interventional answers below because A also carries infor
 | Mean change in B when A is clamped from 0 to 1 | 0.5 |
 | Mean change in B after a unit mean shock to `U_A` | 0.625 |
 
-Three questions, three answers. The clamp cuts A's incoming mechanism, so it removes the feedback. The shock leaves the loop active, so it keeps it. The observational slope answers neither: it describes how the two variables co-vary when the system runs untouched.
+Holding A fixed cuts the path from B back to A. After a shock, that path still amplifies the initial change. In passive observations it also lets a disturbance that started in B show up in A. That is why the observational slope and the two intervention effects differ.
 
 ## Ask Antecedent
 
@@ -105,7 +104,7 @@ The example asserts all three against the hand derivation to within 1e-10: `asso
 
 ### Different questions run different programs
 
-The questions differ in more than their numbers. Each world records the action it applied and how it was solved:
+Read the solution method alongside each world’s result.
 
 ```python
 assert worlds[1].actions[0]["kind"] == "hard_clamp"
@@ -176,7 +175,7 @@ except CyclicRefusal as refusal:
     next_attempt = refusal.next_attempt
 ```
 
-The refusal names what to do next. The example prints the world's `status` (`no_solution`), its `failed_mass` (1.0) and that next attempt: declare an equilibrium selection rule or a dynamic law for the clamped loop, or intervene with a mechanism change that keeps the free block regular. Each of these is a modelling choice that you make, because the model as declared says nothing about where a clamped system with no equilibrium goes:
+For the clamped world the script prints `status = no_solution` and `failed_mass = 1.0`. To proceed, you need to specify what happens when the system cannot settle. The remedy depends on the equations.
 
 - A **dynamic law** says how the loop evolves in time. The question then becomes where it is at a stated time rather than where it settles.
 - A **selection rule** picks one state among several when there are several. Here there are none, so this applies to nonlinear loops with multiple roots rather than to this linear one.
@@ -196,7 +195,7 @@ replayed = require_success(
 assert replayed.to_dict() == result.to_dict()
 ```
 
-A replay recomputes the same numbers. It does not turn a model into evidence: the artifact says what was asked of what, not that the equations describe a real system.
+A successful replay shows that the consumer reproduced the calculation from the saved equations. Testing whether those equations describe an actual feedback loop takes observations or experiments.
 
 To learn a feedback law from data instead of declaring it, see [`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py): it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
 
@@ -212,7 +211,7 @@ Run `cargo run -p antecedent --example fitted_feedback_decision`.
 
 ## What this established
 
-In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt.
+In this loop the observational slope is about 0.776. Raising the clamp by one unit changes mean B by 0.5. A one-unit shock changes it by 0.625 because the feedback continues. In the three-variable example, clamping C leaves no equilibrium and Antecedent reports the failed world.
 
 ## What this did not establish
 
@@ -225,6 +224,8 @@ The next question is where the equations come from. Experiments that clamp one v
 ## The complete example
 
 <!-- example: examples/python/feedback_three_questions.py -->
+
+[Open the Python script](../../examples/python/feedback_three_questions.py)
 
 The same computation is available in Rust as [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/feedback_three_questions.rs) through the cyclic world API of `antecedent-model`. It asserts the same three values and the same failed mass.
 

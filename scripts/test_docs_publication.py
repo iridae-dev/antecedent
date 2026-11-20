@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from docs_hooks import ROOT, on_files, publication_exclusions
+from docs_hooks import ROOT, on_files, publication_exclusions, render_examples
 from generate_example_catalog import version
 
 
@@ -23,6 +23,14 @@ class PublicationTests(unittest.TestCase):
             use_directory_urls=True,
             plugins=SimpleNamespace(_current_plugin=None),
         )
+
+    def test_launch_tutorial_shows_complete_script_in_both_editions(self):
+        page = (ROOT / "docs/tutorials/event-driven-launch.md").read_text(encoding="utf-8")
+        source = (ROOT / "examples/python/event_driven_launch.py").read_text(encoding="utf-8")
+        block = "```python\n" + source + "```"
+        for edition in (page, render_examples(page)):
+            section = edition.split("## The complete example\n", 1)[1]
+            self.assertEqual(section.count(block), 1)
 
     def test_current_executed_previews_are_admitted(self):
         from mkdocs.structure.files import Files

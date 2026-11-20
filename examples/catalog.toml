@@ -1151,7 +1151,7 @@ topic = "Tutorials"
 level = "intermediate"
 dependencies = []
 runtime = "small synthetic example"
-claim = "The development example checks signal probability mass and the modeled value of information. Release builds can inspect the plan while the routes await support."
+claim = "The simulations compare peak load with and without a hold. The script checks the probabilities of a quiet hour and an hour with announcements, and the expected gain from observing which occurred."
 
 [[example]]
 id = "hidden_rollout_variants"

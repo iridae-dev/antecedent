@@ -1,15 +1,14 @@
 # From day zero to publication: plan the evidence, then earn the claim
 
-An HCI researcher wants to know whether explanations help people make better decisions when an AI recommendation is wrong. Causal inference matters before recruitment: what should change between interfaces, which outcomes would answer the question, and which study could distinguish a useful interface from a convincing explanation of why it works?
+When an AI gives bad advice, can an explanation help people catch the mistake? A researcher designs an interface that shows an explanation and prompts people to review the recommendation. If people make better decisions, either change might deserve the credit.
 
-This tutorial follows one investigation through three stages. Antecedent helps plan the first study, choose a follow-up when its results leave an important question unresolved, and check the claims proposed for the paper. The researcher supplies the scientific aims and assumptions; the computation makes their consequences inspectable.
+You’ll plan two experiments. The first compares the redesigned interface with the original. The follow-up varies the explanation and the prompt independently, so you can estimate how much the explanation contributes.
 
-The worked example is fully synthetic. It preserves a protocol before generating observations, analyzes a randomized interface comparison, selects and analyzes an independent factorial follow-up, and produces an evidence-linked claim table, a supported abstract and the citations behind every number. The final results include an inconclusive component effect: a useful investigation need not end with every hypothesis confirmed.
+Both experiments use simulated participants. At the end you’ll write up three results from their task records, including how much longer people took and how uncertain the explanation’s effect remains.
 
-- **You will learn** how to plan a randomized study and inspect the assumptions behind the plan, analyze it at the level that was randomized, check which follow-up designs would identify an unresolved component effect, rank them by value net of cost, and tie each proposed claim in a paper to the result and method records that support it.
-- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). Statistical power and confidence intervals for a difference in means are assumed. [Stop, continue or run longer](decide-under-uncertainty.md) introduces the value of a further study.
-- **Time:** the example runs in under a second locally; allow up to a minute.
-- **Run it:** `python examples/python/research_from_day_zero.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/research_from_day_zero.ipynb). The complete script is embedded [below](#run-the-complete-example).
+Run `python examples/python/research_from_day_zero.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/research_from_day_zero.ipynb). See the [complete example](#run-the-complete-example).
+
+The sample-size calculation uses statistical power for a difference in means.
 
 ## The research question
 
@@ -67,13 +66,13 @@ The example computes:
 
 The baseline plan assigns 64 participants per arm. Its analytic power is about 0.801; the simulation gives 0.803 with Monte Carlo standard error 0.018. The script checks their agreement and verifies that one participant fewer falls below the requested analytic target.
 
-The simulation generates studies under the declared planning model and applies the planned analysis. It is not evidence that the assumed effect or variability describes future participants. The sensitivity table makes the recruitment consequences of those assumptions visible before they become an expensive surprise.
+The power calculation tells you how often this design would detect the assumed effect. Look at the sensitivity table before setting a recruitment target. If participant accuracy varies more than you expect, the same number of participants gives you less power.
 
 ### Preserve the original research commitment
 
 The protocol includes the native planning-request identity. Application code serializes and hashes the protocol before generating any observed study data. A later amendment receives a new identity and names its parent; it does not overwrite the first protocol.
 
-This is a useful preregistration input, not proof of external preregistration. A real investigation must deposit its protocol through the researcher's chosen registration process. A content identity establishes which specification was retained; it does not establish when an outside party first received it.
+The hash lets another researcher verify which protocol you used. To document when you committed to that protocol, deposit it with a registration service before collecting data.
 
 The [planning guide](../guides/power-and-sample-size.md) covers precision, assurance, attrition and other supported designs.
 
@@ -127,7 +126,7 @@ For the component question, the researcher declares a projected graph with `cont
 | Add a perceived-understanding questionnaire | A further measured variable | Insufficient |
 | Independently randomize content and review prompt | A content intervention across balanced prompt conditions | Verified sufficient |
 
-The questionnaire is not assigned a causal or construct-validity role merely because its name sounds relevant. The factorial study supplies four randomized cells: neither component, content alone, prompt alone and both.
+The factorial study randomizes participants to four interfaces. They see the original interface, the explanation alone, the prompt alone, or both. These comparisons can isolate the contribution of each change.
 
 “Verified sufficient” means the declared evidence would identify the specified contrast under the graph and design assumptions. It does not promise a narrow interval, a positive effect or a valid psychological explanation. The study must still implement its declared assignment, recruitment, measurement, consistency and no-interference assumptions.
 
@@ -165,7 +164,7 @@ The new protocol names the first protocol as its parent and declares a new prima
 
 The follow-up recruits 128 new participants, 32 per factorial cell. It estimates a content effect of **+3.83 percentage points**, with a 95% interval of **−0.25 to +7.90**. The example independently reconstructs the content effect, prompt effect and interaction from the four cell means.
 
-This study identifies the component contrast, but the interval includes zero. The correct scientific outcome is an estimate with consequential uncertainty, not a forced confirmation. A future study can build on that result; it cannot turn an exploratory question from the first study into an originally preregistered primary hypothesis.
+The 95% interval for content alone runs from a slight loss to a gain of nearly eight percentage points. The study separates the explanation from the prompt, but that range still leaves room for both no benefit and a practically important one.
 
 ## End: write the paper your evidence supports
 
@@ -185,7 +184,7 @@ The example ends with an application-level claim manifest. Each proposed stateme
 
 The mechanism check is executable. A second `HedgeContract` models an unobserved common cause of voluntary inspection and accuracy, while allowing component effects through other paths. The factorial study does not randomize inspection, so the native repair check remains insufficient for that mediator claim. Randomized components can answer a component question while leaving a proposed behavioral mechanism unresolved.
 
-The audit does not read arbitrary manuscript prose or certify a paper automatically. Its value is that a researcher can make the evidence requirements explicit and repeat the checks as the manuscript, evidence or proposed wording changes.
+The researcher lists the claims to check. As the manuscript changes, update that list and rerun the audit so that each statement can be traced to the evidence behind it.
 
 ### Produce a bounded abstract
 
@@ -197,7 +196,7 @@ The accompanying record retains the unresolved mechanism and generalization ques
 
 ### Cite the methods behind every number
 
-A methods section cites the published method behind each number and says where the implementation departs from it. Every Antecedent result already carries that information. `outcome.method_provenance` names the provenance records behind the route the result executed (here, the randomized-design identification record and the Neyman difference-in-means estimator record), each with its published sources, the deviations the record documents, what its method review did not cover, and the record's id and digest.
+For each number in the paper, cite the method that produced it. Read `outcome.method_provenance` for the randomized-design identification record and the Neyman difference-in-means estimator record. Each includes the published sources, documented deviations, limits of the method review, and the record’s ID and digest.
 
 The citations travel with the results. Every audit row that rests on a result stores the record ids and digests of that result next to its effect and interval, so the claim table and the methods section cannot drift apart. One call then collects the bibliography of the whole investigation:
 
@@ -232,9 +231,9 @@ Both randomized results export and reload against their own independent expectat
 
 ## What this established
 
-Before recruitment, Antecedent made the study's assumptions and resource requirements inspectable. After the first results, it helped distinguish an unresolved causal question from a need for more precision, checked which designs could answer it, and valued the useful candidates. Before publication, its results supported an audit that separated supported, inconclusive, contradicted and unsupported statements, and their provenance supplied the citations and caveats for the methods section.
+The first experiment supports a claim about the complete interface. Participants caught more incorrect recommendations and spent longer on each task. The follow-up lets the paper report a separate estimate for explanatory content, with an interval wide enough to include zero.
 
-The investigator still chooses the questions, models, measures and interpretation. The tutorial's application code supplies protocol snapshots and the explicit claim manifest. Together, those pieces keep the research connected from the first plan to the claims in the paper.
+The protocol, participant records and method citations show readers how you reached each conclusion.
 
 ## What this did not establish
 
@@ -249,3 +248,5 @@ For details, see [experimental planning](../guides/power-and-sample-size.md), [r
 The example runs offline with Antecedent and NumPy, needs no credentials or real participant data, and completes in under a second locally. It keeps the hidden generating mechanism separate from the estimator inputs, checks its arithmetic independently and prints the research record as JSON.
 
 <!-- example: examples/python/research_from_day_zero.py -->
+
+[Open the Python script](../../examples/python/research_from_day_zero.py)

@@ -50,8 +50,6 @@ Select `source.kind = "fitted"` with the fixed `decay`, `column_cap`, `iteration
 
 A future study takes a finite weighted parameter belief and estimates the value of a specified count threshold in a new segment. Both alternatives choose at the same time. The observation segment changes the arrival process's state at the decision cutoff. For an actual observation, the compiled update instead reads the complete new segment and returns an updated belief and continuation law. Pass that law through the same world and decision contract.
 
-Release builds gate the new computations on earned evidence. The development build exposes these routes for verification and marks their support status.
-
 ## Compare two actions on the same arrival paths
 
 This example uses the forecast above to compare an open launch with a policy that holds the load coordinate at 0.25. A smaller peak has higher utility. The initial load and the effect of the policy are model premises.

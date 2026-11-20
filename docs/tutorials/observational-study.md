@@ -1,11 +1,8 @@
 # Estimate an effect from observational data
 
-Nobody assigned these smokers to quit, so the question has to be answered from people who chose for themselves. This tutorial asks one such question on real public data, follows the assumptions the answer depends on, and ends by stating what the numbers do and do not say.
+How much weight would the same smokers have gained if they had all quit, compared with continuing to smoke? A US survey followed smokers from the 1970s into the 1980s. They chose whether to quit, so a simple comparison mixes the effect of quitting with differences between the people who made each choice.
 
-- **You will learn** how to declare a graph and a missing-data policy, inspect a prepared study before estimating, read overlap diagnostics and calibration status with an estimate, change the estimator, the target population and the missing-data policy on the same prepared study, and read an E-value.
-- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). The example needs NumPy and no other package.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/observational_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/observational_study.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/observational_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/observational_study.ipynb). See the [complete example](#the-complete-example).
 
 ## The question
 
@@ -21,7 +18,7 @@ The question and the data follow Hernán and Robins, *Causal Inference: What If*
 
 The manifest [`examples/data/nhefs.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/nhefs.toml) records the origin, citation, SHA-256, retrieval date, preprocessing and the columns used. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the file when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/README.md) describes the cache and the offline path.
 
-Without a verified file the example runs on a synthetic stand-in with the same columns, 1,629 rows and 63 missing outcomes. Every simulated quitter gains exactly 3.0 kg more, so its average effect of quitting, 3.0 kg, is a fixture truth of the generator, and it says nothing about smokers. The first line of output says which table was used:
+Without the verified file, the script generates a table with the same columns, 1,629 people and 63 missing follow-up weights. The simulation makes quitting add 3.0 kg for each person, which gives you a known effect to check. The first line of output identifies the data you are using.
 
 ```text
 DATA: synthetic stand-in (fixture average effect of quitting 3.0 kg).
@@ -47,7 +44,7 @@ query = ant.AverageEffect("qsmk", "wt82_71")
 
 That declaration is the assumption of no unmeasured confounding given those covariates. Nothing in this tutorial tests it.
 
-The table has more columns than the list of covariates because the propensity model needs room to bend. Age, smoking intensity, years smoked and starting weight enter linearly and squared; education, exercise and activity are categories, so each non-reference level gets an indicator column. This is the specification the book uses. The graph is the same however the covariates are encoded; the encoding changes what the models can fit.
+The propensity model predicts quitting from the baseline measurements. It includes squared terms for age, cigarettes per day, years smoked and starting weight so their associations with quitting can curve. For education, exercise and activity, it includes an indicator for each category except the reference level. These choices follow the book’s specification.
 
 ## Prepare and inspect
 
@@ -66,7 +63,7 @@ study = ant.prepare(
 print(study.inspect())
 ```
 
-`ant.prepare` compiles the declaration without estimating anything. Inspection reports the identification status, the adjustment set and what the declared missing-data policy will do, so a declaration that cannot identify the effect is visible before any model is fitted. After estimation the example asserts the two facts that matter here: the status is `NonparametricallyIdentified`, and the adjustment set is exactly the declared covariates. Identification is a statement about the graph you declared: if the graph is right, adjusting for these columns removes confounding. It is not evidence that the graph is right.
+Use `ant.prepare` to inspect the adjustment set and see how many observations the missing-data policy will retain. Under the declared graph, adjusting for the listed covariates identifies the average effect. After estimation, check that the status is `NonparametricallyIdentified` and that the reported adjustment set contains those covariates.
 
 ## Missing outcomes are a declared policy
 
@@ -94,7 +91,7 @@ effect = result.answer.value
 lo, hi = effect - 2.576 * se, effect + 2.576 * se
 ```
 
-On the real file the average effect of quitting is 3.44 kg with a standard error of about 0.52, against the unadjusted 2.54 kg. The interval covers sampling variation under the declared graph and missing-data policy. It does not cover the possibility that either is wrong.
+On the survey data, the estimated average effect is a gain of 3.44 kg, with a bootstrap standard error of about 0.52 kg. Before adjustment the groups differed by 2.54 kg. The interval describes sampling uncertainty under the stated assumptions about confounding and missing outcomes.
 
 Read the overlap diagnostics before the number. The smallest estimated propensity (`est.overlap_propensity_min`) is about 0.05 and the effective sample size (`est.overlap_ess`) is about 1,013 of 1,566 rows, so weights are moderate and no row stands in for a large share of the sample. The example asserts that the smallest propensity is above 0.01. That is the contrast with [the NSW comparison](when-overlap-fails.md), where propensities reach the boundary and Antecedent refuses without a declared overlap policy. Here the data cover both groups.
 
@@ -111,7 +108,7 @@ among_quitters = ant.outcomes.require_success(
 )
 ```
 
-The question becomes: for people who actually quit, how much did quitting change their weight? On the real file the answer is 3.34 kg. `ant.reconfigure` returns a new prepared study and leaves `study` as it was, so the graph is declared once. A different population gives a different estimand, not a different estimate of the same thing, so Antecedent treats it as a new query on the prepared study.
+How much did quitting change weight among the people who actually quit? On the survey data the estimate is 3.34 kg. `ant.reconfigure` creates a new study with this narrower target population, so you can still retrieve the original population estimate.
 
 ## Check the answer with other estimators
 
@@ -144,7 +141,7 @@ sens = v.evalue(effect / sd, standard_error=se / sd, scale="standardized_mean_di
 
 ## Compare with the published analysis, carefully
 
-Hernán and Robins report an effect of about 3.4 kg (95% CI about 2.4 to 4.5) by inverse-probability weighting. That is close to 3.44 kg, but the analyses are not identical: theirs also weights for loss to follow-up, and this one declares a complete-case policy. Agreement between two analyses that share a graph shows the computation is reproducible. It says nothing about whether either graph is right, and neither number is presented here as causal truth.
+Hernán and Robins report an effect of about 3.4 kg (95% CI about 2.4 to 4.5). Their analysis weights for loss to follow-up. The complete-case analysis here gives a similar estimate using the people whose follow-up weights were recorded. Both analyses rely on the measured covariates being sufficient to account for confounding.
 
 On the stand-in the comparison is of a different kind. The generator's effect is known, so the example asserts that the 99% interval contains 3.0 kg. That checks the computation against a truth the fixture supplies; real data supply none.
 
@@ -170,3 +167,5 @@ The next question is whether the assumptions hold. For that you need evidence th
 ## The complete example
 
 <!-- example: examples/python/observational_study.py -->
+
+[Open the Python script](../../examples/python/observational_study.py)

@@ -1,13 +1,12 @@
 # When the comparison group does not overlap
 
-Some observational questions cannot be answered with the data you have, at least not as asked. This tutorial asks one, gets a refusal, and follows what the refusal says. Each step changes what is being estimated or what would settle it, and the tutorial keeps track of that.
+How much did a job-training programme change participants’ earnings? One way to estimate the effect is to find people who did not receive training but had similar employment histories. That comparison becomes difficult when the two groups earned very different amounts before training even began.
 
-The data are a classic test case: the National Supported Work (NSW) job-training programme, compared with respondents to the Panel Study of Income Dynamics (PSID). The people who entered the programme had very low earnings; most PSID respondents did not. That gap is what this tutorial is about.
+The National Supported Work (NSW) participants had very low earnings before the programme. Most people in the comparison survey, the Panel Study of Income Dynamics (PSID), earned more. You’ll see what happens when you limit the weights given to unusual cases, then when you restrict the analysis to people with comparable histories.
 
-- **You will learn** how to read a `positivity_violated` [refusal](../concepts/refusals.md) and its remedy, what a declared overlap clip and a declared overlap trim each do to the estimand and to the claim's status, and why the spread across those choices belongs in the report.
-- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). [Estimate an effect from observational data](observational-study.md) shows the same workflow where overlap holds.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/when_overlap_fails.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_overlap_fails.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/when_overlap_fails.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_overlap_fails.ipynb). See the [complete example](#the-complete-example).
+
+For a comparison where both groups are well represented, see [estimate an effect from observational data](observational-study.md).
 
 ## The question
 
@@ -24,7 +23,7 @@ NSW also assigned people at random, so a randomised estimate of the same effect 
 
 The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/README.md) describes the cache and the offline path.
 
-Without verified files the example runs on a synthetic stand-in with the same ten columns, the same sizes (185 treated rows and 2,490 comparison rows) and the same overlap problem. Its effect on the treated is a fixture truth of the generator and says nothing about the real programme. The first line of output says which table was used:
+Without the verified files, the script generates the same ten columns for 185 participants and 2,490 comparison respondents. The simulation reproduces the overlap problem and gives you a known training effect to check. The first line of output identifies the dataset.
 
 ```text
 DATA: synthetic stand-in (fixture effect on the treated $...).
@@ -54,7 +53,7 @@ def ask(data, estimator):
     )
 ```
 
-`COVARIATES` is the eight pre-programme columns. `target_population=population.Treated()` makes the estimand the effect on the treated. Only the estimator, and the overlap policy it carries, changes from one step to the next, so every difference in the answers below comes from that choice.
+`COVARIATES` contains the eight pre-programme measurements. `population.Treated()` asks about the people who entered training. Keep the graph and the query fixed as you try different estimators and overlap policies.
 
 ## Ask, and read the refusal
 
@@ -71,7 +70,7 @@ rows = refusal.fields["refusal_fields"]["boundary_count"]
 
 > the propensity model gives 139 rows a probability of treatment within 1e-8 of 0 or 1, so those rows have essentially no chance of the other treatment and an inverse-probability weight is unsupported there.
 
-This is a statement about the data, not a numerical failure. The effect on the treated compares each participant with comparison rows like them. For 139 PSID rows the model finds no participant like them, so the data say nothing about what treatment would have done there, and weighting would divide by numbers indistinguishable from zero. Weighting clips ordinary scores to [0.01, 0.99] by default, but a default does not decide a positivity question: that choice is yours to declare.
+The propensity model estimates a person’s chance of entering training given their recorded characteristics. For these 139 rows it puts that chance essentially at a boundary. The usual weighting calculation relies on comparisons in parts of the data where both groups are represented. To proceed when scores reach a boundary, you must choose how to handle those rows.
 
 `refusal.remedy` lists what would support an answer:
 
@@ -95,7 +94,7 @@ assert claim["support_domain"] == "limited"
 assert host.claim_status(claim) == "partial"
 ```
 
-Now the clip governs the boundary rows: propensities used in the weights are bounded to [0.01, 0.99]. On the real files weighting returns an effect on the treated of about −183 dollars. Read the claim before the number. The effective sample size behind the weights (`clipped.estimate.overlap_ess`) is about 153 of 2,675 rows, and the claim's support domain is `limited`: the clip moved scores at the boundary, so the answer rests on it. `host.claim_status(claim)` is `partial`, which tells an application to relay that limit with the number rather than use it as stated.
+Clipping moves scores below 0.01 up to 0.01 and scores above 0.99 down to 0.99 before computing weights. On the survey data the estimated effect is about −$183. Check `clipped.estimate.overlap_ess`. After weighting, the effective sample size is only about 153 out of 2,675 rows. Report that the estimate depends on clipping. Its support is `limited` and `host.claim_status(claim)` returns `partial`.
 
 ## Follow the remedy: declare a trim
 
@@ -110,11 +109,11 @@ excluded = trimmed.estimate.overlap_excluded_fraction
 
 Rows whose estimated propensity falls outside [0.01, 0.99] are excluded, and `estimate.overlap_excluded_fraction` reports the share. On the real files that is 73% of rows.
 
-The answer changes meaning as well as value. It is now the effect on the participants who have comparable comparison rows, not on all participants, and the claim's support is again `limited`, so its status is `partial`. Weighting gives about 1,610 dollars (standard error about 940); AIPW, on the same trimmed rows, about 2,282.
+Trimming changes who the estimate describes. Among participants whose scores fall in the retained range, weighting gives an estimated gain of about $1,610 (standard error about $940). AIPW gives about $2,282 on the same rows. Report the restricted population with either result. Both claims have `limited` support and `partial` status.
 
 ## How far the answer moves is itself the finding
 
-The example prints the largest minus the smallest of the three estimates (clipped weighting, trimmed weighting, trimmed AIPW). On the real files they span about 2,465 dollars. The data have not determined the effect; the overlap choice and the estimator have. Report that spread with any single number, and report the excluded fraction with any trimmed number, because a reader needs both to know what the estimate is about.
+From clipped weighting to trimmed AIPW, the estimates span about $2,465. Two things change across that range. Trimming restricts the population, and switching to AIPW changes the estimator within that population. Report which people each estimate describes and how many rows trimming excluded.
 
 ## The last remedy: a design that produces both treatments
 
@@ -124,7 +123,7 @@ Read that comparison carefully. That the trimmed weighting estimate lands near i
 
 ## What this established
 
-Antecedent refused a request whose answer would have rested on rows with no comparable counterpart. It named how many rows and why, and listed what would support an answer. A declared clip produced a number whose claim says it rests on the clip. Following the trim remedy produced an estimate for a stated, smaller population, with the exclusion reported and the claim marked partial. Comparing overlap choices showed how much the answer depends on them. The randomised benchmark showed what a design with real overlap provides.
+On the verified data, clipping and trimming even give different signs for the earnings effect. The refusal led you to the source of that sensitivity. Earnings histories differ so much between the groups that the choice of whom to compare matters to the result.
 
 ## What this did not establish
 
@@ -137,3 +136,5 @@ For an observational analysis where overlap holds and the workflow runs end to e
 ## The complete example
 
 <!-- example: examples/python/when_overlap_fails.py -->
+
+[Open the Python script](../../examples/python/when_overlap_fails.py)

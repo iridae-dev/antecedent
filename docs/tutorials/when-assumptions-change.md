@@ -1,19 +1,18 @@
 # When the causal assumptions stop holding
 
-Every estimate Antecedent returns is conditional on a causal structure someone declared or accepted. This tutorial follows what happens when the world stops matching that structure. One claim is taken from the graph that supported it, through new data that no longer fits, to a set of competing explanations, a refusal, and the study that would make the question answerable again.
+In January, a subscription service estimates that customers who use the product more are less likely to cancel. In April, the same analysis gives a much smaller effect. Did engagement become less valuable, or did something change which customers were using the product?
 
-Nothing in the first analysis is at fault. Its arithmetic stays correct and reproducible throughout. What changes is whether the number may still be read as a causal effect.
+You’ll investigate the change using two simulated customer cohorts. The simulation lets you check when an apparent change in the effect is actually a change in who is being compared.
 
-- **You will learn** how to check a retained claim against new data with the staleness diagnostic, a whole-graph check and a resampled search, what each check can and cannot detect, how to put competing causal readings to the same question, and how a refusal turns into a plan for the study that would answer it.
-- **Before you start:** [installation](../start/installation.md), [a first analysis](../start/first-analysis.md) and [estimate an effect from observational data](observational-study.md). Conditional independence and adjustment for a common cause are assumed; the [glossary](../concepts/glossary.md) defines the other terms.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/when_assumptions_change.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_assumptions_change.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/when_assumptions_change.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_assumptions_change.ipynb). See the [complete example](#the-complete-example).
+
+The graph checks use conditional independence and adjustment for a common cause. For a worked example of adjustment, see [estimate an effect from observational data](observational-study.md).
 
 ## The task
 
 A subscription business wants to know how much weekly engagement changes cancellations. It has five measured columns per customer, all standardized scores: `price`, `tenure`, `engagement`, `support` (contacts with the support team) and `cancellation`.
 
-The data are simulated, so the truth is known. One unit of engagement lowers the cancellation score by 0.8, in January and in April alike. In April an unmeasured cause is switched on: customers who depend on an integration that has started failing. They use the product more, contact support more and cancel more. That variable is never in the table.
+In both months, raising engagement by one unit reduces the cancellation score by 0.8. In April, an integration starts failing. Customers who depend on it spend more time in the product, contact support more often and are more likely to cancel. The table never records who uses the integration.
 
 | Declared by a person | Learned from data |
 | --- | --- |
@@ -21,7 +20,7 @@ The data are simulated, so the truth is known. One unit of engagement lowers the
 | Three readings of the new link that appears in April | That April's table contradicts two independencies the January graph asserts |
 | Two candidate studies, with their costs and sample sizes | Which candidate study would identify the effect |
 
-The simulated truth is a property of the stated mechanism. It is there so each step can be checked, not as a claim about any real business. Each table has 4,000 customers. The figures quoted below are what the example prints with its fixed seeds; its assertions check the direction and rough size of each one, and those bounds are stated where they matter.
+Each monthly table contains 4,000 customers. The script fixes the random seeds so you can compare your output with the values below.
 
 ## January: discover, review, estimate
 
@@ -70,7 +69,7 @@ It also repeats, on the new rows, the test of every conditional independence the
 | engagement and support are independent given price | holds (0.01) | fails (0.28) |
 | tenure and cancellation are independent given price and engagement | holds (-0.01) | fails (-0.17) |
 
-The numbers are partial correlations. A statement exceeds only when it is significant after adjustment for every test in the assessment and its correlation reaches 0.1, so a second January sample comes back `reuse` with nothing found.
+The numbers are partial correlations. The diagnostic flags a relation when its magnitude reaches 0.1 and the test is significant after adjustment for multiple comparisons. On a second January sample, no relation meets both conditions and the recommendation is `reuse`.
 
 The recommendation is `reidentify`, not `refresh`. Refreshing would repeat January's analysis on April's rows, which is the -0.36 above. The finding says the structure that analysis rests on no longer agrees with the data.
 
@@ -100,7 +99,7 @@ stability.run(january, execution=EXEC).edges    # engagement, support joined in 
 stability.run(april, execution=EXEC).edges      # joined in 99%
 ```
 
-The example asserts a frequency below 5% in January and above 90% in April. An edge that appears in 2.5% of January resamples and 99% of April ones is not something sampling variation explains. The frequencies are a bootstrap distribution of the search, not a probability that the edge exists.
+The engagement–support edge appears in 2.5% of January resamples and 99% of April resamples. The April search keeps finding it even as the sample changes. Those percentages measure the stability of the search within each month.
 
 ## Discover again, allowing for what is not measured
 
@@ -144,7 +143,7 @@ refused.refusal.code    # "effect_not_identified"
 
 The refusal is the answer under that reading: with a hidden cause of both engagement and cancellation, no adjustment over the measured columns recovers the effect.
 
-Two things follow. The second reading passes its check and is still wrong: -0.61 is not -0.8, because the third reading is the true one here. And the table cannot separate the second reading from the third, since the graph check assumes no hidden causes and so cannot be put to the third at all. Choosing between them takes knowledge from outside the table, or new evidence.
+The second graph passes the check but gives −0.61. We know from the simulation that the true effect is −0.8 and that the failing integration influences both variables. With real data, you would need evidence from outside this table to distinguish a direct relationship from a hidden common cause.
 
 The readings are put to the question one at a time here. `GraphPosterior.from_graphs` can hold several complete graphs with weights and report the mass on which an effect is not identified, but its atoms cannot carry a directed and a bidirected edge on the same pair, which is exactly what the third reading declares between engagement and cancellation. That reading has to be asked as its own graph.
 
@@ -168,7 +167,7 @@ measure_variable:common_cause_of_engagement_support
 run_experiment:engagement
 ```
 
-The unmeasured cause appears as `common_cause_of_engagement_cancellation`. Antecedent can establish that a variable in that position is needed. It cannot say that the variable is a failing integration. Naming it is the investigator's work.
+`common_cause_of_engagement_cancellation` describes a role in the proposed graph. Measuring a cause in that position could resolve the ambiguity. Finding out whether the failing integration plays that role takes knowledge of the service.
 
 Two candidate studies are declared, with costs that are yours to supply: ten thousand more rows of the same table, and an experiment that sets engagement for 2,000 customers. Each is checked against the identification theorem of its route.
 
@@ -212,7 +211,7 @@ None of these steps triggered the next. The staleness diagnostic recommended ide
 
 ## What this established
 
-A January estimate, reproduced exactly on April's data, was no longer justified as a causal effect. April covered the same ranges as January; two independencies the graph implies failed, and the staleness diagnostic asked to identify again; a resampled search showed the failure was not noise; and a search allowing hidden causes withdrew the direction January relied on. Of three readings of the new data, one was discarded, one gave an estimate that was wrong, and one refused. The refusal named an experiment as sufficient and more observational rows as not, and in the simulation that is how it turned out.
+Applying January’s analysis to April moved the estimate from −0.79 to −0.36 even though the simulated effect stayed at −0.8. Two conditional independencies failed in April. The support-contact records helped expose the change, but identifying the effect under the hidden-cause explanation took an experiment.
 
 ## What this did not establish
 
@@ -225,3 +224,5 @@ For keeping several structures in play with weights, see [graph uncertainty](../
 ## The complete example
 
 <!-- example: examples/python/when_assumptions_change.py -->
+
+[Open the Python script](../../examples/python/when_assumptions_change.py)

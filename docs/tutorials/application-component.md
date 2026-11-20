@@ -1,15 +1,14 @@
 # Use a causal analysis as a component in your application
 
-A retention service wants to know how many more weekly sessions a reminder message produces, and it wants to answer that for its own callers without a person reading each analysis. This tutorial builds the part of that service that talks to Antecedent. It shows how your code submits a request, reads the plan before spending compute, handles an answer and a refusal, decides what an answer permits, adapts to new data and hands a result to another service.
+Does a reminder bring users back more often? A retention service estimates how many extra sessions a reminder produces each week. Your application needs to decide what to send the caller when it gets an estimate, when the data cannot answer the question, and when the job fails.
 
-Antecedent supplies the causal computation and its contracts. Your application supplies planning, permissions and the policy for acting on an answer. The tutorial keeps that line visible: every decision in the code below belongs to the host, and every field the host reads comes from Antecedent.
+You’ll build the part of the service that makes those decisions. Antecedent computes the estimate and reports the assumptions behind it. Your code decides whether to use it, send it for review, or ask the caller for different evidence.
 
-**The setting.** The users are simulated, so the effect can be checked. The reminder is assigned at random, prior activity is a precision covariate, and the true effect of the reminder on weekly sessions is 2 in this model. That is a fixture truth of the simulated model, not a claim about any real service.
+In the simulated data, users receive reminders at random. A reminder adds two weekly sessions on average. Prior activity helps predict weekly sessions, so the analysis uses it to improve precision.
 
-- **You will learn** how a host application prepares a request, reads the plan before running it, tells an answer from a typed refusal and from an operational failure, applies its own acceptance policy, branches a study onto new data, and hands a result to a consumer that holds only bytes and an identity.
-- **Before you start:** [installation](../start/installation.md), [a first analysis](../start/first-analysis.md) and [reading a result](../start/reading-a-result.md). [Refusals](../concepts/refusals.md) explains the refusal categories used here.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/application_component.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/application_component.ipynb). The complete script is embedded [below](#complete-runnable-source).
+Run `python examples/python/application_component.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/application_component.ipynb). See the [complete example](#complete-runnable-source).
+
+For a first look at the objects the service will handle, see [your first analysis](../start/first-analysis.md) and [reading a result](../start/reading-a-result.md).
 
 ## What the host declares and what Antecedent computes
 
@@ -31,9 +30,9 @@ def observed_request(data):
     return Request(data, graph, ant.AverageEffect("reminder", "sessions"))
 ```
 
-The graph is a declaration, not something Antecedent learned from the data. Antecedent works out what the declared structure identifies (here, that the effect is estimable by adjusting for prior activity), runs the estimator it selected and reports what it did. If the graph is wrong, the answer is conditional on a wrong graph, and no field in the result can tell you that. That judgement stays with whoever declares the structure.
+Antecedent uses the graph you supply to determine whether it can estimate the effect. Here it can compare users who did and did not receive reminders, accounting for prior activity. The person who specified the graph is responsible for whether it describes the service.
 
-A request carries no executable content: data, a graph and a question. Nothing in it names code to run.
+The request contains data, a graph and a question. Antecedent selects the code that runs.
 
 ## Prepare and inspect before running
 
@@ -54,7 +53,7 @@ def prepare_request(request):
 
 The inference declaration requests a point estimate with no bootstrap interval, so the host has no interval to trust or discard in this tutorial. `Execution` carries the seed and, for a real service, the resource limits, cache policy and a cancellation token.
 
-The plan view reads what compile retained and runs nothing. The host takes the few fields it needs to decide whether to proceed:
+Inspect the plan to see which route Antecedent selected. The host reads these fields before committing resources to the fit.
 
 ```python
 def read_plan(study):
@@ -73,7 +72,7 @@ def read_plan(study):
 
 For the first request the example prints the plan as one JSON line and asserts that `stage` is `prepared` and `support_status` is `supported`.
 
-`support_status` is the support-matrix status of the selected route. A `supported` route is one the support matrix supports for this combination of question, graph class, structure, inference and validation. A route that is not supported refuses in a release build with `not_supported`; a development build runs it and records `would_refuse`. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
+`support_status` tells you whether the release supports this combination of question, graph, inference and validation. For an unsupported route, the caller receives `not_supported`. Use `program` to match a result to the compiled request that produced it, including when you log or cache results.
 
 ## Run it and read the claim
 
@@ -112,11 +111,11 @@ For a successful outcome the host reads four things.
 | `support_status` | The support status of the route that ran. |
 | `calibration` | Whether an interval carries a calibration record. Read the status field; do not infer it from whether an interval is present. |
 
-In this run the status is `supported`, the kind is a `point`, and the value is near 2, as the simulated model says it should be. The example asserts that, with a tolerance, because one sample of 160 users estimates the effect with sampling error. It also asserts that the calibration field is a status string. This request asks for no interval, so there is nothing to calibrate, and the tutorial makes no statement about interval coverage.
+With 160 simulated users, the estimate should be close to two extra sessions per week. Sampling variation explains why the script checks it with a tolerance. This request returns a `supported` point estimate. It requests no interval.
 
 ## Apply your own acceptance policy
 
-Antecedent reports fields. It does not decide what to do about them. That is the host's policy, and it can be as small as this:
+Decide which results your service can use automatically and which need review. This example implements that decision in one function.
 
 ```python
 @dataclass(frozen=True)
@@ -158,7 +157,7 @@ def confounded_request(data):
     return Request(data, graph, ant.AverageEffect("reminder", "sessions"))
 ```
 
-Preparing the request retains the refusal on the study, so the host can decline before running anything (`study.refusal`, and the plan reads `refused`). Executing the study returns an outcome that is not accepted, with `outcome.answer.kind == "refused"`. The host classifies it with `host.refusal_record`, which gives a record with a registered `reason_code` (here `effect_not_identified`), a stable `family`, the message and the remedy, and the example asserts the code is in `host.refusal_codes()`. The record is never a number, so the policy rejects it.
+Check `study.refusal` before executing. If you do execute, `outcome.answer.kind` is `"refused"`. Use `host.refusal_record` to get the registered `reason_code` (`effect_not_identified` here), its `family`, a message for the caller and a proposed remedy.
 
 Three situations look alike to a caller and stay distinct here:
 
@@ -166,7 +165,7 @@ Three situations look alike to a caller and stay distinct here:
 * **An implementation is unavailable.** The refusal names a route or capability that does not exist. Retrying will not help.
 * **Something operational failed.** A resource limit or a cancellation raises an exception. Retrying with more resources may help, and nothing was answered.
 
-A host that retries refusals, or substitutes another route silently when one refuses, answers a different question than the caller asked.
+Retry a cancelled job if resources permit. For an identification refusal, return the reason and remedy to the caller. Switching estimators silently could change the question.
 
 ## Branch onto changed data
 
@@ -178,11 +177,11 @@ branch = ant.rebind(study, data=changed)
 branch_response, _ = execute(branch)
 ```
 
-The changed data add one session for every user who got the reminder, so the effect rises by exactly 1. The example asserts that difference, that `branch` is a different object from `study`, that estimating the original study again returns the original value, and that the plan identities differ because each program binds the digest of the observations it reads. A host can keep both branches, compare them, and refuse to mix them up.
+In the new table, each user who received a reminder has one more session. The estimated effect therefore rises by exactly one. Each branch has a distinct program identity because the identity includes a digest of the data. You can still estimate the original study and recover its earlier value.
 
 A changed *design* is a different question and needs a new `ant.prepare`: `ant.rebind` refuses to carry a randomized-assignment declaration across changed assignments.
 
-## Export, then consume as an independent consumer
+## Hand the result to another service
 
 The service now hands its result to another service. Export produces bytes and an expectation, which the producer retains separately:
 
@@ -206,7 +205,7 @@ def consume(encoded, retained_identity):
 
 The loaded value equals the producer's. Loading checks that the artifact is intact and restores a recorded claim; it recomputes nothing. It does not recreate the study: `loaded.study` is `None`, so the consumer cannot refresh, explore or re-execute anything, and the artifact itself stays what it recorded. A consumer that wants a new answer prepares a new study on its own data. To cite the methods behind the result in a handoff note or report, the producer reads `outcome.method_provenance` before export; see [cite the methods behind a study](../guides/citing-a-study.md).
 
-The consumer also refuses what it must. Altered bytes raise an error that classifies into a stable family, and loading these bytes against a different request's identity raises. In the example both are asserted. In production the identity belongs in a record the byte channel cannot rewrite, as [save, hand off and accept results](../guides/build/artifacts-and-handoff.md) explains, and that guide also separates the producer and consumer into two processes.
+The consumer rejects altered bytes and an artifact that belongs to a different request. Store the expected identity somewhere the sender of the bytes cannot overwrite. [Save, hand off and accept results](../guides/build/artifacts-and-handoff.md) shows the two services running in separate processes.
 
 ## How an agent uses the same interface
 
@@ -216,7 +215,7 @@ Antecedent contains no agent logic: no planner, no prompt, no memory, no tool lo
 
 ## What this established
 
-You have a host that submits a prepared request, reads the plan, distinguishes an answer from a typed refusal and an operational failure, applies a policy of its own to the status, support and calibration fields, keeps the earlier result when new data arrive and hands a result to a consumer that loads it against the identity it expects, without the study behind it. In the simulated model, the recovered effect matches the known effect of 2 within sampling error, and the structure that cannot identify it is refused with a registered code.
+The host can now return two useful responses to the same caller. With random assignment it reports about two extra sessions per week. With an unmeasured common cause it returns `effect_not_identified` and explains what evidence would help.
 
 ## What this did not establish
 
@@ -229,3 +228,5 @@ The next questions are about the host's environment. To keep results current as 
 ## Complete runnable source
 
 <!-- example: examples/python/application_component.py -->
+
+[Open the Python script](../../examples/python/application_component.py)

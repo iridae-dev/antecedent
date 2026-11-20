@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from math import log1p
 from typing import Any
 
-import antecedent as ant
 from antecedent import decision, events
 from antecedent.joint_distribution import ScientificQuantity
 
@@ -140,9 +139,6 @@ def main() -> None:
     prepared = events.prepare(forecast_request)
     plan = prepared.inspect()
     assert plan["route"] == "EventProcess"
-    if not plan["support"]["supported"] and ant.build_flavor() == "release":
-        print("Forecast plan prepared. Use a development build to run this example.")
-        return
 
     forecast = prepared.execute()
     fitted: Mapping[str, Any] = forecast.report()["fit"]

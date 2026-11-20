@@ -55,7 +55,12 @@ def on_config(config):
     return config
 
 
-EXAMPLE = re.compile(r"<!-- example: ([\w./-]+) -->")
+EXAMPLE = re.compile(
+    r"<!-- example: ([\w./-]+) -->"
+    r"(?:\n\n\[Open the Python script\]\(\.\./\.\./\1\)"
+    r"(?:\n\n(```python\n.*?\n```))?)?",
+    re.DOTALL,
+)
 # Notebook cell markers (scripts/generate_notebooks.py) are not shown in embedded source.
 NOTEBOOK_MARKER = re.compile(r"^# %%.*\n", re.M)
 
@@ -66,7 +71,10 @@ def render_examples(markdown):
         if not path.is_relative_to(ROOT / "examples") or not path.is_file():
             raise ValueError(f"Unknown documentation example: {match.group(1)}")
         source = NOTEBOOK_MARKER.sub("", path.read_text(encoding="utf-8"))
-        return "```python\n" + source.rstrip() + "\n```"
+        block = "```python\n" + source.rstrip() + "\n```"
+        if match.group(2) is not None and match.group(2) != block:
+            raise ValueError(f"Inline example differs from {match.group(1)}")
+        return block
 
     return EXAMPLE.sub(substitute, markdown)
 

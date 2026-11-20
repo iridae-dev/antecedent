@@ -1,13 +1,12 @@
 # Compare a coordinated intervention program with its baseline
 
-A marketing team sets two channels, A and B, in every market every week. The question is not what one channel does in one week. It is what happens at the end of a 24-week horizon if both channels are held at a high level the whole time, compared with spending nothing on either. That is a question about a whole coordinated program, and answering it well needs three things to describe the same target: the intervention, the evidence for it and the uncertainty reported with it.
+A marketing team is considering 24 weeks of advertising in two channels. How much higher would the average outcome be in the final week if the team spent four units on each channel every week, compared with spending nothing?
 
-This tutorial builds that comparison on simulated data, so the true answer is known and the result can be checked against it.
+You’ll fit both spending schedules to data from four simulated markets. Because the same model predicts both outcomes, its errors can cancel when you subtract one prediction from the other.
 
-- **You will learn** how to declare whole programs as worlds and a contrast between them, why the contrast's uncertainty must come from draws the programs share, and how to ask separately whether the assignment design identifies the program's effect.
-- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). [Interventions and worlds](../concepts/interventions-and-worlds.md) defines the vocabulary; variance and covariance of two estimates are assumed.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/joint_intervention_program.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/joint_intervention_program.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/joint_intervention_program.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/joint_intervention_program.ipynb). See the [complete example](#the-complete-example).
+
+The uncertainty calculation uses the variance and covariance of the two predicted outcomes.
 
 ## The task
 
@@ -16,7 +15,7 @@ This tutorial builds that comparison on simulated data, so the true answer is kn
 - **Outcome and time.** The mean outcome in the last week of the horizon.
 - **Contrast.** The coordinated program minus the baseline.
 
-The data are a synthetic fixture shipped in the repository (`conformance/response/joint_panel/`), generated from a stated mechanism. The mechanism is declared to Antecedent only in family form; its numbers are learned.
+The example reads simulated observations from `conformance/response/joint_panel/`. You specify the form of the response model, and Antecedent estimates its parameters from those observations.
 
 | Declared | Learned from the panel |
 | --- | --- |
@@ -32,7 +31,7 @@ Because the generating mechanism is known, so is the answer. The lag weights sum
 3 × (2/3) + 2 × (2/3) + 1.5 × (2/3)² = 2 + 1.333… + 0.667… = 4
 ```
 
-Group, season and covariate terms are the same in both programs and cancel. This 4 is a fixture truth of the stated mechanism, never a claim about real marketing data.
+Season, market and covariate effects cancel because the two schedules share them. That leaves a difference of four outcome units, a value we can use to check the fitted result.
 
 ## Prepare, then inspect
 
@@ -43,7 +42,7 @@ prepared = prepare(rows, draws=100, fitted=True)
 assert prepared.inspect()["fits_performed"] == 0
 ```
 
-With `fitted=True`, the example's `prepare` passes the two interaction channels, the two worlds the question compares (the baseline and the joint program) and the contrast as `functional={"terms": [(1, 1.0), (0, -1.0)], "reference": 0}`: world 1 minus world 0. A contrast names exactly the worlds it compares; Antecedent refuses a contrast whose formula leaves a declared world out. The design checks below declare all four programs (the baseline, A alone, B alone and the joint program), because the whole-program design has one arm per program.
+`prepare(..., fitted=True)` compares two worlds. The weights in `functional` add the coordinated program’s outcome (world 1) and subtract the baseline (world 0). Every declared world must appear in the comparison. Later, when you check a design with four assignment arms, you’ll declare the two single-channel schedules as well.
 
 ## Run: one fit, one shared uncertainty
 
@@ -54,7 +53,7 @@ assert report["fits_performed"] == 1
 contrast = result.scheduled_contrast("terminal_mean", level=0.95)
 ```
 
-The fit happens once, and `report["fits_performed"]` says so. Each of the 100 retained draws is one complete parameter vector from the fit's sampling law, and every world is evaluated on the same draw. For a frequentist run the draws approximate the sampling law of the fitted parameters with a group-cluster sandwich; `contrast["uncertainty"]` says so with `EstimatorSampling`. A draw that failed stays a failed slot and is never replaced by zero.
+Look for `fits_performed` in the report. Antecedent fits the model once, draws 100 parameter vectors, and uses each vector to predict both programs. `EstimatorSampling` means the draws approximate sampling uncertainty using a group-cluster sandwich estimator. A failed draw keeps its slot.
 
 `contrast["point"]` is the fitted joint-minus-baseline change in the last week, and `contrast["standard_error"]` and `contrast["interval"]` come from the contrast computed draw by draw. The interval is nominal. The example prints `report["diagnostics"]["calibration"]`; unless it reports a matching measurement, do not read the interval as demonstrated coverage.
 
@@ -101,7 +100,7 @@ assert weekly["outcome"] == "Rejected"
 assert weekly["next_attempt"] is not None
 ```
 
-The attempt to identify the programs by known whole-program randomization is rejected, and the rejection names its next attempt. Randomizing each week does not randomize a 24-week trajectory. No group in these data was ever assigned the whole program, and what the weekly design supports is week-level contrasts, not the path that follows from holding both channels at 4 for the whole horizon.
+In this panel each market drew a new assignment every week. The whole-program check needs the assignment probability for a full 24-week schedule. It rejects the weekly design and tells you which evidence is missing.
 
 A design that does identify the programs assigns them whole. The fixture also contains one independent group per program, each assigned its whole program with probability one quarter:
 
@@ -137,7 +136,7 @@ The example ends by printing a summary as JSON. Read it against the steps above:
 
 | Key | What it reports |
 | --- | --- |
-| `known_effect` | The fixture truth, 4 |
+| `known_effect` | The final-week difference in the simulation, 4 |
 | `estimated_effect` | `contrast["point"]` |
 | `shared_fit_standard_error` | The standard error of the per-draw differences |
 | `independent_combination_standard_error` | The larger value that drops the covariance |
@@ -151,11 +150,11 @@ For choosing among candidate programs under budgets, see the [joint intervention
 
 ## What this established
 
-Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
+The shared draws let you estimate the final-week difference and its standard error. The simulated difference is four units. To support a causal claim about an entire schedule using the randomization check, you also need a design that assigns complete schedules and specifies exogenous future context.
 
 ## What this did not establish
 
-The estimate is conditional on the fitted mechanism, and its interval is nominal, not demonstrated coverage. The fitted panel does not identify the whole program's causal effect: `report["identified"]` is `False`. The whole-program experiment that would identify it has one group per program and was inspected, not fitted. The known 4 is a fixture truth.
+The fitted panel has `report["identified"] = False`. Its estimate depends on the response model, and its interval has nominal coverage. The separate whole-program experiment illustrates an identifying design. With just one group per program, it provides no replication for estimating between-group variation.
 
 ## Where to go next
 
@@ -166,5 +165,7 @@ For one connected marketing investigation, [beyond the marketing mix](beyond-mar
 ## The complete example
 
 <!-- example: examples/python/joint_intervention_program.py -->
+
+[Open the Python script](../../examples/python/joint_intervention_program.py)
 
 The script reads the fixture from a repository checkout and, without one, downloads it from the matching release tag. A Rust version of the panel workflow is in [`examples/rust/joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/joint_panel_workflow.rs).

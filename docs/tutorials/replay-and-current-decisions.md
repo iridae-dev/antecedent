@@ -1,17 +1,14 @@
 # Replay old numbers, refuse current use
 
-You can reproduce last quarter's decision numbers exactly and still not be allowed to act on them today. This tutorial builds one decision from three kinds of evidence, changes its utility without refitting anything, exports it, and then withdraws one source. The exported numbers still replay. Current use of the decision refuses.
+Last quarter your team decided to run a programme. Now the trial behind that decision has been withdrawn. An auditor needs to reproduce the original calculation, and your service needs to decide whether it can still recommend the programme.
 
-The scope is one supported workflow, `antecedent.mixed_decision`. It shows how current permission follows the evidence in that workflow. It is not a general promise that withdrawing any source anywhere retires everything downstream.
+You’ll use `antecedent.mixed_decision` to answer both questions. It combines a trial, a change over time and a cost estimate, and records which conclusions depend on each source.
 
-- **You will learn** how a decision is combined from separately fitted routes under a declared dependence, how a receipt shows what a change recomputed, and why reproducing an exported decision and being permitted to use it now are separate questions with separate answers.
-- **Before you start:** [installation](../start/installation.md). [Stop, continue or run longer](decide-under-uncertainty.md) introduces decisions; the [evidence ledger](../evidence-ledger.md) explains sources and their standing.
-- **Time:** the example runs in under a minute.
-- **Run it:** `python examples/python/replay_and_current_decisions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/replay_and_current_decisions.ipynb). The complete script is embedded [below](#the-complete-example).
+Run `python examples/python/replay_and_current_decisions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/replay_and_current_decisions.ipynb). See the [complete example](#the-complete-example).
 
 ## The task
 
-A programme may be run (`act`) or not (`decline`). The decision compares the two at a single combined number: `benefit × margin + temporal effect − cost`.
+Run the programme (`act`) if its expected benefit covers its cost. The example values the programme as `benefit × margin + temporal effect − cost` and compares that with declining (`decline`).
 
 | Piece | Evidence | What it contributes |
 | --- | --- | --- |
@@ -19,7 +16,7 @@ A programme may be run (`act`) or not (`decline`). The decision compares the two
 | Temporal effect | A checked two-step history over a period | A period-specific change that adds to the margin |
 | Cost | A conjugate Gaussian model fitted to cost observations | What the programme costs per unit |
 
-The routes are fitted by Antecedent from a simulated fixture. The fixture's numbers are truths of a stated model, useful because every piece can be checked, and make no empirical claim. Two things are declared: how the three routes depend on one another (here, independently) and the benefit weight on the margin (here, one). Everything else is learned.
+Antecedent fits the three quantities from simulated data. You give the margin a weight of one and assume the estimates from the three sources are independent.
 
 ## Build the decision and read it
 
@@ -46,7 +43,7 @@ receipt = workflow.utility_only(2.0)
 assert receipt == md.UtilityReplay(0, 0, 0, 0, 0)
 ```
 
-A new benefit weight of 2 is a change to the decision's utility, not to the science. The receipt (`md.UtilityReplay`) counts the temporal factor builds and temporal identifications, and the cost model's fits, posterior draws and identifications, that the change performed, so a reviewer can check the claim instead of trusting it. All five counts are zero: the trial, the temporal mechanisms and the cost posterior are the objects they were before, and only the decision is recomputed. The example confirms it from the other side: the margin mean and each route's estimate are equal to their earlier values, and the new combined mean is `2.0 * margin + temporal effect - cost`. `prior_change` (a new cost prior) refits only the cost posterior, and `period_change` refits only the temporal mechanisms; each reports its own receipt.
+Double the weight on the margin. The new combined mean is `2.0 * margin + temporal effect - cost`. Check `md.UtilityReplay` to see what ran again. All five fit and identification counters are zero, and the estimates of margin, temporal effect and cost match their earlier values. Changing the cost prior with `prior_change` would refit the cost posterior. Changing the period with `period_change` would refit the temporal mechanisms.
 
 ## Export, then withdraw a source
 
@@ -57,7 +54,7 @@ replayed = md.replay_decision(exported.artifact, exported.identity, execution=Ex
 verification = workflow.withdraw_cluster()
 ```
 
-`export_decision` binds the artifact to the current standing of its sources in an evidence ledger. Keep `exported.identity` apart from the bytes; a consumer checks the bytes against the identity it retained. `workflow.load` consumes the artifact against the workflow's current source standing; before the withdrawal it returns the mean and variance that were exported. `replay_decision` recomputes the combined mean and variance from the bytes alone, so it needs no ledger and can grant no authority.
+Save `exported.identity` separately from the artifact bytes. A consumer can then verify it received the expected artifact. `workflow.load` also checks the current standing of the sources in the evidence ledger. `replay_decision` needs only the bytes to reproduce the historical mean and variance.
 
 `withdraw_cluster` then records that the trial is no longer a valid source. The returned `CompositionVerification` classifies every claim:
 
@@ -72,15 +69,15 @@ Ask the same exported decision two questions.
 
 **Can the numbers be reproduced?** Yes. `replay_decision` returns exactly the sealed mean and variance, and the assertion in the example checks it after the withdrawal.
 
-**May the decision be used now?** No. `workflow.decision()`, `workflow.export_decision()`, `workflow.load(...)` and further utility changes each raise `MixedDecisionRefusal`. The example prints one line per refused call, of the form `refused: <reason_code> evidence_ledger.<detail>`. The example asserts that every `detail` begins with `evidence_ledger.`, which says the refusal comes from the ledger's standing for a source, not from a numerical fault. The decision's inputs have not become wrong; one of them no longer has standing as current evidence for this use.
+**May the service use the decision today?** After withdrawal, `workflow.decision()`, `workflow.export_decision()`, `workflow.load(...)` and changes to utility all raise `MixedDecisionRefusal`. Each refusal includes a detail beginning with `evidence_ledger.` so the caller can trace the problem to the withdrawn evidence.
 
-The distinction is the point. A replay shows that a computation is reproducible. Current permission says that the evidence behind it still counts. Withdrawing the trial removes the second without touching the first, because the first never depended on the ledger.
+The auditor can therefore reproduce the figure in last quarter’s report. A fresh recommendation would need a valid source for the margin.
 
 ## Where this stops
 
 The behaviour is specific to this workflow. The refusal follows from how this workflow records its sources and what depends on what; it was tested for withdrawing the trial. Withdrawing the temporal or cost source, or using a different composition, is a different question for you to ask of that composition's own claims; [composition verification](../composition-verification.md) classifies claims for any graph you build.
 
-A refusal also does not say what to do next. The next step is scientific: replace the trial with new evidence (a successor source in the ledger), or decide that the remaining claims support a smaller question. A replay of the old numbers is a record of what was decided, not a route back to permission.
+To revisit the original decision, record a successor trial in the ledger. If you only need a result about temporal drift or cost, check its standing separately.
 
 ## Replay a fitted decision
 
@@ -94,7 +91,7 @@ For this decision, changing a utility refits no route, an export replays from it
 
 ## What this did not establish
 
-It did not show how withdrawal propagates in other compositions, or which smaller question the remaining claims can still answer. The decision's variance is a declared combination of route variances with no calibration record, and every number is a fixture number of a simulated model.
+This example exercises withdrawal of the trial in this particular workflow. Other combinations have their own dependencies. The reported variance also relies on the declared independence of the three estimates and has no measured coverage record.
 
 ## Where to go next
 
@@ -103,3 +100,5 @@ The next question is how to restore standing: bring in a new trial through the l
 ## The complete example
 
 <!-- example: examples/python/replay_and_current_decisions.py -->
+
+[Open the Python script](../../examples/python/replay_and_current_decisions.py)
