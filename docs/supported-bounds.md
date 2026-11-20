@@ -260,6 +260,8 @@ markers below and compares it. Prose outside those markers is not read.
 | decision.compiled_joint_scenarios | max_actions | 256 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
 | decision.compiled_joint_scenarios | max_constraints | 256 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
 | decision.compiled_joint_scenarios | max_source_bytes | 67108864 | `crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs` |
+| estimate.latent_soft_intervention | operation_limit | 41000 | `crates/antecedent/src/analysis/latent_soft_intervention.rs` |
+| estimate.latent_soft_intervention | depth_limit | 2 | `crates/antecedent/src/analysis/latent_soft_intervention/fit.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

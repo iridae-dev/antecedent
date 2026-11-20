@@ -42,7 +42,7 @@ record_sha256 = "e0e3b3489f34977fd69607ecf6a83a92a22964985ecf29c85ed49287dddee31
 role = "implementation"
 path = "crates/antecedent/src/analysis/composition.rs"
 items = ["module"]
-sha256 = "cc644c13d16f90fd3c9a297c7e62250cd67efee312a3894477a485a92a82d355"
+sha256 = "46824404e51a41dc858f73829f2284f075a4cb294e501628b89bcfc7faf13470"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

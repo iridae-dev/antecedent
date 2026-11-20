@@ -123,7 +123,7 @@ Do not edit this block by hand.
 | TransportQuery | 90 | 90 | 0 |
 | InterferenceQuery | 90 | 90 | 0 |
 
-**Supported units: 3172 (matrix cells 2776, graphless rows 108, capabilities outside the matrix 288); not supported: 0 (owed records only 0, other 0).**
+**Supported units: 3174 (matrix cells 2776, graphless rows 108, capabilities outside the matrix 290); not supported: 0 (owed records only 0, other 0).**
 
 The 2776 matrix cells below are the matrix part of that count; graphless rows (`parity/support_graphless.toml`) and capabilities outside the matrix (`parity/capability_records.toml`) make up the rest. Entry-point routes are not counted.
 

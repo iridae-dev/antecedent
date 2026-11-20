@@ -1682,3 +1682,19 @@ implementation = [{ path = "crates/antecedent-design/src/decision_robust_artifac
 guard = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'bytes\.len\(\) > MAX_SCENARIO_CARRIER_BYTES' }
 refusal = { path = "crates/antecedent-design/src/decision_robust_artifact/scenario_carrier.rs", pattern = 'bytes\.len\(\) > MAX_SCENARIO_CARRIER_BYTES[\s\S]{0,1800}?return Err\(' }
 scope_fixture = { path = "crates/antecedent/tests/compiled_robust_decisions.rs", pattern = '\bbounded_requests_and_wrong_binding_refuse_and_failed_evaluation_stays_incomplete\b' }
+
+[[bound]]
+record = "estimate.latent_soft_intervention"
+key = "operation_limit"
+implementation = [{ path = "crates/antecedent/src/analysis/latent_soft_intervention.rs", constant = "MAX_SEARCH_OPERATIONS" }]
+guard = { path = "crates/antecedent/src/analysis/latent_soft_intervention.rs", pattern = '\|\|\s*!\(1\.\.=MAX_SEARCH_OPERATIONS\)\.contains\(&self\.search_operations\)' }
+refusal = { path = "crates/antecedent/src/analysis/latent_soft_intervention.rs", pattern = '\|\|\s*!\(1\.\.=MAX_SEARCH_OPERATIONS\)\.contains\(&self\.search_operations\)[\s\S]{0,1800}?\bErr\s*\(' }
+scope_fixture = { path = "crates/antecedent/tests/latent_soft_intervention.rs", pattern = '\bcompiler_meter_refuses_an_exhausted_search\b' }
+
+[[bound]]
+record = "estimate.latent_soft_intervention"
+key = "depth_limit"
+implementation = [{ path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs", pattern = 'SearchLimits \{ operations: request\.search_operations as usize, depth: (2) \}' }]
+guard = { path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs", pattern = 'SearchLimits \{ operations: request\.search_operations as usize, depth: 2 \}' }
+refusal = { path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs", pattern = 'SearchLimits \{ operations: request\.search_operations as usize, depth: 2 \},[\s\S]{0,1800}?\.map_err\s*\(' }
+scope_fixture = { path = "crates/antecedent-core/src/search.rs", pattern = '\boperations_and_depth_limits_stop_with_measured_receipts\b' }
