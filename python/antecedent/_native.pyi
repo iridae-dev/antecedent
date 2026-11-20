@@ -12607,20 +12607,27 @@ class NativePreparedLatentSoftIntervention:
 class NativeFittedLatentSoftIntervention:
     def discovery(self) -> str: ...
     def forecast(
-        self, context: list[float], memory_bytes: int | None = None,
+        self,
+        context: list[float],
+        memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> str: ...
     def export_forecast(
-        self, context: list[float], memory_bytes: int | None = None,
+        self,
+        context: list[float],
+        memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[bytes, str]: ...
 
 def latent_soft_intervention_prepare(
-    request: str, memory_bytes: int | None = None, cancel: CancellationToken | None = None,
+    request: str,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> NativePreparedLatentSoftIntervention: ...
-
 def latent_soft_intervention_replay(
-    data: bytes, expected: str, memory_bytes: int | None = None,
+    data: bytes,
+    expected: str,
+    memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 

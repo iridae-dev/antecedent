@@ -2,9 +2,8 @@
 
 import random
 
-import pytest
-
 import antecedent as ant
+import pytest
 from antecedent import latent_soft_intervention as lsi
 from antecedent.errors import CausalError
 

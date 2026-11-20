@@ -713,25 +713,30 @@ class PropagationChain:
             results=_results(body["results"]),
             program_identity=program,
             _output_draws=(
-                None if body.get("output_draws") is None
+                None
+                if body.get("output_draws") is None
                 else tuple(_float(bits) for bits in body["output_draws"])
             ),
             _output_weights=(
-                None if body.get("output_weights") is None
+                None
+                if body.get("output_weights") is None
                 else tuple(_float(bits) for bits in body["output_weights"])
             ),
             _output_lower_bounds=(
-                None if body.get("output_lower_bounds") is None
+                None
+                if body.get("output_lower_bounds") is None
                 else tuple(_float(bits) for bits in body["output_lower_bounds"])
             ),
             _output_upper_bounds=(
-                None if body.get("output_upper_bounds") is None
+                None
+                if body.get("output_upper_bounds") is None
                 else tuple(_float(bits) for bits in body["output_upper_bounds"])
             ),
             _alignment=alignment,
             _reading=body["reading"],
             _output_quantity=(
-                None if body.get("output_quantity") is None
+                None
+                if body.get("output_quantity") is None
                 else ScientificQuantity._from_wire(body["output_quantity"])
             ),
             _draw_meaning=draw_meaning,
@@ -740,12 +745,15 @@ class PropagationChain:
                 for output in body.get("joint_outputs", ())
             ),
             _joint_output_draws=(
-                None if body.get("joint_output_draws") is None
-                else tuple(tuple(_float(bits) for bits in column)
-                           for column in body["joint_output_draws"])
+                None
+                if body.get("joint_output_draws") is None
+                else tuple(
+                    tuple(_float(bits) for bits in column) for column in body["joint_output_draws"]
+                )
             ),
             _joint_output_weights=(
-                None if body.get("joint_output_weights") is None
+                None
+                if body.get("joint_output_weights") is None
                 else tuple(_float(bits) for bits in body["joint_output_weights"])
             ),
             _record=record,
@@ -778,7 +786,8 @@ class PropagationChain:
             meaning=self._reading,
             draws=np.asarray(self._output_draws, dtype=np.float64),
             weights=(
-                None if self._output_weights is None
+                None
+                if self._output_weights is None
                 else np.asarray(self._output_weights, dtype=np.float64)
             ),
             alignment=self._alignment,
@@ -799,7 +808,8 @@ class PropagationChain:
             lower=np.asarray(self._output_lower_bounds, dtype=np.float64),
             upper=np.asarray(self._output_upper_bounds, dtype=np.float64),
             weights=(
-                None if self._output_weights is None
+                None
+                if self._output_weights is None
                 else np.asarray(self._output_weights, dtype=np.float64)
             ),
             alignment=self._alignment,
@@ -819,8 +829,11 @@ class PropagationChain:
             meaning=self._reading,
             quantities=tuple(quantity for _, quantity in self._joint_outputs),
             draws=np.asarray(self._joint_output_draws, dtype=np.float64).T.copy(),
-            weights=(None if self._joint_output_weights is None
-                     else np.asarray(self._joint_output_weights, dtype=np.float64)),
+            weights=(
+                None
+                if self._joint_output_weights is None
+                else np.asarray(self._joint_output_weights, dtype=np.float64)
+            ),
             alignment=self._alignment,
             chain_identity=self.identity,
             program_identity=self.program_identity,
@@ -932,7 +945,8 @@ class ConsumedPropagationChain:
             meaning=self.reading,
             draws=np.asarray(self.output_draws, dtype=np.float64),
             weights=(
-                None if self.output_weights is None
+                None
+                if self.output_weights is None
                 else np.asarray(self.output_weights, dtype=np.float64)
             ),
             alignment=self.alignment,
@@ -953,7 +967,8 @@ class ConsumedPropagationChain:
             lower=np.asarray(self.output_lower_bounds, dtype=np.float64),
             upper=np.asarray(self.output_upper_bounds, dtype=np.float64),
             weights=(
-                None if self.output_weights is None
+                None
+                if self.output_weights is None
                 else np.asarray(self.output_weights, dtype=np.float64)
             ),
             alignment=self.alignment,
@@ -973,15 +988,20 @@ class ConsumedPropagationChain:
             meaning=self.reading,
             quantities=tuple(quantity for _, quantity in self.joint_outputs),
             draws=np.asarray(self.joint_output_draws, dtype=np.float64).T.copy(),
-            weights=(None if self.joint_output_weights is None
-                     else np.asarray(self.joint_output_weights, dtype=np.float64)),
+            weights=(
+                None
+                if self.joint_output_weights is None
+                else np.asarray(self.joint_output_weights, dtype=np.float64)
+            ),
             alignment=self.alignment,
             chain_identity=self.identity,
             program_identity=None,
         )
 
 
-def _chain(result: tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]) -> PropagationChain:
+def _chain(
+    result: tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None],
+) -> PropagationChain:
     parts, refusal = result
     _refuse(refusal)
     assert parts is not None
@@ -998,7 +1018,12 @@ def _declaration(
     joint_outputs: Sequence[tuple[str, ScientificQuantity]],
 ) -> dict[str, Any]:
     if reading not in (
-        "point", "spread", "posterior", "predictive", "enclosure", "interval",
+        "point",
+        "spread",
+        "posterior",
+        "predictive",
+        "enclosure",
+        "interval",
         "assumption_envelope",
     ):
         raise CausalValueError(
@@ -1014,18 +1039,24 @@ def _declaration(
     for stage, quantity in joint_outputs:
         if not isinstance(quantity, ScientificQuantity):
             raise CausalTypeError("each joint output quantity must be a ScientificQuantity")
-        declared_joint.append({"stage": _text(stage, "joint output stage"),
-                               "quantity": quantity._wire()})
+        declared_joint.append(
+            {"stage": _text(stage, "joint output stage"), "quantity": quantity._wire()}
+        )
     return {
         "version": (
-            4 if joint_outputs else 3 if reading == "assumption_envelope"
-            else 2 if reading in ("posterior", "predictive")
+            4
+            if joint_outputs
+            else 3
+            if reading == "assumption_envelope"
+            else 2
+            if reading in ("posterior", "predictive")
             else 1
         ),
         "required_features": [
             (
                 "propagation_chain_joint_law_v4"
-                if joint_outputs else "propagation_chain_assumption_v3"
+                if joint_outputs
+                else "propagation_chain_assumption_v3"
                 if reading == "assumption_envelope"
                 else "propagation_chain_law_v2"
                 if reading in ("posterior", "predictive")
@@ -1083,8 +1114,9 @@ def propagate(
     Every column and the common row weights are retained for independent replay.
     """
     execution = resolve_execution(execution)
-    record = _declaration(sources, stages, output, reading, construction,
-                          output_quantity, joint_outputs)
+    record = _declaration(
+        sources, stages, output, reading, construction, output_quantity, joint_outputs
+    )
     return _chain(_native.propagation_chain_seal(json.dumps(record), execution.cancel))
 
 
@@ -1109,8 +1141,9 @@ def plan_view(
     Joint output declarations are also bound into the compiled identity.
     """
     execution = resolve_execution(execution)
-    record = _declaration(sources, stages, output, reading, construction,
-                          output_quantity, joint_outputs)
+    record = _declaration(
+        sources, stages, output, reading, construction, output_quantity, joint_outputs
+    )
     view, refusal = _native.propagation_chain_plan_view(json.dumps(record), execution.cancel)
     _refuse(refusal)
     assert view is not None
@@ -1139,24 +1172,29 @@ def consume_propagation_chain(
         reading=body["reading"],
         alignment=body["alignment"],
         output_quantity=(
-            None if body.get("output_quantity") is None
+            None
+            if body.get("output_quantity") is None
             else ScientificQuantity._from_wire(body["output_quantity"])
         ),
         output_draw_meaning=body.get("output_draw_meaning"),
         output_draws=(
-            None if body.get("output_draws") is None
+            None
+            if body.get("output_draws") is None
             else tuple(_float(bits) for bits in body["output_draws"])
         ),
         output_weights=(
-            None if body.get("output_weights") is None
+            None
+            if body.get("output_weights") is None
             else tuple(_float(bits) for bits in body["output_weights"])
         ),
         output_lower_bounds=(
-            None if body.get("output_lower_bounds") is None
+            None
+            if body.get("output_lower_bounds") is None
             else tuple(_float(bits) for bits in body["output_lower_bounds"])
         ),
         output_upper_bounds=(
-            None if body.get("output_upper_bounds") is None
+            None
+            if body.get("output_upper_bounds") is None
             else tuple(_float(bits) for bits in body["output_upper_bounds"])
         ),
         joint_outputs=tuple(
@@ -1164,12 +1202,15 @@ def consume_propagation_chain(
             for output in body.get("joint_outputs", ())
         ),
         joint_output_draws=(
-            None if body.get("joint_output_draws") is None
-            else tuple(tuple(_float(bits) for bits in column)
-                       for column in body["joint_output_draws"])
+            None
+            if body.get("joint_output_draws") is None
+            else tuple(
+                tuple(_float(bits) for bits in column) for column in body["joint_output_draws"]
+            )
         ),
         joint_output_weights=(
-            None if body.get("joint_output_weights") is None
+            None
+            if body.get("joint_output_weights") is None
             else tuple(_float(bits) for bits in body["joint_output_weights"])
         ),
     )

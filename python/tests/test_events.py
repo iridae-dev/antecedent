@@ -3,7 +3,6 @@
 import math
 
 import pytest
-
 from antecedent import events
 
 
@@ -45,10 +44,15 @@ def test_off_grid_event_path_composes_with_existing_distribution():
     worlds = {
         "system": {
             "variables": ["load"],
-            "inputs": [{
-                "name": "pressure", "interpolation": "piecewise_constant",
-                "times": [1.0], "values": [0.0], "envelope": [0.0, 10.0],
-            }],
+            "inputs": [
+                {
+                    "name": "pressure",
+                    "interpolation": "piecewise_constant",
+                    "times": [1.0],
+                    "values": [0.0],
+                    "envelope": [0.0, 10.0],
+                }
+            ],
             "drift": [{"op": "variable", "variable": 1}],
             "diffusion": [{"expression": {"op": "constant", "value": 0.0}, "square_root": False}],
         },
@@ -57,16 +61,25 @@ def test_off_grid_event_path_composes_with_existing_distribution():
         "time_unit": "hour",
         "origin": "launch",
         "policy": {
-            "start": 1.0, "step": 1.0, "steps": 2,
-            "scheme": "euler_maruyama", "paths": 2, "seed": 8,
+            "start": 1.0,
+            "step": 1.0,
+            "steps": 2,
+            "scheme": "euler_maruyama",
+            "paths": 2,
+            "seed": 8,
         },
         "initial": [0.0],
         "worlds": [],
         "bindings": [{"kind": 0, "input": "pressure", "magnitude": 1.0, "decay": 1.0}],
-        "outputs": [{
-            "state": "load", "world": "baseline", "variable_id": "launch.load",
-            "units": "score", "functional": {"kind": "maximum"},
-        }],
+        "outputs": [
+            {
+                "state": "load",
+                "world": "baseline",
+                "variable_id": "launch.load",
+                "units": "score",
+                "functional": {"kind": "maximum"},
+            }
+        ],
     }
     result = events.prepare({"operation": "worlds", "worlds": worlds}, source=law).execute()
     assert isinstance(result.distribution(), bytes)

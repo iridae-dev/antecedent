@@ -65,8 +65,12 @@ def worlds(start: float) -> dict[str, Any]:
         "time_unit": "hour",
         "origin": "launch clock",
         "policy": {
-            "start": start, "step": 0.25, "steps": 16, "paths": PATHS,
-            "scheme": "euler_maruyama", "seed": 108,
+            "start": start,
+            "step": 0.25,
+            "steps": 16,
+            "paths": PATHS,
+            "scheme": "euler_maruyama",
+            "seed": 108,
         },
         "initial": [0.0],
         "worlds": [
@@ -75,8 +79,11 @@ def worlds(start: float) -> dict[str, Any]:
         "bindings": [{"kind": 0, "input": "attention", "magnitude": 0.75, "decay": 1.0}],
         "outputs": [
             {
-                "state": "load", "world": world, "variable_id": "launch.load",
-                "units": "score", "functional": {"kind": "maximum"},
+                "state": "load",
+                "world": world,
+                "variable_id": "launch.load",
+                "units": "score",
+                "functional": {"kind": "maximum"},
             }
             for world in (BASE, HOLD)
         ],
@@ -87,8 +94,13 @@ def contract(*, peak_limit: float | None = None) -> decision.Contract:
     actions = []
     for world in (BASE, HOLD):
         peak = ScientificQuantity(
-            variable_id="launch.load", variable_name="load", role="outcome",
-            units="score", population_id="launch", regime_id=world, horizon=4,
+            variable_id="launch.load",
+            variable_name="load",
+            role="outcome",
+            units="score",
+            population_id="launch",
+            regime_id=world,
+            horizon=4,
             functional_id="grid_maximum",
         )
         # Holding load also incurs a business cost in utility units.
@@ -120,7 +132,9 @@ def main() -> None:
                 "kind": "fitted",
                 "fit": {"decay": [1.0], "column_cap": 0.9, "iterations": 1600},
             },
-            "paths": PATHS, "max_events": 2048, "seed": 403,
+            "paths": PATHS,
+            "max_events": 2048,
+            "seed": 403,
         },
     }
     prepared = events.prepare(forecast_request)
@@ -149,23 +163,36 @@ def main() -> None:
     print("Probability of staying at or below the peak limit", risk.report()["decision"])
 
     decision_time = CUTOFF + 1.0
-    study = events.prepare(
-        {
-            "operation": "study",
-            "prior": {
-                "history": history,
-                "hypotheses": [{"weight": 1.0, "parameters": fitted["parameters"]}],
-            },
-            "request": {
-                "decision_time": decision_time, "end": decision_time + 4.0,
-                "kind": 0, "minimum_count": 1, "paths": PATHS,
-                "max_events": 128, "seed": 129,
-            },
-            "worlds": worlds(decision_time),
-            "contract": contract(),
-            "cost": {"amount": 0.02, "unit": "score", "utility_unit": "score", "utility_per_cost": 1.0},
-        }
-    ).execute().report()
+    study = (
+        events.prepare(
+            {
+                "operation": "study",
+                "prior": {
+                    "history": history,
+                    "hypotheses": [{"weight": 1.0, "parameters": fitted["parameters"]}],
+                },
+                "request": {
+                    "decision_time": decision_time,
+                    "end": decision_time + 4.0,
+                    "kind": 0,
+                    "minimum_count": 1,
+                    "paths": PATHS,
+                    "max_events": 128,
+                    "seed": 129,
+                },
+                "worlds": worlds(decision_time),
+                "contract": contract(),
+                "cost": {
+                    "amount": 0.02,
+                    "unit": "score",
+                    "utility_unit": "score",
+                    "utility_per_cost": 1.0,
+                },
+            }
+        )
+        .execute()
+        .report()
+    )
     no_notice, notice = study["signal_probabilities"]
     assert abs(no_notice + notice - 1.0) < 1e-12
     assert study["gross_value"] >= -1e-12
