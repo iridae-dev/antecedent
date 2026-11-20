@@ -27,6 +27,9 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 use antecedent_discovery::DiscoveryConstraints;
+pub use antecedent_discovery::observed_marginals::{
+    ObservedMarginals, signed_uniform_observed_marginals,
+};
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,

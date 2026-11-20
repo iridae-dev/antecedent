@@ -300,6 +300,18 @@ fixture's coefficient and unit-noise model, the corresponding likelihood ratio
 is `2 ∫[0.5,1] exp(−200 b²) db`, approximately `1.91e−24`. Both calculations
 penalize the unnecessary edge, but they assign it very different weights.
 
+There is a second distinction for direction. With two observed variables, the
+Gaussian regression models for `X → Y` and `Y → X` attain the same fitted joint
+density and use the same number of parameters. Their BIC scores agree. With
+equal prior odds, both directions receive the same weight even when the
+association is strong. Known equal noise variances in the structural simulator
+supply information about direction that the freely fitted BIC model discards.
+
+The scientific checks compare the implemented score with independent numerical
+calculations. The calibration studies compare its reported probabilities with
+frequencies in fresh simulated data. A correct computation can fail the second
+check. A BIC weight interpreted as an edge probability is subject to that check.
+
 **Complete-data score.** Select `ExactDagPosterior(score="gaussian_signed_uniform", max_parents=3)`
 for a zero-intercept linear Gaussian structural equation with known unit noise
 variance. Each present edge has an independent fair sign and coefficient
@@ -320,14 +332,24 @@ of these fixed studies, only the lowest and highest bins reached 200 edges.
 All six eligible bins passed the registered check. These designs provide
 little information about edges assigned a probability near 65%.
 
-**Missing-data claim requires separate evidence.** Hiding a column's cells and
-filling them from one fitted regression omits parameter and graph uncertainty.
-For a claim about edge probabilities conditional on the observed cells,
-integrate the missing cells under the declared joint model, or sample their
-posterior predictive distribution with a validated error bound. Compare to an
-independent observed-data calculation on small graphs. Then calibrate the
-actual published procedure under the declared missingness law, including its
-finite imputation budget and refusals.
+**Partially observed data.** The discovery crate provides
+`observed_marginals::signed_uniform_observed_marginals` for two to six variables,
+up to three parents per node, and one partially observed column supplied last.
+The model assumes the missingness process is ignorable. It integrates the
+missing cells together. Each completed table is weighted by its graph
+normalizer divided by the probability density used to generate the completion.
+The result includes the draw count, effective draw count, and largest estimated
+Monte Carlo standard error of an edge probability. An unresolved integration
+returns an error. The existing BIC imputation procedure uses its own score and
+retains its existing calibration obligations.
+
+A two-variable numerical reference directly integrates a missing cell and the
+coefficient. A six-variable reference enumerates 16,807 possible directed
+forests and integrates two missing cells. The separate frequency studies use
+six variables, a three-parent cap, 400 rows and 25% completely random
+missingness in one column. Each prior design is tested on 400 independently
+generated datasets. Every refusal blocks the study; the registered bin rules
+apply to all 30 directed pairs on each dataset.
 
 **Release evidence.** The signed-uniform studies have their own gate identities.
 The three complete-data and two pooled Gaussian-BIC obligations retain their

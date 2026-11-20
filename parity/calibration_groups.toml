@@ -15357,3 +15357,21 @@ tests = ["graph_posterior_calibration::signed_uniform_per_edge_and_soft_tiers_ed
 ignored = true
 grid = false
 whole = true
+
+[[group]]
+label = "antecedent-discovery: observed_score_six_variable_per_edge_reliability"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::observed_marginals_validation::observed_score_six_variable_per_edge_reliability"]
+ignored = true
+grid = false
+whole = true
+
+[[group]]
+label = "antecedent-discovery: observed_score_six_variable_soft_tier_reliability"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::observed_marginals_validation::observed_score_six_variable_soft_tier_reliability"]
+ignored = true
+grid = false
+whole = true

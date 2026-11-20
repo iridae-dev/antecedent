@@ -1203,3 +1203,6 @@ mod tests {
         assert_eq!(cells[0], (2.0, 0.05, 0.0));
     }
 }
+
+#[path = "observed_marginals_validation.rs"]
+mod observed_marginals_validation;

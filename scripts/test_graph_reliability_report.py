@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from graph_reliability_report import check_report
+from graph_reliability_report import check_report, required_report
 from collect_coverage_records import log_problems
 
 
@@ -25,6 +25,18 @@ def two_populated_bins(observed):
 
 
 class ReliabilityReportTests(unittest.TestCase):
+    def test_observed_cell_studies_require_their_own_fully_scored_reports(self):
+        for name, design in (("per_edge", "per_edge_observed"),
+                             ("soft_tier", "per_edge_and_soft_tiers_observed")):
+            group = f"antecedent-discovery__observed_score_six_variable_{name}_reliability"
+            self.assertEqual(required_report(group), ("GaussianSignedUniform", design))
+            report = two_populated_bins(1)
+            report.update(design=design, score="GaussianSignedUniform")
+            self.assertEqual(check_report(report), [])
+            report["score"] = "GaussianBic"
+            with self.assertRaises(ValueError):
+                check_report(report)
+
     def test_reconstructs_pass_and_fail(self):
         self.assertEqual(check_report(two_populated_bins(1)), [])
         self.assertEqual(check_report(two_populated_bins(0)), [0])

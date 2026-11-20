@@ -14,7 +14,7 @@ from pathlib import Path
 
 MARKER = "graph-reliability-report "
 DESIGNS = {"per_edge", "soft_tiers", "per_edge_and_soft_tiers", "per_edge_pooled",
-           "per_edge_and_soft_tiers_pooled"}
+           "per_edge_and_soft_tiers_pooled", "per_edge_observed", "per_edge_and_soft_tiers_observed"}
 
 
 def required_report(group: str) -> tuple[str, str] | None:
@@ -29,6 +29,10 @@ def required_report(group: str) -> tuple[str, str] | None:
             return "GaussianBic", design
         if test == f"signed_uniform_{design}_edge_probabilities_match_generating_frequencies":
             return "GaussianSignedUniform", design
+    if test == "observed_score_six_variable_per_edge_reliability":
+        return "GaussianSignedUniform", "per_edge_observed"
+    if test == "observed_score_six_variable_soft_tier_reliability":
+        return "GaussianSignedUniform", "per_edge_and_soft_tiers_observed"
     if test == "pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column":
         return "GaussianBic", "per_edge_pooled"
     if test == "pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors":
@@ -47,6 +51,7 @@ def parse_report(text: str) -> dict:
 def check_report(report: dict) -> list[int]:
     """Recompute the fixed six-variable study's bin statistics and failed bins."""
     if (report["design"] not in DESIGNS or report["score"] not in {"GaussianBic", "GaussianSignedUniform"}
+            or (report["design"].endswith("_observed") and report["score"] != "GaussianSignedUniform")
             or (report["score"] == "GaussianSignedUniform" and report["design"].endswith("_pooled"))
             or report["rows_per_dataset"] != 400 or report["variables"] != 6
             or report["minimum_bin_cells"] != 200 or report["maximum_abs_z"] != 3.5):

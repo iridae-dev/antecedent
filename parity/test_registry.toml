@@ -24627,3 +24627,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_transport_decisions.py"
 gates = ["inventory"]
+
+[[test]]
+id = "discovery-observed-marginals-validation"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/observed_marginals_validation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "exact-signed-uniform-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_exact_signed_uniform.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-graph-reliability-report"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_graph_reliability_report.py"
+gates = ["inventory"]
