@@ -11,6 +11,7 @@ use antecedent_core::{
     OperatorGraph, OperatorPorts, OperatorRole, PhysicalEffect, PhysicalOperator, ScientificTarget,
     SemanticDigest,
 };
+use antecedent_estimate::joint_design::compiled::JointDesignRecipe;
 use antecedent_identify::CompiledIdentificationProduct;
 
 use crate::analysis::joint_panel::compiled::support_status;
@@ -40,10 +41,17 @@ pub(crate) enum DesignInput<'a> {
         target: &'a ScientificTarget,
         /// The identification product compiled from the design proof.
         identification: &'a CompiledIdentificationProduct,
+        /// The design recipe the proof declares.
+        recipe: &'a JointDesignRecipe,
     },
     /// A native design whose target kind (a local, cohort, structural or donor-model effect)
     /// is its own and is never read as an intervention-world mean.
-    Native(&'a NativeJointIdentification),
+    Native {
+        /// The native identifying functional, target and required assumptions.
+        identification: &'a NativeJointIdentification,
+        /// The design recipe the native identification summarises.
+        recipe: &'a JointDesignRecipe,
+    },
 }
 
 /// Lower the program of a compiled joint design (`JointDesign`).
@@ -56,7 +64,8 @@ pub(crate) enum DesignInput<'a> {
 ///    native identifying functional and required assumptions for a native design;
 /// 3. the design's own identifying functional and estimator; the inference mode chosen at
 ///    execution does not change the program;
-/// 4. the design source as trial or observation evidence;
+/// 4. the design source as trial evidence when the recipe's design randomizes assignment,
+///    and as observation evidence otherwise;
 /// 5. the read of `source_bytes` and the design-functional evaluation;
 /// 6. the claim of the design's target kind.
 ///
@@ -71,8 +80,8 @@ pub(crate) fn lower(
     source_bytes: u64,
 ) -> Result<LoweredProgram, CausalError> {
     let status = support_status(JointPanelRoute::Design);
-    let (target, identification, family, trial) = match design {
-        DesignInput::Worlds { target, identification } => {
+    let (target, identification, family, recipe) = match design {
+        DesignInput::Worlds { target, identification, recipe } => {
             let method = identification.identified().first().map_or_else(
                 || Arc::<str>::from("joint_design"),
                 |estimand| estimand.method.clone(),
@@ -85,15 +94,15 @@ pub(crate) fn lower(
             (
                 ProblemTarget::Target(target.clone()),
                 IdentificationLayer::Retained(Arc::new(retained)),
-                method.clone(),
-                randomized_method(&method),
+                method,
+                recipe,
             )
         }
-        DesignInput::Native(native) => {
+        DesignInput::Native { identification: native, recipe } => {
             let model = native_digest(native);
             (
                 ProblemTarget::QueryFunctional {
-                    kind: native_kind(&native.target_kind),
+                    kind: native_kind(recipe),
                     outcome: None,
                     query: model,
                 },
@@ -101,7 +110,7 @@ pub(crate) fn lower(
                     NonGraphicalIdentification::SpecifiedModelConditional { model },
                 )),
                 Arc::<str>::from(native.method.as_str()),
-                randomized_method(&native.method),
+                recipe,
             )
         }
     };
@@ -138,7 +147,7 @@ pub(crate) fn lower(
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: if trial { EvidenceRole::Trial } else { EvidenceRole::Observations },
+            role: source_role(recipe),
             digest: Some(*source.as_bytes()),
         }]),
         composition: Composition::Single,
@@ -208,32 +217,46 @@ pub(super) fn refuse(message: impl std::fmt::Display) -> CausalError {
     }
 }
 
-/// Whether the design method reads randomized assignment, so its source is trial evidence.
-fn randomized_method(method: &str) -> bool {
-    [
-        "decision_cluster",
-        "decision_experiment",
-        "sequential_excursion",
-        "whole_program",
-        "switchback",
-        "encouragement",
-        "randomized",
-    ]
-    .iter()
-    .any(|marker| method.contains(marker))
+/// The evidence role of a design's source, from the assignment its recipe declares: a
+/// complete, cluster, matched-pair, switchback, sequential-excursion, whole-program or
+/// encouragement randomization is trial evidence; a design over recorded histories,
+/// rollouts, donor panels or instrument features is observation evidence.
+const fn source_role(recipe: &JointDesignRecipe) -> EvidenceRole {
+    match recipe {
+        JointDesignRecipe::DecisionCluster { .. }
+        | JointDesignRecipe::DecisionExperiment { .. }
+        | JointDesignRecipe::Excursion { .. }
+        | JointDesignRecipe::Randomized { .. }
+        | JointDesignRecipe::Switchback { .. }
+        | JointDesignRecipe::InstrumentedLocal { .. } => EvidenceRole::Trial,
+        JointDesignRecipe::AdaptiveRegime { .. }
+        | JointDesignRecipe::StaticRegime { .. }
+        | JointDesignRecipe::SyntheticControl { .. }
+        | JointDesignRecipe::Longitudinal { .. }
+        | JointDesignRecipe::GaussianLongitudinal { .. }
+        | JointDesignRecipe::Instrumented { .. }
+        | JointDesignRecipe::DifferenceInDifferences { .. } => EvidenceRole::Observations,
+    }
 }
 
-/// The functional kind a native design target reads as: never an intervention-world mean
-/// unless the target is one.
-fn native_kind(target_kind: &str) -> FunctionalKind {
-    if target_kind.contains("complier") || target_kind.contains("structural") {
-        FunctionalKind::AssignmentContrast
-    } else if target_kind.contains("att") || target_kind.contains("synthetic") {
-        FunctionalKind::EffectOnTreated
-    } else if target_kind.contains("regime") {
-        FunctionalKind::RegimeValue
-    } else {
-        FunctionalKind::InterventionalDistribution
+/// The functional kind a native design's target reads as, from its recipe: never an
+/// intervention-world mean unless the target is one.
+const fn native_kind(recipe: &JointDesignRecipe) -> FunctionalKind {
+    match recipe {
+        JointDesignRecipe::InstrumentedLocal { .. } | JointDesignRecipe::Instrumented { .. } => {
+            FunctionalKind::AssignmentContrast
+        }
+        JointDesignRecipe::DifferenceInDifferences { .. }
+        | JointDesignRecipe::SyntheticControl { .. } => FunctionalKind::EffectOnTreated,
+        JointDesignRecipe::AdaptiveRegime { .. }
+        | JointDesignRecipe::StaticRegime { .. }
+        | JointDesignRecipe::Longitudinal { .. }
+        | JointDesignRecipe::GaussianLongitudinal { .. } => FunctionalKind::RegimeValue,
+        JointDesignRecipe::DecisionCluster { .. }
+        | JointDesignRecipe::DecisionExperiment { .. }
+        | JointDesignRecipe::Excursion { .. }
+        | JointDesignRecipe::Randomized { .. }
+        | JointDesignRecipe::Switchback { .. } => FunctionalKind::InterventionalDistribution,
     }
 }
 

@@ -3,7 +3,8 @@
 use super::error;
 use crate::joint_panel_api::context;
 use antecedent::analysis::joint_panel::selection::instrumented::{
-    InstrumentedSelectionRequest, InstrumentedSelectionResult, replay_instrumented_selection,
+    InstrumentedSelectionRequest, InstrumentedSelectionResult, PreparedInstrumentedSelection,
+    replay_instrumented_selection,
 };
 use pyo3::{prelude::*, types::PyBytes};
 
@@ -18,10 +19,18 @@ fn declaration(json: &str) -> PyResult<InstrumentedSelectionRequest> {
 #[pyclass(name = "_InstrumentedProgramSelection", frozen)]
 struct PyInstrumentedSelection {
     inner: InstrumentedSelectionResult,
-    request: InstrumentedSelectionRequest,
+    prepared: PreparedInstrumentedSelection,
 }
 #[pymethods]
 impl PyInstrumentedSelection {
+    /// The layers of the compiled program this selection executed, as JSON.
+    fn plan_view(&self) -> String {
+        self.prepared.plan_view().to_json().to_string()
+    }
+    /// The executed program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn report(&self) -> String {
         self.inner.report().to_string()
     }
@@ -40,7 +49,7 @@ impl PyInstrumentedSelection {
     ) -> PyResult<()> {
         let ctx = context(seed, threads, max_bytes, cancel)?;
         crate::detach_catch(py, || {
-            replay_instrumented_selection(bytes, Some(&self.request), &ctx)
+            replay_instrumented_selection(bytes, Some(self.prepared.request()), &ctx)
                 .map(|_| ())
                 .map_err(error)
         })
@@ -66,10 +75,11 @@ fn select_instrumented_program(
         antecedent::execution::retain(&ctx, (declaration_json.len() as u64).saturating_mul(16))
             .map_err(|e| crate::CausalResourceError::new_err(e.to_string()))?;
     let request = declaration(declaration_json)?;
-    let inner = crate::detach_catch(py, || {
-        request.execute(repetitions, tie_tolerance, &ctx).map_err(error)
-    })?;
-    Ok(PyInstrumentedSelection { inner, request })
+    crate::detach_catch(py, || {
+        let prepared = request.compile(&ctx).map_err(error)?;
+        let inner = prepared.execute(repetitions, tie_tolerance, &ctx).map_err(error)?;
+        Ok(PyInstrumentedSelection { inner, prepared })
+    })
 }
 #[pyfunction]
 #[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None))]

@@ -8,6 +8,7 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+from antecedent import Execution
 from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration
@@ -15,6 +16,7 @@ from antecedent.outcomes import require_success
 
 from test_joint_panel import declarations, request
 from test_joint_panel_imputation import panel as imputed_panel
+from test_panel_future_study import joint_excursion_declaration
 
 ROOT = Path(__file__).resolve().parents[2]
 HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -45,6 +47,14 @@ def native_recipe():
 
 def is_identity(value):
     return isinstance(value, str) and HEX64.fullmatch(value) is not None
+
+
+def names_route(handle, route):
+    """The handle's plan view names `route` and the program identity the handle reports."""
+    view = handle.plan_view()
+    assert view["route"] == route
+    assert is_identity(handle.program_identity)
+    assert view["identity"] == handle.program_identity
 
 
 def test_prepared_panel_and_result_name_the_response_route_and_share_one_identity():
@@ -187,3 +197,119 @@ def test_experiment_names_the_experiment_route():
     )
     assert updated.plan_view()["route"] == "JointPanelExperiment"
     assert is_identity(updated.program_identity)
+
+
+def test_certified_search_names_the_search_route():
+    groups, worlds = declarations()
+    result = require_success(request(groups, worlds).estimate(execution=Execution(seed=7)))
+    controls = [
+        {
+            "channel": name,
+            "offset": offset,
+            "lower": 0.0,
+            "upper": 2.0 if offset == 23 and name == "a" else 0.0,
+            "unit_cost": 1.0 if offset == 23 and name == "a" else 0.0,
+        }
+        for offset in range(24)
+        for name in ("a", "b", "c")
+    ]
+    certificate = result.certify_program(
+        base_world=0,
+        controls=controls,
+        initial=[0.0] * len(controls),
+        absolute_gap=1e-3,
+        max_splits=8,
+        execution=Execution(seed=7),
+    )
+    names_route(certificate, "JointPanelProgramSearch")
+    assert certificate.program_identity != result.program_identity
+
+
+def test_randomized_selection_names_the_selection_route_before_and_after_execution():
+    design = {
+        "worlds": ["a", "b"],
+        "sampling_unit": "independent randomized cluster",
+        "population": "common cluster sampling frame",
+        "consistency": "complete program and common outcome measure",
+        "between_unit_isolation": "no cross-cluster interference",
+    }
+
+    def units(stage):
+        return [
+            {
+                "id": f"{stage}:{i}",
+                "arm": i % 2,
+                "probabilities": [0.5, 0.5],
+                "outcome": [1.0, 1.5][i % 2] + 0.1 * (i % 5),
+                "population_weight": 1.0,
+            }
+            for i in range(64)
+        ]
+
+    policy = {
+        "independent_sampling_frame": "independent draws from the declared common frame",
+        "utility_units": "outcome units",
+        "benefit_multiplier": 1.0,
+        "utility_costs": [0.0, 0.0],
+        "resource_costs": [1.0, 1.0],
+        "budget": 2.0,
+        "generation": {"kind": "all"},
+    }
+    prepared = jp.prepare_randomized_selection(
+        design=design, training=units("train"), validation=units("holdout"), policy=policy
+    )
+    names_route(prepared, "JointPanelProgramSelection")
+    selected = require_success(prepared.execute(repetitions=3, execution=Execution(seed=13)))
+    names_route(selected, "JointPanelProgramSelection")
+    assert selected.program_identity == prepared.program_identity
+
+
+def test_instrumented_selection_names_the_selection_route():
+    def units(stage):
+        rows = []
+        for i in range(40):
+            z = -1.0 + 2.0 * i / 39
+            dose = 1.5 + z
+            rows.append(
+                {
+                    "id": f"{stage}:{i}",
+                    "endogenous": [dose, dose * dose],
+                    "instruments": [z, z * z],
+                    "exogenous": [1.0],
+                    "outcome": 4 * dose - dose * dose,
+                }
+            )
+        return rows
+
+    declaration = {
+        "design": {
+            "contrasts": [["dose_increment", [1.0, 1.0]]],
+            "structural_model": "homogeneous Y = beta1*d + beta2*d^2 + intercept + error",
+            "moment_restrictions": "randomized Z; E[Z error]=E[Z^2 error]=0; exclusion",
+            "population": "common independent unit population",
+        },
+        "features": {"raw_feature_indices": [0], "powers": [[1], [2]]},
+        "training": units("training"),
+        "validation": units("validation"),
+        "independent_sampling_frame": "independent original units reserved before fitting",
+        "controls": [{"lower": 0.0, "upper": 3.0, "unit_cost": 1.0, "utility_cost": 0.0}],
+        "restrictions": [],
+        "budget": 1.75,
+        "reference": [0.0],
+        "initial": [1.0],
+        "benefit_multiplier": 1.0,
+        "utility_units": "outcome units",
+        "generation": {"kind": "prespecified"},
+        "certificate": {"absolute_gap": 0.002, "max_splits": 256},
+    }
+    selected = jp.select_instrumented_program(
+        declaration, repetitions=2, execution=Execution(seed=17)
+    )
+    names_route(selected, "JointPanelProgramSelection")
+
+
+def test_joint_excursion_update_names_the_experiment_route():
+    result, args, _ledger, _experiment = joint_excursion_declaration()
+    updated = result.condition_joint_excursion(**args)
+    names_route(updated, "JointPanelExperiment")
+    assert updated.program_identity != result.program_identity

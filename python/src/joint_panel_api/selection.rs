@@ -33,6 +33,14 @@ pub(crate) struct PyPreparedRandomizedSelection {
 }
 #[pymethods]
 impl PyPreparedRandomizedSelection {
+    /// The compiled program's layers as JSON, read without fitting or selecting.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(*,repetitions=199,tie_tolerance=0.0,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn execute(
         &self,
@@ -79,6 +87,14 @@ pub(crate) struct PyRandomizedSelection {
 }
 #[pymethods]
 impl PyRandomizedSelection {
+    /// The layers of the compiled program this selection executed, as JSON.
+    fn plan_view(&self) -> String {
+        self.prepared.plan_view().to_json().to_string()
+    }
+    /// The executed program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn report(&self) -> String {
         self.inner.report().to_string()
     }

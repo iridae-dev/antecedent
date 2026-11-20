@@ -264,7 +264,7 @@ impl PreparedNativeJointDesign {
         writer.bytes(&antecedent_io::convert::to_cbor(&recipe).map_err(failure)?);
         let dependency = SemanticDigest::from_bytes(writer.finish());
         let program = Arc::new(design_lowering::lower(
-            DesignInput::Native(&identification),
+            DesignInput::Native { identification: &identification, recipe: &recipe },
             dependency,
             quote,
         )?);

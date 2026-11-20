@@ -169,7 +169,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 28 of 28 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "Supported Bayesian AverageEffect ids are g-computation and robust ATE, not glm.adjustment."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -437,7 +437,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 28 of 28 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -2534,7 +2534,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 28 of 28 public items reviewed"
 identifying_result = "No Bayesian posterior of the contemporaneous projection as a pulse"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -2678,7 +2678,7 @@ target = "ComposedQuantity"
 provenance = [
   "composition.multi_source",
 ]
-api_review = "parity/public_api/antecedent.txt: 15 of 15 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 78 of 78 public items reviewed"
 identifying_result = "ComposedQuantity"
 assumptions = "Also crates/antecedent-contract/src/measurement.rs and crates/antecedent-estimate/src/measurement."
 sampling_units = "declared measurement model (population, regime, arm, representation, error structure) prepared with StudyBuilder::measurement_model; binary sensitivity-specificity (Rogan-Gladen), categorical confusion matrix, classical linear moment, repeated measurements, continuous regression calibration and SIMEX"
@@ -2694,7 +2694,7 @@ target = "ComposedQuantity"
 provenance = [
   "composition.multi_source",
 ]
-api_review = "parity/public_api/antecedent.txt: 15 of 15 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 78 of 78 public items reviewed"
 identifying_result = "ComposedQuantity"
 assumptions = "A BundleBuilder collects the parts of a composed decision as nodes of a typed graph: artifacts embedded from their bytes (a distribution, an external claim, a decision contract and result, a sensitivity artifact, a study ranking, an inverse query, a repair report), references to a provider or data source the consumer must supply, dependency edges, and declared evidence relationships."
 sampling_units = "external latent posterior of the construct bound to its source snapshot, combined with the linear outcome functional"
@@ -2994,7 +2994,7 @@ failure_policy = "Sequence overlays remain refused."
 [[spec]]
 id = "X02.static.frequentist"
 parent = "X02"
-route = "none"
+route = "JointPanelResponse"
 target = "L=0 saturation and interaction response"
 provenance = [
   "composition.panel_experiment_update",
@@ -3015,7 +3015,7 @@ failure_policy = "The original B04 failure still holds: fitting alone does not i
 [[spec]]
 id = "X02.static.bayesian"
 parent = "X02"
-route = "none"
+route = "JointPanelResponse"
 target = "L=0 saturation and interaction response"
 provenance = [
   "composition.panel_experiment_update",
@@ -3036,7 +3036,7 @@ failure_policy = "The original B04 failure still holds: fitting alone does not i
 [[spec]]
 id = "X02.temporal.frequentist"
 parent = "X02"
-route = "none"
+route = "JointPanelResponse"
 target = "finite-lag group-time response"
 provenance = [
   "response.joint_panel",
@@ -3052,7 +3052,7 @@ failure_policy = "The original B04 failure still holds: fitting alone does not i
 [[spec]]
 id = "X02.temporal.bayesian"
 parent = "X02"
-route = "none"
+route = "JointPanelResponse"
 target = "finite-lag group-time response"
 provenance = [
   "response.joint_panel",
@@ -3068,12 +3068,10 @@ failure_policy = "The original B04 failure still holds: fitting alone does not i
 [[spec]]
 id = "X02.broader.static.frequentist"
 parent = "X02.broader"
-route = "none"
+route = "JointPanelResponse"
 target = "L=0 Hill, group-specific saturation and spatial-residual response"
 provenance = [
-  "adaptive_inference.participant_family",
-  "adaptive_inference.predictable_plug_in_sequence",
-  "stats.fdr",
+  "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 13 of 13 public items reviewed"
 identifying_result = "L=0 Hill, group-specific saturation and spatial-residual response; design-based joint Delta_AB under a known whole-program randomized assignment"
@@ -3086,12 +3084,10 @@ failure_policy = "Adjusted claim: the family changes the fitted mechanism only. 
 [[spec]]
 id = "X02.broader.static.bayesian"
 parent = "X02.broader"
-route = "none"
+route = "JointPanelResponse"
 target = "L=0 Hill, group-specific saturation and spatial-residual response"
 provenance = [
-  "adaptive_inference.participant_family",
-  "adaptive_inference.predictable_plug_in_sequence",
-  "stats.fdr",
+  "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 13 of 13 public items reviewed"
 identifying_result = "L=0 Hill, group-specific saturation and spatial-residual response; design-based joint Delta_AB under a known whole-program randomized assignment"
@@ -3104,12 +3100,10 @@ failure_policy = "Adjusted claim: the family changes the fitted mechanism only. 
 [[spec]]
 id = "X02.broader.temporal.frequentist"
 parent = "X02.broader"
-route = "none"
+route = "JointPanelTimeVarying"
 target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
 provenance = [
-  "adaptive_inference.participant_family",
-  "adaptive_inference.predictable_plug_in_sequence",
-  "stats.fdr",
+  "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 13 of 13 public items reviewed"
 identifying_result = "Finite-lag group-time response under the selected family; design-based joint Delta_AB under a known whole-program randomized assignment"
@@ -3122,12 +3116,10 @@ failure_policy = "Adjusted claim: the family changes the fitted mechanism only. 
 [[spec]]
 id = "X02.broader.temporal.bayesian"
 parent = "X02.broader"
-route = "none"
+route = "JointPanelTimeVarying"
 target = "finite-lag group-time response under geometric adstock, Hill and group-specific saturation"
 provenance = [
-  "adaptive_inference.participant_family",
-  "adaptive_inference.predictable_plug_in_sequence",
-  "stats.fdr",
+  "response.joint_panel",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 13 of 13 public items reviewed"
 identifying_result = "Finite-lag group-time response under the selected family; design-based joint Delta_AB under a known whole-program randomized assignment"
@@ -3172,7 +3164,7 @@ failure_policy = "Refuse this axis. This axis has no time-varying estimand. Chan
 [[spec]]
 id = "X03.temporal.frequentist"
 parent = "X03"
-route = "method.time_varying.temporal.frequentist"
+route = "JointPanelTimeVarying"
 target = "time-varying structural effectiveness"
 provenance = [
   "response.joint_panel",
@@ -3189,7 +3181,7 @@ failure_policy = "Adjusted claim: Whole-procedure calibration of the selection-a
 [[spec]]
 id = "X03.temporal.bayesian"
 parent = "X03"
-route = "method.time_varying.temporal.bayesian"
+route = "JointPanelTimeVarying"
 target = "time-varying structural effectiveness"
 provenance = [
   "response.joint_panel",
@@ -3222,7 +3214,7 @@ failure_policy = "Execution refuses with a typed error naming the unmet premise.
 [[spec]]
 id = "X04.2.static.frequentist"
 parent = "X04.2"
-route = "method.continuous.static.frequentist"
+route = "JointPanelProgramSearch"
 target = "continuous intervention program"
 provenance = [
   "design.compiled_program_search",
@@ -3254,7 +3246,7 @@ failure_policy = "Execution refuses with a typed error naming the unmet premise.
 [[spec]]
 id = "X04.2.static.bayesian"
 parent = "X04.2"
-route = "method.continuous.static.bayesian"
+route = "JointPanelProgramSearch"
 target = "continuous intervention program"
 provenance = [
   "design.compiled_program_search",
@@ -3286,7 +3278,7 @@ failure_policy = "Execution refuses with a typed error naming the unmet premise.
 [[spec]]
 id = "X04.2.temporal.frequentist"
 parent = "X04.2"
-route = "method.continuous.temporal.frequentist"
+route = "JointPanelProgramSearch"
 target = "continuous intervention program"
 provenance = [
   "design.compiled_program_search",
@@ -3318,7 +3310,7 @@ failure_policy = "Execution refuses with a typed error naming the unmet premise.
 [[spec]]
 id = "X04.2.temporal.bayesian"
 parent = "X04.2"
-route = "method.continuous.temporal.bayesian"
+route = "JointPanelProgramSearch"
 target = "continuous intervention program"
 provenance = [
   "design.compiled_program_search",
@@ -3382,12 +3374,12 @@ failure_policy = "Adjusted claim: comprehensive closure is a longitudinal estima
 [[spec]]
 id = "X05.temporal.bayesian"
 parent = "X05"
-route = "none"
+route = "JointPanelExperiment"
 target = "temporal experimental estimand to original typed design target, conditional update, constrained decision and next-study net value"
 provenance = [
   "composition.panel_experiment_update",
 ]
-api_review = "parity/public_api/antecedent.txt: 36 of 36 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 39 of 39 public items reviewed"
 identifying_result = "Original X07 scientific functional and source premises are retained, including local complier, structural feature, eligible switchback history, cohort ATT and treated-unit donor-reference targets; model-conditional panel projections retain their compiler proof."
 assumptions = "Explicit experimental population, time window, horizon, dose, duration, exposure, recency and spend translation; global mapping law and source dependence; transport for changed populations or horizons; independent likelihood evidence and all prior/mapping origins. Native ratio posterior moments require explicit bounded mapping support and a positive known-variance Gaussian experimental likelihood."
 sampling_units = "The actual source design units and original full histories, clustered geo assignments or donor/reference series are retained; the new Gaussian mean likelihood uses its separately declared independent experimental observations."
@@ -3430,7 +3422,7 @@ failure_policy = "Refuse this axis. The reference design is a synthetic panel."
 [[spec]]
 id = "X06.temporal.frequentist"
 parent = "X06"
-route = "method.joint_panel.temporal.frequentist"
+route = "JointPanelResponse"
 target = "synthetic two-channel panel"
 provenance = [
   "composition.panel_experiment_update",
@@ -3440,7 +3432,7 @@ provenance = [
   "response.joint_panel_reference",
   "response.joint_panel_time_varying_posterior",
 ]
-api_review = "parity/public_api/antecedent.txt: 29 of 29 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 32 of 32 public items reviewed"
 identifying_result = "Joint response on an independent synthetic two-channel panel"
 assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
 sampling_units = "groups in a synthetic panel"
@@ -3451,7 +3443,7 @@ failure_policy = "Adjusted claim: Q09/E14 whole-procedure calibration and uncert
 [[spec]]
 id = "X06.temporal.bayesian"
 parent = "X06"
-route = "method.joint_panel.temporal.bayesian"
+route = "JointPanelResponse"
 target = "synthetic two-channel panel"
 provenance = [
   "composition.panel_experiment_update",
@@ -3461,7 +3453,7 @@ provenance = [
   "response.joint_panel_reference",
   "response.joint_panel_time_varying_posterior",
 ]
-api_review = "parity/public_api/antecedent.txt: 29 of 29 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 32 of 32 public items reviewed"
 identifying_result = "Joint response on an independent synthetic two-channel panel"
 assumptions = "Generator truth, seeds, and reference values stay independent of production estimator code. Two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, serial and group dependence."
 sampling_units = "groups in a synthetic panel"

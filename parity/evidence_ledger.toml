@@ -11580,3 +11580,228 @@ calibration = "95% coverage harness measurement_composition_horizon_calibration;
 artifact_consumer_fixture = "joint_law.composed_spread_aligned_functional.fresh_consumer_replay.artifact"
 provider_trust = "native_numerics_over_the_published_joint_replicates"
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading"
+algorithm_provenance = ["provenance/estimate.joint_design.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.native_contrast.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Eight equally weighted randomized units on two programs and a two-period four-arm switchback with carryover, each compiled as a native design and read at level 0.95; the interval is recomputed by hand from the inverse-probability scores and the published covariance."
+expected_values = "Mean score 3 -/+ t(0.975, 7) sqrt(328 / 56) for the randomized contrast and the exact switchback interaction 4 inside its interval; designs below the measured unit counts are keyed outside the measured support and a level outside (0, 1) refuses with joint_response.reading_level_invalid."
+tolerance = "absolute 1e-9 on the hand-computed endpoints"
+calibration = "interval_with_runtime_derived_calibration_key; the coverage records are allocated in the record inference output joint_response.interval_readings.native_contrast and their measurement is pending, so the reading is never labelled calibrated before it is measured"
+artifact_consumer_fixture = "joint_response.interval_readings.native_design_replay.artifact"
+provider_trust = "native_computation_over_the_compiled_design_recipe"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.selected_value.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A held-out randomized selection whose published held-out estimate and standard error are read at level 0.95."
+expected_values = "The reading equals the held-out estimate -/+ 1.959964 standard errors recomputed from the published value, keyed by the smaller of the training and held-out samples; a level outside (0, 1) refuses with joint_response.reading_level_invalid."
+tolerance = "absolute 1e-9 on the recomputed endpoints"
+calibration = "interval_with_runtime_derived_calibration_key; the coverage records are allocated in the record inference output joint_response.interval_readings.selected_value and their measurement is pending"
+artifact_consumer_fixture = "joint_response.interval_readings.selection_replay.artifact"
+provider_trust = "native_computation_over_the_retained_heldout_units"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.selected_value.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A held-out structural-dose selection whose published held-out estimate and standard error are read at level 0.95."
+expected_values = "The reading equals the held-out estimate -/+ 1.959964 standard errors recomputed from the published value, keyed by the smaller sample; a level outside (0, 1) refuses with joint_response.reading_level_invalid."
+tolerance = "absolute 1e-9 on the recomputed endpoints"
+calibration = "interval_with_runtime_derived_calibration_key; the coverage records are allocated in the record inference output joint_response.interval_readings.selected_value and their measurement is pending"
+artifact_consumer_fixture = "joint_response.interval_readings.selection_replay.artifact"
+provider_trust = "native_computation_over_the_retained_heldout_units"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.JointDesignResult.population_reference_region"
+algorithm_provenance = ["provenance/response.joint_panel_reference.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.reference_region.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A population reference decomposition of a randomized source design in frequentist and Bayesian mode, read at joint level 0.95."
+expected_values = "Each contribution -/+ 2.497705 propagated standard errors in frequentist mode, and the cut of 12 of 2,048 aligned draws from each tail in Bayesian mode, recomputed from the published covariance and draws."
+tolerance = "absolute 1e-9 on the recomputed region"
+calibration = "interval_with_runtime_derived_calibration_key; the coverage records are allocated in the record inference output joint_response.interval_readings.reference_region and their measurement is pending"
+artifact_consumer_fixture = "joint_response.interval_readings.updated_law_replay.artifact"
+provider_trust = "native_computation_over_the_compiled_design_recipe"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.JointDesignResult.updated_contrast_reading"
+algorithm_provenance = ["provenance/composition.panel_experiment_update.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.updated_contrast.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A Bayesian design law updated by an independent experiment translated by the identity, read for a contrast of the target worlds at level 0.95."
+expected_values = "The weighted 2.5% and 97.5% quantiles of the contrast recomputed from the updated law draws and weights; mismatched coefficients refuse."
+tolerance = "absolute 1e-9 on the recomputed quantiles"
+calibration = "interval_with_runtime_derived_calibration_key; the coverage record is allocated in the record inference output joint_response.interval_readings.updated_contrast and its measurement is pending"
+artifact_consumer_fixture = "joint_response.interval_readings.updated_law_replay.artifact"
+provider_trust = "native_computation_over_the_updated_design_law"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.Study.prepare_joint_panel"
+algorithm_provenance = ["provenance/response.joint_panel.toml", "provenance/response.joint_panel_time_varying_posterior.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_response_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The shared four-world joint-panel fixture prepared with frequentist inference and eight draws, the same request with a time-varying declaration, and the request retargeted to its own worlds."
+expected_values = "The plan view names JointPanelResponse (JointPanelTimeVarying with a temporal declaration) before any fit; the result carries the program identity; the routed point and every draw equal fit_panel and evaluate_panel_law called directly, bit for bit; a retarget changes the program identity, performs no second fit and returns the same point."
+tolerance = "exact equality of identities, routes and f64 bit patterns"
+calibration = "point_only_no_interval; fitted responses and laws carry no supported interval (record inference output joint_response.interval_readings.values.1)"
+artifact_consumer_fixture = "joint_response.interval_readings.panel_replay.artifact"
+provider_trust = "native_computation; the compiled route runs the unchanged panel engines"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.Study.prepare_joint_panel_imputed"
+algorithm_provenance = ["provenance/response.joint_panel.toml", "provenance/estimate.randomized_missing_outcomes.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_imputation_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The shared joint-panel fixture with a continuous confounder imputed three times over two iterations under seed 11."
+expected_values = "The plan view names JointPanelImputation with an identity distinct from the panel response program; the result carries that identity; each Rubin point coordinate is the mean of the completed-table fits; re-execution returns bit-identical fits; execution inside another dispatch refuses with public_builder_reentry."
+tolerance = "absolute 1e-12 for the pooled means; exact equality of identities and f64 bit patterns"
+calibration = "point_only_no_interval; the pooled response is conditional on the declared imputation model and carries no supported interval"
+artifact_consumer_fixture = "joint_response.interval_readings.imputation_recomputation.artifact"
+provider_trust = "native_computation; completed tables run as child programs inside the imputation dispatch"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.JointPanelResult.compile_search"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_search_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A finite search over every channel and period control of the shared fitted panel, terminal-mean utility and at most eight candidates."
+expected_values = "The plan view names JointPanelProgramSearch with an identity distinct from the panel program; execution returns four exhaustive rows equal to the rows the search engine returns on the retained numerical plan."
+tolerance = "exact equality of identities and rows"
+calibration = "point_only_no_interval; search rows and best-found programs carry no supported interval"
+artifact_consumer_fixture = "joint_response.interval_readings.search_recomputation.artifact"
+provider_trust = "native_computation over the retained fitted response"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.JointPanelResult.compile_certified_search"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.python_certified_search_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A certified search over every channel and period control of a fitted panel in which only the final period of one channel moves within [0, 2]."
+expected_values = "The certificate plan view names JointPanelProgramSearch and carries the program identity the certificate reports, distinct from the fitted panel program identity."
+tolerance = "exact equality of routes and identities"
+calibration = "point_only_no_interval; a certificate bounds the fitted objective and carries no statistical interval"
+artifact_consumer_fixture = "joint_response.interval_readings.certificate_replay.artifact"
+provider_trust = "native_outward_rounded_bounds over the retained fitted response"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.PreparedRandomizedSelection.compile"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_selection_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Thirty training and thirty held-out units drawn under seed 41 over three equally likely programs, a training screen of the top two and a budget of two."
+expected_values = "The plan view names JointPanelProgramSelection; two compilations from the same inputs share one identity; two executions select the same program with bit-identical held-out values and the result carries the program identity."
+tolerance = "exact equality of identities, selected programs and f64 bit patterns"
+calibration = "point_only_no_interval for compilation and selection; the selected value interval is the separate selected_value_reading route"
+artifact_consumer_fixture = "joint_response.interval_readings.selection_replay.artifact"
+provider_trust = "native_computation over the retained original units"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.InstrumentedSelectionRequest.compile"
+algorithm_provenance = ["provenance/design.compiled_program_search.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.python_instrumented_selection_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Forty training and forty held-out instrumented units with a quadratic structural response in one dose, a budget of 1.75 and a prespecified candidate."
+expected_values = "The executed selection plan view names JointPanelProgramSelection and carries the program identity the selection reports."
+tolerance = "exact equality of routes and identities"
+calibration = "point_only_no_interval for compilation and selection; the selected value interval is the separate selected_value_reading route"
+artifact_consumer_fixture = "joint_response.interval_readings.selection_replay.artifact"
+provider_trust = "native_computation over the retained original units"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.PreparedJointPanel.with_experiment"
+algorithm_provenance = ["provenance/composition.panel_experiment_update.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_experiment_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The shared joint-panel fixture with a Bayesian posterior and an experiment on its terminal mean bridged by an exact affine translation."
+expected_values = "The experiment program names JointPanelExperiment with an identity distinct from the panel program, and compiling it performs no fit."
+tolerance = "exact equality of routes and identities and of the fit count"
+calibration = "point_only_no_interval at compilation; the conditioned law has no supported interval and its decision and next-study ranking are point results"
+artifact_consumer_fixture = "joint_response.interval_readings.panel_experiment_replay.artifact"
+provider_trust = "native_computation; the experiment program conditions the retained panel posterior"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.decision_evidence.condition_panel_jointly_on_retained_evidence"
+algorithm_provenance = ["provenance/decision_evidence.joint_excursion_panel_bridge.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.python_joint_excursion_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A Bayesian joint panel conditioned on two components of one retained temporal excursion of forty units over three periods with a joint Gaussian sampling assumption."
+expected_values = "The update plan view names JointPanelExperiment and carries the program identity the update reports, distinct from the panel program identity."
+tolerance = "exact equality of routes and identities"
+calibration = "point_only_no_interval; the jointly conditioned law carries no supported interval and reports not_measured"
+artifact_consumer_fixture = "joint_response.interval_readings.joint_excursion_replay.artifact"
+provider_trust = "native_computation; observed contrasts and their covariance come from the retained excursion evidence"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.PreparedJointDesign.compile"
+algorithm_provenance = ["provenance/estimate.joint_design.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.python_design_routes.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The population-reference conformance fixture compiled as a bound joint design and executed in Bayesian mode."
+expected_values = "The prepared design plan view names JointDesign and carries its program identity, and the executed result carries a program identity."
+tolerance = "exact equality of routes and identities"
+calibration = "point_only_no_interval at compilation; the design interval readings are the separate uncertainty routes of this record"
+artifact_consumer_fixture = "joint_response.interval_readings.updated_law_replay.artifact"
+provider_trust = "native_computation over the compiled design recipe"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "joint_response.interval_readings"
+route = "antecedent.joint_panel.PreparedNativeJointDesign.compile"
+algorithm_provenance = ["provenance/estimate.joint_design.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "joint_response.interval_readings.compiled_design_route.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A sixteen-unit two-program randomized native design executed under a Gaussian arm-mean prior with 32 draws and seed 91."
+expected_values = "The plan view names JointDesign; two compilations share one identity; the result carries it; the law equals execute_native on the same recipe; execution inside another dispatch refuses with public_builder_reentry."
+tolerance = "exact equality of identities and of the debug rendering of the law"
+calibration = "point_only_no_interval at compilation; the contrast interval is the separate contrast_interval_reading route"
+artifact_consumer_fixture = "joint_response.interval_readings.native_design_replay.artifact"
+provider_trust = "native_computation over the compiled design recipe"
+exact_request_verification = "not_applicable_no_external_provider"

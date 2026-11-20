@@ -126,6 +126,14 @@ pub(crate) struct PyJointExperiment {
 
 #[pymethods]
 impl PyJointExperiment {
+    /// The layers of the compiled joint-experiment program this update executed, as JSON.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The executed program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let ledger = ledger.ledger().clone();
         crate::detach_catch(py, || {

@@ -142,6 +142,7 @@ ORDER = [
     "associational",
     "categorical_posterior_candidate",
     "graph_imputation",
+    "joint_panel",
 ]
 
 # Families that own no route in the public route table and have no representative study in the
@@ -170,6 +171,16 @@ GAPS = {
         "obligation suite runs no study for it.",
         "Build a representative candidate through its entry and discharge the six shared "
         "obligations on it, or record why the bounded composite is outside each.",
+    ),
+    "joint_panel": (
+        "The joint multi-channel panel response, its time-varying and multiply imputed forms, "
+        "the program search and selection over it, the experiment update and the design-native "
+        "joint functionals, each lowered to its own program and executed inside that program's "
+        "dispatch. They are prepared through Study::prepare_joint_panel and their own compile "
+        "entries, not route-table rows, so the route table lists no route for them and the "
+        "shared obligation suite runs no study for them.",
+        "Prepare a representative joint panel through Study::prepare_joint_panel and discharge "
+        "the six shared obligations on it, or record why the family is outside each.",
     ),
 }
 

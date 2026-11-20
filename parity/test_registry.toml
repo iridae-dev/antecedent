@@ -144,6 +144,27 @@ path = "crates/antecedent/src/analysis/joint_panel/selection.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-panel-release-support-gate"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/compiled.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-experiment-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/joint_panel/experiment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-search-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/joint_panel/search.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "joint-instrumented-structural-features"
 crate = "antecedent-stats"
 cargo_target = "lib"

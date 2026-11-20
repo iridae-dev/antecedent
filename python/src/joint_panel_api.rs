@@ -776,6 +776,14 @@ pub(crate) struct PyPanelProgramCertificate {
 }
 #[pymethods]
 impl PyPanelProgramCertificate {
+    /// The layers of the compiled certified-search program, as JSON.
+    fn plan_view(&self) -> String {
+        self.plan.plan_view().to_json().to_string()
+    }
+    /// The executed program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export(
         &self,

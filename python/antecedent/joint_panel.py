@@ -182,6 +182,15 @@ class PanelProgramCertificate:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled certified-search program's layers, read without searching."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         """Return feasible controls, global gap, shape proofs and fitted source identity.
 
@@ -207,6 +216,15 @@ class RandomizedProgramSelection:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The layers of the compiled selection program this selection executed."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         """Return held-out value/error, original split and whole-procedure diagnostics."""
         return json.loads(self._handle.report())
@@ -227,6 +245,15 @@ class PreparedRandomizedProgramSelection:
     """A complete experimental selection procedure with a genuine observational split."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or selecting."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def execute(
         self,
@@ -325,6 +352,15 @@ class InstrumentedProgramSelection:
     """Continuous structural-dose selection evaluated on reserved original observations."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The layers of the compiled selection program this selection executed."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def report(self) -> dict[str, Any]:
         """Selected doses, training search bounds, held-out value and resampling diagnostics."""

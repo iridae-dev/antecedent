@@ -154,3 +154,10 @@ status = "gap"
 gap = "A bounded compiled graph-selection imputation composite: a mixture over the retained DAGs of one treatment-to-outcome contrast, each graph's own Bayesian g-computation operation sealed into the lowered program, executed and replayed through the single native implementation, with its interval reported only through the measured route when a current coverage record covers the execution. It is built through its own candidate entry, not a route-table row, so the route table lists no route for it and the shared obligation suite runs no study for it."
 next_step = "Build a representative candidate through its entry and discharge the six shared obligations on it, or record why the bounded composite is outside each."
 routes = []
+
+[[family]]
+id = "joint_panel"
+status = "gap"
+gap = "The joint multi-channel panel response, its time-varying and multiply imputed forms, the program search and selection over it, the experiment update and the design-native joint functionals, each lowered to its own program and executed inside that program's dispatch. They are prepared through Study::prepare_joint_panel and their own compile entries, not route-table rows, so the route table lists no route for them and the shared obligation suite runs no study for them."
+next_step = "Prepare a representative joint panel through Study::prepare_joint_panel and discharge the six shared obligations on it, or record why the family is outside each."
+routes = []

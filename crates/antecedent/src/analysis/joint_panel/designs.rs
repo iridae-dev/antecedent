@@ -747,7 +747,11 @@ impl PreparedJointDesign {
         let identification = identify_joint_design(&target, &proof, worlds)?;
         let dependency = identity(&target, &proof)?;
         let program = Arc::new(design_lowering::lower(
-            DesignInput::Worlds { target: &target, identification: &identification },
+            DesignInput::Worlds {
+                target: &target,
+                identification: &identification,
+                recipe: &proof.recipe,
+            },
             dependency,
             bytes,
         )?);
