@@ -8082,7 +8082,7 @@ commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
 fingerprint = "bf7624db32713acff948cfa7179c93e4152c7fece822580a3fbaf89472c288a1"
 recorded_at = "2026-11-20T13:47:41Z"
-dependency_manifest = "a570d8cfe319db2d98a26ed2e50eede28f213afd783b0d0df4ebb6737b259c31"
+dependency_manifest = "cdd6e8bf96939aafe73513b73f24d3d11c92ebcd97b24a84b309a562ad5590e3"
 
 [[record]]
 test = "antecedent::observational_survival_policy_routes::graph_policy_can_learn_on_less_information_than_nuisance_adjustment"

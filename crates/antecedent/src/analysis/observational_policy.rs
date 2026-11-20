@@ -944,6 +944,7 @@ impl CompiledObservationalPolicy {
         subsample_rows: usize,
         replicates: usize,
         outer_identity: SemanticDigest,
+        legacy_row_count_key: bool,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
         let n = self.request.outcome.len();
@@ -1019,10 +1020,18 @@ impl CompiledObservationalPolicy {
         candidate.basis.key.interval_method = "cross_fitted_policy_subsampling_basic_v2".into();
         candidate.basis.key.se_kind = "full_refit_subsample_distribution".into();
         candidate.basis.key.dependence = "iid_rows_subsampling_limit_assumed".into();
-        candidate.basis.key.functional = format!(
-            "{}.subsample_{subsample_rows}_of_{n}.replicates_{replicates}",
-            candidate.basis.key.functional
-        );
+        let schedule = if legacy_row_count_key {
+            format!("subsample_{subsample_rows}_of_{n}")
+        } else {
+            // The construction fixes m/n. The scope and compiled plan retain the row counts.
+            let (mut divisor, mut remainder) = (n, subsample_rows);
+            while remainder != 0 {
+                (divisor, remainder) = (remainder, divisor % remainder);
+            }
+            format!("subsample_fraction_{}_of_{}", subsample_rows / divisor, n / divisor)
+        };
+        candidate.basis.key.functional =
+            format!("{}.{schedule}.replicates_{replicates}", candidate.basis.key.functional);
         candidate.basis.scope.replicates_ok = Some(replicates as u32);
         candidate.slot = calibration_slot(&candidate.basis);
         candidate.interval = CrossFittedPolicyValueInterval {
@@ -1327,6 +1336,7 @@ fn plotting_position_quantile(sorted: &[f64], p: f64) -> f64 {
 #[derive(Clone, Debug)]
 pub struct CompiledPolicySubsampling {
     policy: CompiledObservationalPolicy,
+    legacy_row_count_key: bool,
     subsample_rows: usize,
     replicates: usize,
     seed: u64,
@@ -1459,7 +1469,14 @@ pub fn compile_policy_subsampling(
         }
         .finish(),
     );
-    Ok(CompiledPolicySubsampling { policy, subsample_rows, replicates, seed, lowered })
+    Ok(CompiledPolicySubsampling {
+        policy,
+        legacy_row_count_key: false,
+        subsample_rows,
+        replicates,
+        seed,
+        lowered,
+    })
 }
 
 fn policy_subsampling_fingerprint(
@@ -1504,6 +1521,7 @@ impl CompiledPolicySubsampling {
             self.subsample_rows,
             self.replicates,
             self.lowered.identity(),
+            self.legacy_row_count_key,
             ctx,
         )
     }
@@ -1522,7 +1540,7 @@ impl CompiledPolicySubsampling {
             return Err(policy_compiler_refusal("policy subsampling result changed"));
         }
         let bytes = antecedent_io::to_cbor(&PolicySubsamplingArtifactWire {
-            version: 1,
+            version: 2,
             feature: "cross_fitted_policy_subsampling_v1".into(),
             request: PolicyRequestWire::from_request(&self.policy.request),
             subsample_rows: self.subsample_rows,
@@ -1554,7 +1572,7 @@ pub fn consume_policy_subsampling(
         return Err(policy_compiler_refusal("policy subsampling artifact exceeds its byte bound"));
     }
     let wire: PolicySubsamplingArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1
+    if !matches!(wire.version, 1 | 2)
         || wire.feature != "cross_fitted_policy_subsampling_v1"
         || wire.seed != ctx.rng.master_seed()
         || wire.program_identity != *expected.as_bytes()
@@ -1563,7 +1581,7 @@ pub fn consume_policy_subsampling(
             "policy subsampling feature, seed or identity differs",
         ));
     }
-    let plan = compile_policy_subsampling(
+    let mut plan = compile_policy_subsampling(
         wire.request.into_request(),
         wire.subsample_rows,
         wire.replicates,
@@ -1572,6 +1590,7 @@ pub fn consume_policy_subsampling(
     if plan.lowered().identity() != expected {
         return Err(policy_compiler_refusal("recompiled policy subsampling program differs"));
     }
+    plan.legacy_row_count_key = wire.version == 1;
     let candidate = plan.execute(ctx)?;
     if policy_subsampling_fingerprint(&candidate)? != wire.result_fingerprint {
         return Err(policy_compiler_refusal("policy subsampling result differs on replay"));
