@@ -740,6 +740,12 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
             "passed": passed,
             "calibration_sha": sha,
         }
+        from graph_reliability_report import check_report, parse_report, required_report
+        if required := required_report(log.stem):
+            report = parse_report(text)
+            if (report["score"], report["design"]) != required or check_report(report):
+                raise ValueError(f"{log.name}: cannot record a failed or mismatched reliability study")
+            rows[log.stem]["graph_reliability"] = report
         capture = log.with_name(log.name.removesuffix(".log") + ".coverage.json")
         if capture.is_file():
             import gate_carry
@@ -788,7 +794,7 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"passed = {int(row['passed'])}",
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
         ]
-        for optional in ("decision_protocol", "coverage_decisions", "executed_files"):
+        for optional in ("decision_protocol", "coverage_decisions", "executed_files", "graph_reliability"):
             if optional in row:
                 lines.append(f"{optional} = {toml_value(optional, row[optional])}")
         if "protocol" in row:
