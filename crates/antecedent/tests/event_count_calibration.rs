@@ -1,4 +1,4 @@
-//! Prospective count calibration against an independent simulator. Run through the calibration lane.
+//! Count calibration against an independent simulator. Run through the calibration lane.
 
 use antecedent::Study;
 use antecedent::analysis::events::{EventForecastRequest, EventSource, EventWindow, HawkesFitSpec};
@@ -16,7 +16,7 @@ use calibration::{
 const TEST: &str = "hawkes_recursive_refit_count_l90";
 
 #[test]
-#[ignore = "coverage: prospective independent full-refit coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn hawkes_recursive_refit_count_l90() {
     let cutoff = 256.0;
     let mut tally = CoverageTally::for_record(

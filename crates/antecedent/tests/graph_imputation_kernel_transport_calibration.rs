@@ -1,9 +1,8 @@
-//! Prospective whole-route coverage of a mixed target graph-imputation effect.
-//! Each replicate draws an independent continuous target frame, samples a new
+//! Whole-route coverage of a mixed target graph-imputation effect. Each
+//! replicate draws an independent continuous target frame, samples a new
 //! source trial with missing outcomes, reruns graph selection per imputation,
 //! kernel standardizes each graph and scores the final effect interval against
-//! analytic truth conditional on that target frame. The ignored grid earns no
-//! coverage or decision-reliability record.
+//! analytic truth conditional on that target frame.
 
 mod common;
 
@@ -128,7 +127,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective mixed-target coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_kernel_target_frame_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

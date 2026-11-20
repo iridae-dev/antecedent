@@ -1,8 +1,7 @@
-//! Prospective simultaneous coverage of the complete source-target trial
-//! mapping discrepancy grid. Every replicate regenerates independent trial
-//! terminal effects, refits both regressions through the compiler and checks
-//! every band against the known target-minus-source line. The ignored grid
-//! earns no scientific or decision-reliability record.
+//! Simultaneous coverage of the complete source-target trial mapping
+//! discrepancy grid. Every replicate regenerates independent trial terminal
+//! effects, refits both regressions through the compiler and checks every
+//! band against the known target-minus-source line.
 
 mod common;
 
@@ -67,7 +66,7 @@ fn replicate(seed: u64, n: usize) -> Option<(bool, CalibrationBasis)> {
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective whole-grid coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn bridge_target_mapping_discrepancy_grid_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

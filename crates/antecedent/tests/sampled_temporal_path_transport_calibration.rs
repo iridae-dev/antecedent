@@ -1,8 +1,7 @@
-//! Prospective coverage of the complete sampled target path contrast. Each
-//! replicate independently samples every cited source and target regime table
-//! from the finite-SCM oracle, recompiles both edge-intervention worlds and
-//! differentiates their difference on the shared count stack. The grid is
-//! ignored and earns no scientific record until deliberately run and reviewed.
+//! Coverage of the complete sampled target path contrast. Each replicate
+//! independently samples every cited source and target regime table from the
+//! finite-SCM oracle, recompiles both edge-intervention worlds and
+//! differentiates their difference on the shared count stack.
 
 mod common;
 
@@ -186,7 +185,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective whole-path coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn sampled_temporal_path_transport_l95() {
     let n = grid_n(40_000);
     let mut tally = CoverageTally::for_record(

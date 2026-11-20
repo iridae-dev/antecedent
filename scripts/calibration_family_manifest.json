@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "8426639f4498344968b5e5a3262f0090e183aabfc9d04bbc82666f1a61b53ffc",
+  "gate_sha256": "c5cc5119df52a3ed93ac74f5ff755717eb38b49344bafe33d200f930395e46b6",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "a5610b2fb4a83093ae4d264afb4b31a2a7ea9b127ac8df0acf6607e1e9b92de9",
+  "label_audit_sha256": "735c527b088109d8fbb08f4ff34c9c0c117a6b5056386df6619ff037211c58ce",
   "groups": [
     {
       "index": 1,
@@ -8921,6 +8921,176 @@
     {
       "index": 1780,
       "label": "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1781,
+      "label": "event_count_calibration: hawkes_recursive_refit_count_l90",
+      "grid": false
+    },
+    {
+      "index": 1782,
+      "label": "fitted_dependent_measurement_calibration: fitted_dependent_measurement_joint_error_l95",
+      "grid": true
+    },
+    {
+      "index": 1783,
+      "label": "graph_narrow_policy_calibration: graph_narrow_held_out_policy_l95",
+      "grid": true
+    },
+    {
+      "index": 1784,
+      "label": "graph_imputation_transport_calibration: graph_imputation_transport_target_frame_l95",
+      "grid": true
+    },
+    {
+      "index": 1785,
+      "label": "joint_transport_predictive_calibration: joint_transport_predictive_treated_outcome_l95",
+      "grid": true
+    },
+    {
+      "index": 1786,
+      "label": "iid_sampling_assumption_union_calibration: iid_sampling_assumption_union_joint_endpoints_l95",
+      "grid": true
+    },
+    {
+      "index": 1787,
+      "label": "graph_narrow_cross_fitted_policy_calibration: graph_narrow_cross_fitted_policy_l95",
+      "grid": true
+    },
+    {
+      "index": 1788,
+      "label": "cyclic_posterior_predictive_calibration: cyclic_posterior_population_outcome_l95",
+      "grid": true
+    },
+    {
+      "index": 1789,
+      "label": "bridge_transport_premise_calibration: bridge_target_mapping_discrepancy_grid_l95",
+      "grid": true
+    },
+    {
+      "index": 1790,
+      "label": "cluster_sampling_assumption_union_calibration: cluster_sampling_assumption_union_joint_endpoints_l95",
+      "grid": true
+    },
+    {
+      "index": 1791,
+      "label": "graph_imputation_kernel_transport_calibration: graph_imputation_kernel_target_frame_l95",
+      "grid": true
+    },
+    {
+      "index": 1792,
+      "label": "graph_imputation_binary_cluster_calibration: graph_imputation_binary_cluster_target_l95",
+      "grid": true
+    },
+    {
+      "index": 1793,
+      "label": "graph_imputation_binary_cluster_calibration: graph_imputation_confounded_binary_cluster_target_l95",
+      "grid": true
+    },
+    {
+      "index": 1794,
+      "label": "graph_imputation_kernel_cluster_calibration: graph_imputation_kernel_cluster_target_l95",
+      "grid": true
+    },
+    {
+      "index": 1795,
+      "label": "graph_imputation_kernel_cluster_calibration: graph_imputation_confounded_kernel_cluster_target_l95",
+      "grid": true
+    },
+    {
+      "index": 1796,
+      "label": "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_control_l95",
+      "grid": true
+    },
+    {
+      "index": 1797,
+      "label": "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_active_l95",
+      "grid": true
+    },
+    {
+      "index": 1798,
+      "label": "graph_imputation_predictive_calibration: graph_imputation_gaussian_predictive_control_l95",
+      "grid": true
+    },
+    {
+      "index": 1799,
+      "label": "graph_imputation_predictive_calibration: graph_imputation_gaussian_predictive_active_l95",
+      "grid": true
+    },
+    {
+      "index": 1800,
+      "label": "graph_imputation_mar_cluster_calibration: graph_imputation_mar_binary_cluster_l95",
+      "grid": true
+    },
+    {
+      "index": 1801,
+      "label": "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_binary_cluster_l95",
+      "grid": true
+    },
+    {
+      "index": 1802,
+      "label": "graph_imputation_mar_cluster_calibration: graph_imputation_mar_kernel_cluster_l95",
+      "grid": true
+    },
+    {
+      "index": 1803,
+      "label": "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_kernel_cluster_l95",
+      "grid": true
+    },
+    {
+      "index": 1804,
+      "label": "trial_ipw_predictive_calibration: trial_ipw_predictive_treated_outcome_l95",
+      "grid": true
+    },
+    {
+      "index": 1805,
+      "label": "sequential_policy_choice_calibration: sequential_known_law_action_choice",
+      "grid": true
+    },
+    {
+      "index": 1806,
+      "label": "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice",
+      "grid": true
+    },
+    {
+      "index": 1807,
+      "label": "cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice",
+      "grid": true
+    },
+    {
+      "index": 1808,
+      "label": "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_control_l95",
+      "grid": true
+    },
+    {
+      "index": 1809,
+      "label": "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_active_l95",
+      "grid": true
+    },
+    {
+      "index": 1810,
+      "label": "graph_imputation_predictive_cluster_calibration: graph_imputation_gaussian_predictive_cluster_control_l95",
+      "grid": true
+    },
+    {
+      "index": 1811,
+      "label": "graph_imputation_predictive_cluster_calibration: graph_imputation_gaussian_predictive_cluster_active_l95",
+      "grid": true
+    },
+    {
+      "index": 1812,
+      "label": "sampled_temporal_path_transport_calibration: sampled_temporal_path_transport_l95",
+      "grid": true
+    },
+    {
+      "index": 1813,
+      "label": "continuous_chain_transport_calibration: continuous_chain_transport_l95",
+      "grid": true
+    },
+    {
+      "index": 1814,
+      "label": "graph_narrow_cross_fitted_subsampling_policy_calibration: graph_narrow_cross_fitted_subsampling_policy_l95",
       "grid": true
     }
   ],

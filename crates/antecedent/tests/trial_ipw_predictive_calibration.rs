@@ -1,8 +1,7 @@
-//! Prospective trial-IPW coverage of a fresh treated target outcome. Each replicate
-//! reruns source fitting, target-frame predictive sampling and paired utility
-//! through one compiled program. The source and target mechanisms are equal
-//! by the stated shared-baseline premise. This ignored harness has earned no
-//! predictive coverage or decision-reliability record.
+//! Trial-IPW coverage of a fresh treated target outcome. Each replicate reruns
+//! source fitting, target-frame predictive sampling and paired utility through one
+//! compiled program. The source and target mechanisms are equal by the stated
+//! shared-baseline premise.
 
 mod common;
 
@@ -133,7 +132,7 @@ fn replicate(seed: u64, n: usize) -> Option<Observation> {
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn trial_ipw_predictive_treated_outcome_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

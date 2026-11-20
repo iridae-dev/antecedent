@@ -1,9 +1,8 @@
-//! Prospective whole-route target-frame effect coverage. Each replicate draws
-//! fresh source units with MAR outcomes and fresh target covariate units, then
-//! reruns graph selection, source imputation, target standardization, child
-//! fitting and decision through one compiled program. Truth is conditional on
-//! that replicate's observed empirical target frame. The test is ignored and
-//! no interval or decision reliability record has been earned.
+//! Whole-route target-frame effect coverage. Each replicate draws fresh source
+//! units with MAR outcomes and fresh target covariate units, then reruns graph
+//! selection, source imputation, target standardization, child fitting and
+//! decision through one compiled program. Truth is conditional on that
+//! replicate's observed empirical target frame.
 
 mod common;
 
@@ -135,7 +134,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only candidate; whole-route target effect coverage is not earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_transport_target_frame_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

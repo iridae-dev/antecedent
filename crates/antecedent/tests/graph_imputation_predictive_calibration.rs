@@ -1,7 +1,6 @@
-//! Prospective individual target-outcome and action-choice studies. Each
-//! replicate fits new MAR source rows and an independent binary target frame,
-//! then scores one independent future individual drawn from that exact frame.
-//! These ignored grids do not earn predictive coverage or decision reliability.
+//! Individual target-outcome and action-choice studies. Each replicate fits new
+//! MAR source rows and an independent binary target frame, then scores one
+//! independent future individual drawn from that exact frame.
 
 mod common;
 
@@ -227,22 +226,22 @@ fn run_grid(test: &'static str, binary: bool, world: usize) {
 }
 
 #[test]
-#[ignore = "coverage: prospective Bernoulli control predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_bernoulli_predictive_control_l95() {
     run_grid("graph_imputation_bernoulli_predictive_control_l95", true, 0);
 }
 #[test]
-#[ignore = "coverage: prospective Bernoulli active predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_bernoulli_predictive_active_l95() {
     run_grid("graph_imputation_bernoulli_predictive_active_l95", true, 1);
 }
 #[test]
-#[ignore = "coverage: prospective Gaussian control predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_gaussian_predictive_control_l95() {
     run_grid("graph_imputation_gaussian_predictive_control_l95", false, 0);
 }
 #[test]
-#[ignore = "coverage: prospective Gaussian active predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_gaussian_predictive_active_l95() {
     run_grid("graph_imputation_gaussian_predictive_active_l95", false, 1);
 }

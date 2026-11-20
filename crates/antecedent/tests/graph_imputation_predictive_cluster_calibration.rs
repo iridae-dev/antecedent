@@ -1,7 +1,6 @@
-//! Prospective predictive coverage with independent two-row target clusters.
-//! Each replicate resamples whole clusters and refits the complete predictive
+//! Predictive coverage with independent two-row target clusters. Each
+//! replicate resamples whole clusters and refits the complete predictive
 //! graph-imputation model; truth is a future target-population individual.
-//! This ignored grid earns no coverage or decision reliability.
 
 mod common;
 
@@ -239,22 +238,22 @@ fn run_grid(test: &'static str, binary: bool, world: usize) {
 }
 
 #[test]
-#[ignore = "coverage: prospective Bernoulli control predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_bernoulli_predictive_cluster_control_l95() {
     run_grid("graph_imputation_bernoulli_predictive_cluster_control_l95", true, 0);
 }
 #[test]
-#[ignore = "coverage: prospective Bernoulli active predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_bernoulli_predictive_cluster_active_l95() {
     run_grid("graph_imputation_bernoulli_predictive_cluster_active_l95", true, 1);
 }
 #[test]
-#[ignore = "coverage: prospective Gaussian control predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_gaussian_predictive_cluster_control_l95() {
     run_grid("graph_imputation_gaussian_predictive_cluster_control_l95", false, 0);
 }
 #[test]
-#[ignore = "coverage: prospective Gaussian active predictive coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_gaussian_predictive_cluster_active_l95() {
     run_grid("graph_imputation_gaussian_predictive_cluster_active_l95", false, 1);
 }

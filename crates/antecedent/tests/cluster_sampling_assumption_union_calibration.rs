@@ -1,8 +1,7 @@
-//! Prospective joint-endpoint coverage of a compiler-owned whole-cluster
-//! bootstrap assumption union. The true set is [1, 2]: mean 1 plus fixed
-//! bias [0, 1]. Each independent cluster contributes two correlated rows;
-//! every outer replicate regenerates clusters and reruns the complete chain.
-//! This ignored harness earns no coverage or decision record.
+//! Joint-endpoint coverage of a compiler-owned whole-cluster bootstrap
+//! assumption union. The true set is [1, 2]: mean 1 plus fixed bias [0, 1].
+//! Each independent cluster contributes two correlated rows; every outer
+//! replicate regenerates clusters and reruns the complete chain.
 
 mod common;
 
@@ -83,7 +82,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective whole-cluster joint-set coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn cluster_sampling_assumption_union_joint_endpoints_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

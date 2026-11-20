@@ -1,6 +1,6 @@
-//! Prospective known-optimum sequential policy choice studies. Each ignored
-//! grid reports the scored and refused replicates and the correct-choice count
-//! under one exact design scope. No decision-reliability record is earned.
+//! Known-optimum sequential policy choice studies. Each grid reports the
+//! scored and refused replicates and the correct-choice count under one exact
+//! design scope.
 mod common;
 
 use antecedent::analysis::sequential_policy_reliability::{
@@ -122,12 +122,12 @@ fn run_grid(logged: bool) {
 }
 
 #[test]
-#[ignore = "calibration: prospective known-law action-choice study; no reliability record earned"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sequential_known_law_action_choice() {
     run_grid(false);
 }
 #[test]
-#[ignore = "calibration: prospective logged-bootstrap action-choice study; no reliability record earned"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn sequential_logged_bootstrap_action_choice() {
     run_grid(true);
 }

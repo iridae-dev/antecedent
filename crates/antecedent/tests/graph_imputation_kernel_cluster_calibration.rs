@@ -1,8 +1,7 @@
-//! Prospective target-population coverage under independent two-row target
-//! clusters. Every replicate generates new source rows and target clusters,
-//! recompiles the complete cluster-bootstrap graph, imputation, transport and
-//! decision schedule, and compares its interval with analytic population truth.
-//! This ignored grid earns no calibration or decision reliability.
+//! Target-population coverage under independent two-row target clusters. Every
+//! replicate generates new source rows and target clusters, recompiles the
+//! complete cluster-bootstrap graph, imputation, transport and decision
+//! schedule, and compares its interval with analytic population truth.
 
 mod common;
 
@@ -197,13 +196,13 @@ fn run_grid(test: &'static str, confounded: bool) {
 }
 
 #[test]
-#[ignore = "coverage: prospective kernel target cluster population coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_kernel_cluster_target_l95() {
     run_grid(ROOT_TEST, false);
 }
 
 #[test]
-#[ignore = "coverage: prospective confounded kernel cluster population coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_imputation_confounded_kernel_cluster_target_l95() {
     run_grid(CONFOUNDED_TEST, true);
 }

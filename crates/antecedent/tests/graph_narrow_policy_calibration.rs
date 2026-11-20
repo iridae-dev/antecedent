@@ -1,8 +1,7 @@
-//! Prospective coverage of a learned policy using less information than its
-//! nuisance adjustment. The two policy strata make the learned rule's true
-//! population value observable from the executed held-out actions: each
-//! stratum has one action, while both nuisance models use the wider x,w set.
-//! The candidate is ignored and has no earned coverage record.
+//! Coverage of a learned policy using less information than its nuisance
+//! adjustment. The two policy strata make the learned rule's true population
+//! value observable from the executed held-out actions: each stratum has one
+//! action, while both nuisance models use the wider x,w set.
 
 mod common;
 
@@ -109,7 +108,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
 }
 
 #[test]
-#[ignore = "coverage: source-only candidate; no graph policy coverage record has been earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_narrow_held_out_policy_l95() {
     let n = grid_n(1000);
     let mut tally = CoverageTally::for_record(

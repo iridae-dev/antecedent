@@ -1,7 +1,7 @@
-//! Prospective whole-contrast coverage under a randomized linear sequential DAG.
-//! Independent source units and target baselines are regenerated each replicate;
-//! the compiler refits both worlds on each paired bootstrap resample. This grid
-//! is ignored and does not establish coverage until run and reviewed.
+//! Whole-contrast coverage under a randomized linear sequential DAG. Independent
+//! source units and target baselines are regenerated each replicate; the
+//! compiler refits both worlds on each paired bootstrap resample. This grid is
+//! ignored and does not establish coverage until run and reviewed.
 
 mod common;
 
@@ -55,7 +55,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), CalibrationBasis)> {
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective whole-path coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn continuous_chain_transport_l95() {
     let n = grid_n(240);
     let mut tally = CoverageTally::for_record(

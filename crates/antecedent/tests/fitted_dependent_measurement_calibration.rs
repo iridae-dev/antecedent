@@ -1,11 +1,10 @@
 //! Source-fixed repeated-sampling design for a fitted dependent-indicator table.
-//!
 //! The mechanism law is declared and fixed. Independent labelled validation
-//! samples identify the two rows of a complete joint indicator-error table.
-//! Each replicate scores the route's own equal-tail posterior interval for
-//! `P(Y=1 | assay_a=1, assay_b=1)` against its analytic truth. This test is
-//! deliberately ignored until the new coverage family is registered and run;
-//! the runtime continues to report `not_measured`.
+//! samples identify the two rows of a complete joint indicator-error table. Each
+//! replicate scores the route's own equal-tail posterior interval for `P(Y=1 |
+//! assay_a=1, assay_b=1)` against its analytic truth. This test is deliberately
+//! ignored until the new coverage family is registered and run; the runtime
+//! continues to report `not_measured`.
 
 mod common;
 
@@ -152,7 +151,7 @@ fn replicate(seed: u64, row_n: usize) -> Option<((f64, f64), CalibrationBasisWir
 }
 
 #[test]
-#[ignore = "coverage: source-only design; new coverage family has not been earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn fitted_dependent_measurement_joint_error_l95() {
     let row_n = grid_n(300);
     let truth_c1 = (0.1 * TRUE_ROWS[1][3]) / (0.9 * TRUE_ROWS[0][3] + 0.1 * TRUE_ROWS[1][3]);

@@ -1,9 +1,8 @@
-//! Prospective whole-route population prediction coverage for a connected
-//! Gaussian feedback model. Every replicate generates new intervention-labelled
-//! training rows, refits the joint cyclic parameter posterior, draws paired
-//! predictive equilibria and scores one outcome interval against an independent
-//! future equilibrium under the same specified model. This ignored harness
-//! earns no coverage or decision-reliability record.
+//! Whole-route population prediction coverage for a connected Gaussian feedback
+//! model. Every replicate generates new intervention-labelled training rows,
+//! refits the joint cyclic parameter posterior, draws paired predictive
+//! equilibria and scores one outcome interval against an independent future
+//! equilibrium under the same specified model.
 
 mod common;
 
@@ -145,7 +144,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective cyclic population coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn cyclic_posterior_population_outcome_l95() {
     let n = grid_n(240);
     let mut tally = CoverageTally::for_record(

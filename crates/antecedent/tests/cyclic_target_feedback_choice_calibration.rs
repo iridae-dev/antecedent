@@ -1,6 +1,6 @@
-//! Prospective known-optimum target-feedback action choice. Every replicate
-//! redraws source disturbances and target baselines, refits the cyclic model,
-//! and checks a fixed design-level scope. No decision record is earned.
+//! Known-optimum target-feedback action choice. Every replicate redraws
+//! source disturbances and target baselines, refits the cyclic model, and
+//! checks a fixed design-level scope.
 mod common;
 use antecedent::analysis::cyclic_action_world_decision::CyclicDecisionOutput;
 use antecedent::analysis::cyclic_posterior_action_decision::CyclicPosteriorDecisionRequest;
@@ -168,7 +168,7 @@ fn replicate(seed: u64, n: usize) -> Option<(SemanticDigest, bool)> {
     Some((scope, correct))
 }
 #[test]
-#[ignore = "calibration: prospective target-feedback known-optimum choice; no record earned"]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn cyclic_target_feedback_action_choice() {
     let n = grid_n(240);
     let (mut scored, mut refused, mut correct) = (0_u32, 0_u32, 0_u32);

@@ -1,10 +1,9 @@
-//! Prospective joint-endpoint coverage of a compiler-owned IID bootstrap
-//! assumption union. The true set is [1, 2]: a Gaussian mean of 1 plus the
-//! fixed assumption interval [0, 1]. Each outer replicate samples new raw
-//! units and runs all inner bootstrap chains through the compiler. The event
-//! is `union_lower <= 1 && union_upper >= 2`, represented as containment of
-//! 1 in `[union_lower, union_upper - 1]` for the scalar coverage tally.
-//! This ignored harness earns no record.
+//! Joint-endpoint coverage of a compiler-owned IID bootstrap assumption
+//! union. The true set is [1, 2]: a Gaussian mean of 1 plus the fixed
+//! assumption interval [0, 1]. Each outer replicate samples new raw units
+//! and runs all inner bootstrap chains through the compiler. The event is
+//! `union_lower <= 1 && union_upper >= 2`, represented as containment of 1
+//! in `[union_lower, union_upper - 1]` for the scalar coverage tally.
 
 mod common;
 
@@ -78,7 +77,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
 }
 
 #[test]
-#[ignore = "coverage: source-only prospective whole-route joint-set coverage; no record earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn iid_sampling_assumption_union_joint_endpoints_l95() {
     let n = grid_n(120);
     let mut tally = CoverageTally::for_record(

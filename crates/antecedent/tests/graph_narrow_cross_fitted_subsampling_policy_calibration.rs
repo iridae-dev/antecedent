@@ -1,9 +1,7 @@
-//! Prospective near-tie subsampling coverage of the cross-fitted learning procedure on its
-//! empirical scored-row frame. The wider x,w adjustment set enters nuisance
-//! fitting, while the policy uses x. Every realized fold action has an exact
-//! conditional outcome mean under the planted structural law, so the target
-//! is known even when fold policies differ. This ignored harness earns no
-//! record.
+//! Near-tie subsampling coverage of the cross-fitted learning procedure on its empirical
+//! scored-row frame. The wider x,w adjustment set enters nuisance fitting, while the
+//! policy uses x. Every realized fold action has an exact conditional outcome mean under
+//! the planted structural law, so the target is known even when fold policies differ.
 
 mod common;
 
@@ -102,7 +100,7 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasisWi
 }
 
 #[test]
-#[ignore = "coverage: source-only candidate; near-tie subsampling coverage is not earned"]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn graph_narrow_cross_fitted_subsampling_policy_l95() {
     let n = grid_n(1000);
     let mut tally = CoverageTally::for_record(
