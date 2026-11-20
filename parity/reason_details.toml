@@ -16467,7 +16467,7 @@ meaning = "A strict stationary branching witness cannot be verified."
 [[detail]]
 id = "events.fit_failed"
 family = "events"
-codes = ["not_supported"]
+codes = ["dynamics_not_identified"]
 meaning = "The requested fit or recursive refit does not meet its stated domain or numerical cutoff."
 
 [[detail]]
@@ -16485,17 +16485,17 @@ meaning = "Numerical conditions prevent retention of the requested event law."
 [[detail]]
 id = "events.unverified_source"
 family = "events"
-codes = ["not_supported"]
+codes = ["external_verification_failed"]
 meaning = "The external path payload is not covered by the exact execution receipt."
 
 [[detail]]
 id = "events.incomplete_law"
 family = "events"
-codes = ["not_supported"]
+codes = ["invalid_argument"]
 meaning = "One or more paired trajectories failed and a joint law cannot be published."
 
 [[detail]]
 id = "events.interval_unmeasured"
 family = "events"
-codes = ["not_supported"]
+codes = ["uncertainty_representation_insufficient"]
 meaning = "The count interval has no current matching coverage record."
