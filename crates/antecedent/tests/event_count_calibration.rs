@@ -23,7 +23,7 @@ fn hawkes_recursive_refit_count_l90() {
         RecordKey {
             test: TEST,
             dgp: "hawkes_exponential_cluster_interior",
-            interval: "nearest_rank_90",
+            interval: "smoothed_rank_90",
         },
         0.90,
     );

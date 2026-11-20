@@ -83,12 +83,17 @@ pub struct ForecastAssessment {
     pub uncertainty: &'static str,
 }
 
+/// Stream of the one seeded uniform that settles the boundary counts of a count interval.
+const COUNT_INTERVAL_DRAW: StreamDomain = StreamDomain::external(0x4556_4e54_434e_5449);
+
 /// Unpublished count interval and exact basis for an independent coverage experiment.
 #[derive(Clone, Debug)]
 pub struct CountCoverageCandidate {
     /// Compiler identity of the forecast-and-count operation.
     pub program: String,
-    /// Nearest-rank inclusive 90% interval.
+    /// Inclusive smoothed-rank 90% count interval: the counts whose tie-randomized rank
+    /// among the forecast paths falls in the central band, with a seeded draw settling the
+    /// boundary counts.
     pub bounds: [usize; 2],
     /// Exact construction and design scope.
     pub basis: CalibrationBasis,
@@ -99,7 +104,7 @@ pub struct CountCoverageCandidate {
 pub struct PublishedCountInterval {
     /// Retained compiler identity.
     pub program: String,
-    /// Inclusive nearest-rank count bounds.
+    /// Inclusive smoothed-rank count bounds.
     pub bounds: [usize; 2],
     /// Matched construction, measurement and current evidence.
     pub calibration: CalibrationSlotWire,
@@ -155,7 +160,7 @@ impl PreparedEventForecast {
                 "event",
                 "Frequentist",
                 COUNT_INTERVAL,
-                "nearest_rank_90",
+                "smoothed_rank_90",
                 "",
                 "complete_event_history_and_future",
                 "recursive_hawkes_refit_v1",
@@ -171,7 +176,7 @@ impl PreparedEventForecast {
         )
         .with_validation("none");
         let source = digest(
-            "antecedent.events.count.interval.v1",
+            "antecedent.events.count.interval.v2",
             &(self.program.identity().to_hex(), kind, &design),
         )?;
         let interval_plan = PreparedKernel::new(source, "count_interval", COUNT_INTERVAL)?;
@@ -185,9 +190,14 @@ impl PreparedEventForecast {
         #[cfg(not(feature = "calibration-internal"))]
         let law = self.execute(ctx)?;
         let mut counts: Vec<_> = law.paths().iter().map(|events| count(events, kind)).collect();
+        // Independent of every path stream and of the future, so it randomizes only the
+        // boundary counts' inclusion.
+        let draw = RngFactory::from_seed(request.seed)
+            .stream_for(COUNT_INTERVAL_DRAW, kind as u64)
+            .next_f64();
         Ok(CountCoverageCandidate {
             program: interval_plan.identity().to_hex(),
-            bounds: nearest_rank_count_bounds(&mut counts),
+            bounds: smoothed_rank_count_bounds(&mut counts, draw),
             basis,
         })
     }
@@ -452,19 +462,100 @@ fn count_score(draws: &mut [usize], observed: usize) -> f64 {
     (absolute - spread).max(0.0)
 }
 
-fn nearest_rank_count_bounds(counts: &mut [usize]) -> [usize; 2] {
+/// Probability that the smoothed central 90% rank band contains a future `count`, given the
+/// ascending path counts `sorted`.
+///
+/// When the future count and the `m` path counts are exchangeable, as independent draws of a
+/// correct predictive law are, the future's rank among the `m + 1` values with ties broken
+/// uniformly at random is uniform (the smoothed conformal rank). A count with `b` paths below it and `t` at it takes each rank
+/// position `b + 1 ..= b + t + 1` with equal probability; its share is the fraction of those
+/// positions, as unit slots of the rank scale `[0, m + 1]`, inside the band
+/// `[0.05 (m + 1), 0.95 (m + 1)]`. Slots are counted in twentieths so the band edges are
+/// integers.
+fn smoothed_rank_share(sorted: &[usize], count: usize) -> f64 {
+    let m = sorted.len() as u64;
+    let below = sorted.partition_point(|&c| c < count) as u64;
+    let at = sorted.partition_point(|&c| c <= count) as u64 - below;
+    let inside = (20 * (below + at + 1)).min(19 * (m + 1)).saturating_sub((20 * below).max(m + 1));
+    inside as f64 / (20 * (at + 1)) as f64
+}
+
+/// Inclusive bounds of the smoothed-rank 90% count interval.
+///
+/// Inclusive nearest-rank quantiles of discrete counts always keep their tied boundary
+/// counts, so they cover at least, and for few events well above, 90%. Here each count enters
+/// with its [`smoothed_rank_share`]: counts wholly inside the band always enter, and the one
+/// seeded uniform `draw` settles the boundary counts, a count entering when `draw` is below
+/// its share. Averaged over the draw each count's inclusion probability is its share, so for
+/// exchangeable path and future counts the coverage is exactly 0.90 for any path count, and
+/// for a correct predictive law approximately so when refit blocks share parameters. The
+/// shares rise and then fall across the counts, so the kept counts are contiguous, and one
+/// shared draw nests the intervals. Paths number at least 128 (19 suffice), so counts outside
+/// the drawn range have share zero. An inclusive interval cannot be empty: when the draw keeps
+/// no count, possible only when no count lies wholly inside the band, the count with the
+/// largest share is reported, which only adds coverage.
+fn smoothed_rank_count_bounds(counts: &mut [usize], draw: f64) -> [usize; 2] {
     counts.sort_unstable();
-    let rank = |numerator: usize| (counts.len() * numerator).div_ceil(100) - 1;
-    [counts[rank(5)], counts[rank(95)]]
+    let (first, last) = (counts[0], counts[counts.len() - 1]);
+    let mut kept: Option<[usize; 2]> = None;
+    let mut best = (f64::NEG_INFINITY, first);
+    for count in first..=last {
+        let share = smoothed_rank_share(counts, count);
+        if draw < share {
+            kept = Some(kept.map_or([count, count], |[low, _]| [low, count]));
+        }
+        if share > best.0 {
+            best = (share, count);
+        }
+    }
+    kept.unwrap_or([best.1, best.1])
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{smoothed_rank_count_bounds, smoothed_rank_share};
+
     #[test]
     fn count_interval_matches_hand_ranked_discrete_tails() {
-        let mut counts = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 20];
-        // On twenty draws the endpoints are ranks one and nineteen. Ties remain
-        // as integer counts and the last draw is outside the inclusive interval.
-        assert_eq!(super::nearest_rank_count_bounds(&mut counts), [0, 9]);
+        let mut counts = [8, 7, 7, 6, 5, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 0, 0];
+        counts.sort_unstable();
+        // Twenty paths: the band holds rank slots (1.05, 19.95] of 21. Count 0 spans slots
+        // 0..3 and keeps 1.95 of them, count 7 spans 17..20 and keeps 2.95, count 8 spans
+        // 19..21 and keeps 0.95; counts 1 to 6 lie wholly inside.
+        let shares: Vec<f64> = (0..=9).map(|c| smoothed_rank_share(&counts, c)).collect();
+        let expected = [0.65, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 59.0 / 60.0, 0.475, 0.0];
+        for (share, want) in shares.iter().zip(expected) {
+            assert!((share - want).abs() < 1e-15, "{shares:?}");
+        }
+        // Inclusive nearest-rank quantiles would report [0, 7] for every draw.
+        for (draw, bounds) in [(0.3, [0, 8]), (0.5, [0, 7]), (0.7, [1, 7]), (0.99, [1, 6])] {
+            assert_eq!(smoothed_rank_count_bounds(&mut counts, draw), bounds, "{draw}");
+        }
+        // One count on every path keeps share 0.9; a larger draw keeps no count and the
+        // interval falls back to that count.
+        let mut constant = [3; 20];
+        assert!((smoothed_rank_share(&constant, 3) - 0.9).abs() < 1e-15);
+        assert_eq!(smoothed_rank_count_bounds(&mut constant, 0.5), [3, 3]);
+        assert_eq!(smoothed_rank_count_bounds(&mut constant, 0.95), [3, 3]);
+    }
+
+    #[test]
+    fn smoothed_rank_shares_cover_an_exchangeable_future_count_exactly() {
+        // A future count exchangeable with the paths is any one of the pooled values with
+        // equal probability. Its share averaged over that choice is exactly 0.90, including
+        // ties, a value seen once and counts no path drew.
+        let pooled = [0, 0, 1, 3, 3, 3, 4, 7, 7, 12, 2, 2, 5, 0, 1, 9, 6, 6, 6, 6, 11, 4, 3, 2, 1];
+        let mut total = 0.0;
+        for left_out in 0..pooled.len() {
+            let mut paths: Vec<usize> = pooled
+                .iter()
+                .enumerate()
+                .filter(|&(i, _)| i != left_out)
+                .map(|(_, &count)| count)
+                .collect();
+            paths.sort_unstable();
+            total += smoothed_rank_share(&paths, pooled[left_out]);
+        }
+        assert!((total / pooled.len() as f64 - 0.90).abs() < 1e-12, "{total}");
     }
 }

@@ -23632,9 +23632,9 @@ capability = "forecast.event_count_interval"
 status = "not_supported"
 consumer_question = "What inclusive count interval has measured model-conditional predictive coverage for the declared scope?"
 closed_question = "The coverage experiment is registered and awaits independent measurement."
-theorem = "Nearest-rank 5% and 95% endpoints on the recursive refit predictive count law form the declared candidate interval, with coverage established separately."
+theorem = "The counts whose tie-randomized rank among the recursive refit predictive paths falls in the central 5% to 95% band form the declared candidate interval, one seeded draw settling the boundary counts so that an exchangeable future count is covered with probability 0.90 rather than at least 0.90; coverage is established separately."
 reference = "provenance/forecast.event_count_interval.toml"
-guarantee = "nearest_rank_count_predictive_measured_scope"
+guarantee = "smoothed_rank_count_predictive_measured_scope"
 graph_class = "Fixed-decay linear Hawkes process."
 population_semantics = "A future segment of the complete observed point process."
 evidence_family = "Independent full-route training and horizon samples from a declared cluster-process population."
@@ -23650,7 +23650,7 @@ search = false
 bounds = { cancellation = true, operation_limit = "event forecast execution limits", memory_limit = "execution admission limits" }
 refusals = [{ code = "not_supported", detail = "events.interval_unmeasured", when = "The request falls outside a current matching count-coverage record." }]
 fixtures = [
-  { id = "forecast.event_count_interval.nearest_rank.construction", role = "construction", intent = "The exact interval endpoints match independent order-statistic arithmetic.", evidence_test = "crates/antecedent/src/analysis/events/assessment.rs", evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails" },
+  { id = "forecast.event_count_interval.smoothed_rank.construction", role = "construction", intent = "The exact boundary-count shares and endpoints match independent rank-slot arithmetic.", evidence_test = "crates/antecedent/src/analysis/events/assessment.rs", evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails" },
   { id = "forecast.event_count_interval.coverage_candidate.positive", role = "positive", intent = "A recursive-refit forecast supplies the exact count interval construction for independent coverage." },
   { id = "forecast.event_count_interval.unmeasured.negative", role = "negative", intent = "Unmeasured intervals are withheld by the runtime." },
   { id = "forecast.event_count_interval.calibration_slot.artifact", role = "artifact", intent = "The interval carries the forecast and matching calibration identities." },

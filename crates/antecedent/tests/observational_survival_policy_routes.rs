@@ -332,7 +332,7 @@ fn cross_fitted_policy_subsampling_compiles_its_schedule_and_independently_repla
     assert_eq!(candidate.report.evaluation_rows, rows as u64);
     assert!(candidate.interval.lower <= candidate.interval.upper);
     assert_eq!(candidate.interval.calibration, candidate.slot.status.as_str());
-    assert_eq!(candidate.basis.key.interval_method, "cross_fitted_policy_subsampling_basic_v1");
+    assert_eq!(candidate.basis.key.interval_method, "cross_fitted_policy_subsampling_basic_v2");
     let bytes = plan.export(&candidate, &ctx).expect("subsampling artifact");
     let replay = consume_policy_subsampling(&bytes, plan.lowered().identity(), &ctx)
         .expect("independent recompilation and refits");
