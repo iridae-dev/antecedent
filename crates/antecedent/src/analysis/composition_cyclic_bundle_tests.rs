@@ -602,8 +602,8 @@ fn native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation() {
     assert!(consumed.node_replayed("fit-48"));
     // A changed bound seed must still fail the producer's own seed check.
     let node = &builder.nodes[0];
-    let NodeSource::Embedded { bytes } = &node.source else { panic!("embedded fit") };
-    let mut wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes).unwrap();
+    let NodeSource::Embedded { bytes: embedded } = &node.source else { panic!("embedded fit") };
+    let mut wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(embedded).unwrap();
     wire.replay_seed = Some(48);
     let changed = antecedent_io::to_cbor(&wire).unwrap();
     assert!(
@@ -633,7 +633,7 @@ fn native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation() {
     let cancelled = ExecutionContext::for_tests(99);
     cancelled.cancellation.cancel();
     let consumed = native_fit_bundle_consumer(&cancelled)
-        .consume(bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default())
+        .consume(&bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default())
         .unwrap();
     assert!(matches!(
         &consumed.node("fit-47").unwrap().status,

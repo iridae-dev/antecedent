@@ -988,8 +988,9 @@ impl CompiledJointComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let child = self.posterior.execute(&scoped)?;
+        // The child compiles its fitted chain, which a lowered dispatch refuses as reentry, so
+        // it runs under the caller's context.
+        let child = self.posterior.execute(ctx)?;
         Ok(JointComponentPosteriorDecisionResult {
             child,
             lowered_program_identity: self.lowered.identity(),
@@ -1010,7 +1011,6 @@ impl CompiledJointComponentPosteriorDecision {
                 "component execution program differs",
             ));
         }
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let contract = antecedent_design::decision_artifact::DecisionContractArtifact::new(
             self.contract.clone(),
         )
@@ -1027,7 +1027,7 @@ impl CompiledJointComponentPosteriorDecision {
             posterior_artifact: self.posterior.export(
                 &result.child,
                 "joint-component-posterior",
-                &scoped,
+                ctx,
             )?,
         })?;
         if bytes.len() > MAX_JOINT_COMPONENT_BYTES {
@@ -1079,12 +1079,11 @@ pub fn consume_joint_component_posterior_decision(
             "recompiled component posterior differs",
         ));
     }
-    let scoped = ctx.enter_lowered_dispatch(plan.lowered.identity());
     let child =
         super::cyclic_posterior_action_decision::consume_cyclic_component_posterior_decision(
             &wire.posterior_artifact,
             plan.posterior.lowered().identity(),
-            &scoped,
+            ctx,
         )?;
     Ok(JointComponentPosteriorDecisionResult {
         child,
@@ -1433,8 +1432,7 @@ impl CompiledJointVectorComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let child = self.posterior.execute(&scoped)?;
+        let child = self.posterior.execute(ctx)?;
         Ok(JointComponentPosteriorDecisionResult {
             child,
             lowered_program_identity: self.lowered.identity(),
@@ -1455,7 +1453,6 @@ impl CompiledJointVectorComponentPosteriorDecision {
                 "component execution program differs",
             ));
         }
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let contract = antecedent_design::decision_artifact::DecisionContractArtifact::new(
             self.contract.clone(),
         )
@@ -1472,7 +1469,7 @@ impl CompiledJointVectorComponentPosteriorDecision {
             posterior_artifact: self.posterior.export(
                 &result.child,
                 "joint-component-posterior",
-                &scoped,
+                ctx,
             )?,
         })?;
         if bytes.len() > MAX_JOINT_COMPONENT_BYTES {
@@ -1524,12 +1521,11 @@ pub fn consume_joint_vector_component_posterior_decision(
             "recompiled component posterior differs",
         ));
     }
-    let scoped = ctx.enter_lowered_dispatch(plan.lowered.identity());
     let child =
         super::cyclic_posterior_action_decision::consume_cyclic_component_posterior_decision(
             &wire.posterior_artifact,
             plan.posterior.lowered().identity(),
-            &scoped,
+            ctx,
         )?;
     Ok(JointComponentPosteriorDecisionResult {
         child,
@@ -1767,11 +1763,10 @@ impl CompiledBoundedComponentPosteriorDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<BoundedComponentPosteriorDecisionResult, JointComponentPosteriorError> {
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let inner = self.inner.execute(&scoped)?;
+        let inner = self.inner.execute(ctx)?;
         let decision = self
-            .chain(&inner, &scoped)?
-            .execute(&scoped)
+            .chain(&inner, ctx)?
+            .execute(ctx)
             .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
         Ok(BoundedComponentPosteriorDecisionResult {
             inner,

@@ -289,7 +289,7 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
     };
     let bridge = compile_bridge_transport_decision(
         declaration,
-        draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
+        draws_table(64, 0.4, 0.2, DistributionMeaningWire::PosteriorPredictive),
         11,
         decision,
     )

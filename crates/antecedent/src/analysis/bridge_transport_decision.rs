@@ -1010,10 +1010,10 @@ impl CompiledAssessedBridgeRobustDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let assessed = self.assessed.execute(&scoped)?;
-        let robust =
-            discrepancy_robust_plan(&assessed, &self.contract, &scoped)?.execute(&scoped)?;
+        // The children compile their data-dependent chains, which a lowered dispatch refuses as
+        // reentry, so they run under the caller's context.
+        let assessed = self.assessed.execute(ctx)?;
+        let robust = discrepancy_robust_plan(&assessed, &self.contract, ctx)?.execute(ctx)?;
         Ok(AssessedBridgeRobustDecisionResult {
             assessed,
             robust,
@@ -1459,9 +1459,8 @@ impl CompiledAssessedBridgePosteriorDecision {
                 "target posterior seed changed",
             ));
         }
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let assessed = self.assessed.execute(&scoped)?;
-        let decision = self.posterior_plan(&assessed, &scoped)?.execute(&scoped)?;
+        let assessed = self.assessed.execute(ctx)?;
+        let decision = self.posterior_plan(&assessed, ctx)?.execute(ctx)?;
         Ok(AssessedBridgePosteriorDecisionResult {
             assessed,
             decision,
