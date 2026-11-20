@@ -12690,6 +12690,7 @@ def graph_imputation_transport_bundle_consume(
 ) -> tuple[str | None, str | None]: ...
 def graph_imputation_fit_bundle_consume(
     data: bytes, expected_identity: str, supplied_json: str | None = None, seed: int = 1
+) -> tuple[str | None, str | None]: ...
 
 # Cyclic decisions: connected feedback components, paired action worlds and bundle refits.
 class _PreparedComponentFeedback:
@@ -12823,6 +12824,8 @@ def cyclic_bundle_consume_refitting(
     *,
     seed: int,
     max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 
 # Predictive bridge transport decisions, their premise assessment and bridge-terminal bundles.
 class BridgePremiseAssessmentHandle:
