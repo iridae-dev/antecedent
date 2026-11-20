@@ -1548,7 +1548,7 @@ fn sequential_crossfit_contrast_wald_interval_wide_probability_coverage() {
     measure_wide_sequential(
         "sequential_crossfit_contrast_wald_interval_wide_probability_coverage",
         false,
-        0x5E2_0001,
+        0x5E2_0201,
     );
 }
 
@@ -1558,7 +1558,7 @@ fn bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage() {
     measure_wide_sequential(
         "bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage",
         true,
-        0x5E2_0002,
+        0x5E2_0202,
     );
 }
 

@@ -553,7 +553,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/coverage_records_data.rs",
-      "sha256": "def24b0db54d2146786fe493d8449a6ee1acac98fa04f61d13d324c7636bb9fe",
+      "sha256": "1412943695c89c6163784d40f4313e88f6fea917649304dd1da3615b65defc7b",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Embedded registry consumer/tests only; no calibration hypothesis constructor."
@@ -1153,7 +1153,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "752442f9fabe4c56547a72e50450370695db9f71dde1926c2516ec5dbdf3f270",
+      "sha256": "9da222474f2a1dc5475735473aac4d37eca2ebb935d1c393f842b1275397f931",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -3223,16 +3223,21 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_wider_range_calibration.rs",
-      "sha256": "fcfbc48d7105f5f4e3bacaceea5246f801750955d3e86c3fc3ae41eb3dd029c2",
+      "sha256": "9eea822e861738e08425702ecbce46a331428010ea2ebbd0452846a57529dcc5",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 653,
+          "line": 654,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        },
+        {
+          "line": 824,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"sequential_panel_wide_probabilities\", interval },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Fifty-four source-fixed designs repeating base temporal-design, sequential-contrast and regime-survival panels with one axis moved (decision lags two and three of every lag-taking design, assignment probabilities on each row's floor, a sequential panel whose true action probabilities reach 0.07 and 0.93, regime survival with thin treatment overlap and with heavy censoring), each scoring the one interval the route publishes at one 0.95 level against the base design's closed-form or simulated truth with static record keys; no lag, probability, censoring rate or coordinate is chosen from outcomes."
+      "review": "Fifty-four source-fixed designs repeating base temporal-design, sequential-contrast and regime-survival panels with one axis moved (decision lags two and three of every lag-taking design, assignment probabilities on each row's floor, a sequential panel whose true action probabilities reach 0.07 and 0.93, regime survival with thin treatment overlap and with heavy censoring), each scoring the one interval the route publishes at one 0.95 level against the base design's closed-form or simulated truth with static record keys; no lag, probability, censoring rate or coordinate is chosen from outcomes. In each wide sequential group reserve a second hypothesis slot for coverage conditional on publication, with fixed independent panel streams 0x5E20201 (Wald) and 0x5E20202 (Bayesian absolute-deviation radius). The first slot and its all-panel outcome remain historical. Only a typed fitted-overlap refusal redraws; a refusal count creates no additional hypothesis."
     },
     {
       "path": "crates/antecedent/tests/transport_statistical_calibration.rs",
