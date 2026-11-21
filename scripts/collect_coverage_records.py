@@ -814,9 +814,21 @@ def log_problems(log: Path) -> tuple[list[str], set[str]]:
 def check_logs(logs: list[Path], sha: str) -> None:
     """Refuse logs of a failed or empty group, or measured at another commit than `sha`."""
     problems: list[str] = []
+    selected = set(logs)
     for log in logs:
         found, measured = log_problems(log)
         problems += found
+        if not log.name.endswith(".recheck.log"):
+            output = read_text(log, errors="ignore")
+            if re.search(r"^(?:test \S+ \.\.\. )?calibration-recheck ", output, re.M):
+                partner = log.with_suffix(".recheck.log")
+                if partner not in selected:
+                    problems.append(f"{log.name}: requested recheck is missing from the collection")
+                else:
+                    reran = rechecked_tests(partner)
+                    requested = set(re.findall(r"^calibration-recheck-test (\S+)", output, re.M))
+                    if reran is not None and requested - reran:
+                        problems.append(f"{log.name}: requested tests are missing from the recheck")
         if not measured:
             problems.append(
                 f"{log.name}: no calibration-measured-at line (not written by the gate)"

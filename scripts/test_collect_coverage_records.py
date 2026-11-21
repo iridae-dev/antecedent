@@ -90,8 +90,10 @@ class PassingGroupHarvestTest(unittest.TestCase):
             ]
             incomplete = [log("partial.p0.log"), log("partial.p2.log")]
             wrong_sha = [log("wrong.log", measured="b" * 40)]
+            unfinished = log("unfinished.log")
+            unfinished.write_text("test t ... calibration-recheck t: extend\n" + unfinished.read_text())
             self.assertEqual(
-                collector.passing_group_logs(complete + failed + incomplete + wrong_sha, sha),
+                collector.passing_group_logs(complete + failed + incomplete + wrong_sha + [unfinished], sha),
                 complete,
             )
 

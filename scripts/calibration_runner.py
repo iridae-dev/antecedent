@@ -241,6 +241,8 @@ def measure(spec: dict) -> dict:
     if status == 0 and regions is None:
         problems.append(f"the coverage of {log} could not be read: {problem}")
         status = 1
+    # Libtest can print its progress prefix on the first recheck request's line.
+    output = log_lines(output)
     stamp(log, output)
     coverage = [regions]
     rechecked = False

@@ -94,7 +94,7 @@ class MeasureTests(MeasureFixture):
     def test_a_recheck_extends_the_first_pass_and_both_logs_are_stamped(self):
         calls = []
         outputs = iter([
-            "calibration-recheck please\ncalibration-recheck-test t2\ntest result: ok. 2 passed; 0 failed\n",
+            "test t2 ... calibration-recheck please\ncalibration-recheck-test t2\ntest result: ok. 2 passed; 0 failed\n",
             "test result: ok. 1 passed; 0 failed\n",
         ])
 
