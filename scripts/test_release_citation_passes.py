@@ -1,6 +1,7 @@
 """Candidate citations use exact passing assertions from the prerequisite lanes."""
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,26 @@ class ReleaseCitationPassesTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "changed during verification"), verified_source_snapshot():
                 self.assertEqual(source_cache(Path.read_text)(path), "initial")
                 path.write_text("changed")
+
+    def test_listing_removes_ignored_tests_and_bulk_collection_preserves_file_identity(self):
+        def process(stdout):
+            return subprocess.CompletedProcess([], 0, stdout, "")
+
+        with patch.object(evidence.subprocess, "run", side_effect=[
+            process("runs: test\nignored: test\n"), process("ignored: test\n"),
+        ]):
+            self.assertEqual(evidence.ReleasePasses.runnable_names("test-binary"), {"runs"})
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / "current.json").write_text("[]")
+            passes = evidence.ReleasePasses(directory)
+        with patch.object(evidence.subprocess, "run", return_value=process(
+            "tests/test_one.py::TestGroup::test_case[1]\ntests/test_two.py::test_second\n"
+        )):
+            passes.collect_python()
+        self.assertEqual(passes.python_nodes, {
+            ("python/tests/test_one.py", "test_case"), ("python/tests/test_two.py", "test_second"),
+        })
 
     def test_only_the_exact_passing_binary_and_module_can_supply_a_citation(self):
         with tempfile.TemporaryDirectory() as tmp:

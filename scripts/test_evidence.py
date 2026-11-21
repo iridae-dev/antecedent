@@ -548,13 +548,49 @@ class ReleasePasses:
 
     def __init__(self, directory: Path) -> None:
         self.scientific = {tuple(row) for row in json.loads((directory / "current.json").read_text())}
+        self.binaries: dict[str, list[str]] = {}
+        for metadata in sorted(directory.glob("binaries-*.json")):
+            for binary, row in json.loads(metadata.read_text())["rust-binaries"].items():
+                self.binaries.setdefault(binary, []).append(row["binary-path"])
+        self.listed: dict[str, set[str]] = {}
         self.engineering = set()
         for report in sorted(directory.glob("rust-*.xml")):
             for suite in ET.parse(report).getroot().findall("testsuite"):
                 for case in suite.findall("testcase"):
                     if all(case.find(tag) is None for tag in ("error", "failure", "skipped")):
                         self.engineering.add((suite.attrib["name"], case.attrib["name"]))
-        self.used: dict[str, set] = {"scientific": set(), "engineering": set()}
+        self.python_nodes: set[tuple[str, str]] | None = None
+        self.used: dict[str, set] = {"scientific": set(), "engineering": set(), "engineering binary listings": set()}
+
+    @staticmethod
+    def runnable_names(executable: str) -> set[str]:
+        """List an already-built libtest target once, excluding every ignored case."""
+        names = []
+        for extra in ([], ["--ignored"]):
+            result = subprocess.run([executable, "--list", "--format", "terse", *extra],
+                                    cwd=ROOT, capture_output=True, text=True)
+            if result.returncode:
+                return set()  # A special runtime environment may require the Cargo fallback.
+            names.append({line.removesuffix(": test") for line in result.stdout.splitlines() if line.endswith(": test")})
+        return names[0] - names[1]
+
+    def collect_python(self) -> None:
+        """One pytest session for all Python citations, including marker-deselected suites."""
+        proc = subprocess.run(
+            ["uv", "run", "--quiet", "--no-sync", "pytest", "--collect-only", "-o", "addopts=",
+             "-q", "-p", "no:cacheprovider", "tests"],
+            cwd=ROOT / "python", capture_output=True, text=True,
+        )
+        if proc.returncode:
+            raise RuntimeError(f"pytest collection failed:\n{proc.stdout[-2000:]}{proc.stderr[-2000:]}")
+        nodes = set()
+        for line in proc.stdout.splitlines():
+            if line.startswith("tests/") and "::" in line:
+                parts = line.partition("[")[0].split("::")
+                nodes.add(("python/" + parts[0], parts[-1]))
+        if not nodes:
+            raise RuntimeError("pytest returned no test nodes")
+        self.python_nodes = nodes
 
     def contains(self, path: Path, name: str) -> bool:
         relative = path.relative_to(ROOT).as_posix()
@@ -569,6 +605,12 @@ class ReleasePasses:
             if key in self.engineering:
                 self.used["engineering"].add(key)
                 return True
+            for executable in self.binaries.get(binary, []):
+                if executable not in self.listed:
+                    self.listed[executable] = self.runnable_names(executable)
+                if key[1] in self.listed[executable]:
+                    self.used["engineering binary listings"].add(key)
+                    return True
         return False
 
 
@@ -1120,6 +1162,10 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
         return problems
     rel = path.resolve().relative_to((cwd / "python").resolve())
     if cwd == ROOT and release_passes and release_passes.contains(path, name):
+        return []
+    if cwd == ROOT and release_passes and release_passes.python_nodes is not None and rel.parts[0] == "tests":
+        if (str(path.relative_to(ROOT)), name) not in release_passes.python_nodes:
+            return [f"pytest does not collect {rel}::{name}"]
         return []
     code, listing = _python_collection(path, cwd)
     nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))

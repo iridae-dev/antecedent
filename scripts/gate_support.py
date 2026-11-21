@@ -1680,6 +1680,7 @@ def main(argv: list[str]) -> int:
         if "--release-receipts" in argv:
             directory = Path(argv[argv.index("--release-receipts") + 1])
             test_evidence.release_passes = test_evidence.ReleasePasses(directory)
+            test_evidence.release_passes.collect_python()
             rows = _repo.load_toml(directory / "capabilities.toml")["fixture_evidence"]
             capabilities = sorted({(ROOT / row["evidence_test"], row["evidence_assertion"]) for row in rows})
         found = cited_test_problems(shard)
@@ -1689,7 +1690,7 @@ def main(argv: list[str]) -> int:
             found.extend(f"capability {path}::{name}: {problem}" for problem in problems)
         if test_evidence.release_passes:
             for lane, used in test_evidence.release_passes.used.items():
-                print(f"{len(used)} distinct citations resolved by {lane} passes")
+                print(f"{len(used)} distinct citations resolved from {lane}")
         for problem in found:
             print(f"FAIL: {problem}", file=sys.stderr)
         return 1 if found and not report else 0

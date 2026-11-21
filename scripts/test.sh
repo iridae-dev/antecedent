@@ -154,7 +154,13 @@ rust_tests() {
   local report="$ROOT/target/nextest/ci/junit.xml"
   rust_run_index=$((rust_run_index + 1))
   rm -f "$report"
-  cargo nextest run --locked --profile ci --no-tests fail --timings "$@" || status=$?
+  if [[ "$suite" == engineering && -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+    local binaries="$ANTECEDENT_RC_RECEIPTS/binaries-$rust_run_index.json"
+    cargo nextest list --locked --timings --profile ci --list-type binaries-only --message-format json "$@" > "$binaries" || return "$?"
+    cargo nextest run --profile ci --no-tests fail --binaries-metadata "$binaries" || status=$?
+  else
+    cargo nextest run --locked --profile ci --no-tests fail --timings "$@" || status=$?
+  fi
   if [[ -f "$report" ]]; then
     mkdir -p "$report_directory"
     cp "$report" "$report_directory/rust-$rust_run_index.xml"
