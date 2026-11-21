@@ -1615,6 +1615,61 @@ dependency_manifest = "264de99130658e43ccb45264745930a35c6ccf3cca14ae1412543e4be
 measurement_digest = "be181c116e886f1718a402b13f0ac5a3546a5b9c2da5181e158c85b37e42f18b"
 
 [[attestation]]
+record_id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "624b4ae16e6a8737ae56576455b9fd65a4f0f980b4a32a4111699eea88d9c313"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "3110f774883a7714edd042aa85ce087cabb8066400abc4d65734e8c31849c94e"
+measurement_digest = "f995782d356fd068836c5156f70b6d0e6e94fd028fe5f3c4b96cdf663ab5b501"
+
+[[attestation]]
+record_id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "624b4ae16e6a8737ae56576455b9fd65a4f0f980b4a32a4111699eea88d9c313"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "e0eaa4a963b6853b2d865bec5f91496318edf92221413042d68919a8f5595802"
+measurement_digest = "2c71cbcd0c351b197b06ef7b1c42ea4d3a983152a1cd28d5f1413400159bc7bf"
+
+[[attestation]]
+record_id = "cov.conditional_outcome_probability_given_joint_measurement.declared_finite_mechanisms.bayesian.fitted_joint_error_dirichlet_equal_tailed.l95.fitted_dependent_measurement_joint_error_l95.v2_validation_not_applicable"
+calibration_sha = "6613b3ca25acae77a8326fb9dd62f19f4e73ae18"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "55ebf71a6d8d63c77f0f965ba88bc4e3afc476b4ea14d5fcc2a130d067014ef5"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "f6bf702e1d860c41d11eeac82baa4c46d986481b6d50573d0dce59c5a0884c39"
+measurement_digest = "0d677daad760bd3005f78a38a0d3b74790e893d98f2f7867418c5bdbb28f9ca9"
+
+[[attestation]]
+record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_score_wald_v1.l95.graph_narrow_cross_fitted_policy_l95.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "9d58b00a179316cfeb2dc6e119e3f158e35d46fa87c5fbccba640e3facbb0929"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "d0f4ac7f21ee6b04065452d6cc6b1993885abc7673c47b58bf13f3189fc97ff5"
+measurement_digest = "fc72629c332d7e655f4dae283f8370f8927bc2e746d19369c1869480df7a40a6"
+
+[[attestation]]
+record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_subsampling_basic_v2.l95.graph_narrow_cross_fitted_subsampling_policy_l95.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "8d6aeebfbfef93c52fbc484d49aeac9ea7ae383097cc2f3e84be0961fbcf47ad"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "519b0df95341fbcf1e09dca364af79161f8701724877df729d8114974f5cf9a7"
+measurement_digest = "679d0dde8f3a231ae280ed5704bdd691e20f5057db07cdf7894e087523088f9d"
+
+[[attestation]]
 record_id = "cov.decision_evidence.observational.frequentist.delta_method_normal_95.l95.decision_margin_adaptive_regime_jackknife_delta_interval.v2_validation_none"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -1692,6 +1747,325 @@ dependency_manifest = "964faa1e22316cb21880e2475eb2fecb5f3c4a4015b569fe78bdb2e4a
 measurement_digest = "c5a69372da85f28d70f6c3388c4302967b05d0862720602c09797e1ad3cf1c6c"
 
 [[attestation]]
+record_id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_bayesian_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "52282db765dd4ed7247b03332e05f67a86abe8c9e6c9e72d968ec103b6935111"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f845fc0b167bd37ffbce8eef79bb79bc96e9f8c9ea69ea5feb7e8503a14520e5"
+measurement_digest = "3941662fdf1cba85b928c985a69140748e46bff89d42f452dd84ab94fc5faca4"
+
+[[attestation]]
+record_id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "52282db765dd4ed7247b03332e05f67a86abe8c9e6c9e72d968ec103b6935111"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "2689141b635f88356facb587b35c8b9ac3f3bcd235302515d1ec2848620d263d"
+measurement_digest = "bb20f8b0f1f97f03faa47e1ad5900569b2976f8e11cacb9e48b87aff31d38b9d"
+
+[[attestation]]
+record_id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_frequentist_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "52282db765dd4ed7247b03332e05f67a86abe8c9e6c9e72d968ec103b6935111"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "034f9728916dbef5e63b9cee80af9c0a78c05c04db4653f9d9d31aec853b3044"
+measurement_digest = "f1a601af3a0ef2aab294eff71d2cc77cf14ec5ab527788292938078308f61a40"
+
+[[attestation]]
+record_id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "52282db765dd4ed7247b03332e05f67a86abe8c9e6c9e72d968ec103b6935111"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "3f5f2ddf4c0446f7dd826d6eaecd723bc4a35d55d0925e516015280c58757769"
+measurement_digest = "6c09a7103093845cbb17b3852028f5a8ecd696b9711e53c11905a45c45d286be"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "a1b7dc237c71aad9977128545e5261b6f5bd0cb9156c743aa6f723fe17c946ac"
+measurement_digest = "861951f4e206f4e958bd1ee3f98f41bbec0011fd3837518da0566105c8ffef6c"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "148a6b85e86ca07ec1876cf50adbafb69fbcd86cfb6ae3750436d87a5e1e694a"
+measurement_digest = "08d401c672bdff5d9d54c9a0e7a48c6f876608a6f737a74090f797ad79acd154"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "48633e4a924332c07558b529de9e9a3531c42bf75650df114f2559e9a1856075"
+measurement_digest = "4068409fd7ebe6bc60daa9c31054dd9f02db810bb2549743e3e33bfd6140437e"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "9e39494b87f173ee673d62ccdd3c88567317a2072e3da8f465b9d43ff482906c"
+measurement_digest = "6794b830d05d24655ca6be690e7a6250ebf94c2a3abbe85e131328ab153d23ca"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "3e28b09d5d2d47b7a8032953ce9903430f3cd006e8a684600ea57b0bd27e6b72"
+measurement_digest = "f483f04e638deac3bbc8c056f0147bc31c44831d560a973fd91b960e5484070a"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "2743d5edd27d5ff32577c00112e17ea93c23477e09f1adb231838457dca427dd"
+measurement_digest = "d51b4a1da0ec822824c9bc1d0525d9f228e005529174cffdaefd2da569ede717"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9fbc6b66c91712d485f23658775c11697aa2258b2d16ec0b143f43a42a35638f"
+measurement_digest = "50bc567a703a8c566ed8051366516024dbafe1a413d2ca6aae518abfb7a330cd"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f35b56ca28a6b458970ecd05d0b66dcf5f7fb8bcc9c7487f3d9876f4ce01ad3f"
+measurement_digest = "926effd17b06c9ae3c410019080e3ceb391605a685c8d82492d1add31a2bf655"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "00332006dbd2c179862729f2f7ed519bbeeb484f12e79cfa16ed9525b93bf817"
+measurement_digest = "f2dd772381b589d2da3a8e7e37bf65b73bf1f59d0aedb1156a2ef9dfa26c4f73"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "fe39c15f21b1328d227e17c503875bf4a9af381b391bfce929a9facc11d1144d"
+measurement_digest = "9d1c1d5b726647dd7e59d92c8912e9e147d085bc5e75ea1e8e7f004cc7d0e031"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.weighted_equal_tailed_posterior.l95.joint_response_experiment_update_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9c69c9dc43f6146005669f78fe1c889b682d53e2f8c55ca58cd92f875aa26e45"
+measurement_digest = "899d840ea68f46e44eab64d2786ccb6ac3ba1efa7a5e369fe0d519a36f5a1c9d"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "3508667ab2982a08850da0d0e7b725746a34669007d4efbae6bad4ecfe20e384"
+measurement_digest = "14fef6956cc2df8f5b4ff494a9263bf2d86f6242095ff84e2361ea8880b907a3"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "5de200f003b0296d0b36eee1d307a07d4729e7305ccf1698b5762e7070b859e7"
+measurement_digest = "b0e61d1f113705354a66bd2f6f4228d672f653d6e10f401e754ff9e19f5fb8af"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bootstrap_covariance_normal.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "93f08bd2104ab83a36aad5b586fd7815781e23f848edf08f465bf63a076354f3"
+measurement_digest = "ae894d9903d5e76adc46ff65ad5be2eca6d87475362a0b22f8e4522974087b3b"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "898111b6655601a525673a1ee4bbe8067dfc6864861963a09796e2e67e45574c"
+measurement_digest = "9bb72e88d5baea4a4fe88a272c385f9a82aa39e1fed84989f5c857f0db15c84b"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "2ce1dfb9c403b85a4341de754fd094332333318466edec8e3f84e43d1f92bf9e"
+measurement_digest = "fd2fa8be27e5405d44951ff55f908f3f80fe1df8fe6c1cba00a6c28865d71d82"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_separated_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "8f13ed0a57cb31ad73530e1f678af19e3cdb4e80fffb96ccaf7de501c0ee6862"
+measurement_digest = "63ba4c6a69a69ccb38e1b146b44794041b87ba0d0a3303322568712df6ba63d6"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_structural_selection_weak_separation_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "513120540131f1995ed6df233a58642032d5516a423250c3d78f5ce7e6c0aaf3"
+measurement_digest = "a7f89aca20b45b7d329393fb56e868ee6e5e89e7cc3b25374108a1665a58052c"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "d16bb5fa5fa7832b2aeb7187c44d9d07a7b2b879556ee0ab32175602319570bf"
+measurement_digest = "51ba961bb40ae13b451b8599fd6bf5901ec8b4b8db2c89efd55589b7f1854fe5"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "b42bb84f7987033c9b4f65a3eb36f1c34b110173e70248042e515dce0171eaaa"
+measurement_digest = "0d08ef892437da567e8fd0fd67f0aa4a5ea775d4860ef89cae6cc98f4622e18d"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "79e9810cf0fd97ad0c32d7260d91f2255688da17fa058d705adf97b71fdaa4d5"
+measurement_digest = "ef64a7a186cc5e9576079fbacd7978a6b8b0759fba20ae487efeb9cac3cbaf49"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "b035575de4a6004efb2218d5c2d495e863cc36ebdbe6d52b1bf6ac3efdc2e0dc"
+measurement_digest = "f15e5ae5646f5982ba96c96d6c06d710023f89aacac265f062dff945204ba989"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "378ee4d45d3d30b451be1d0ee2a13508722de73f16e6c9443ca770aab207e685"
+measurement_digest = "f10e054c774f57565a1cb1b31a2c6dd9abeb0716e72f71026146b18b8a127217"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "6b4790c9eb4071178c23462a6754fa5450f8b5bd1cfd785238e66689a909a552"
+measurement_digest = "df37a925921356373abcc58d610cca6b10c80ff57008a084b66e8ab7624b6427"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.wald_ratio.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "dd300c6a405d94edb8e9f41884927d95bf0e9eff95cc5223fc5ed245eb298722"
+measurement_digest = "65d95792ad4495a08c168010e9c0c3c78f4d5436df643b85b72cb5622440063d"
+
+[[attestation]]
 record_id = "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_prevalence_wald_l95.v2_validation_not_applicable"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -1745,6 +2119,17 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "cce3050b2d4165967fe79befcda0c72d864a61516274ca7c9130507599cfdbbe"
 measurement_digest = "7cb6c14fd055031b2ee47d36702fd42aea4de3d9c8d2ac15f3d33f2f326489ca"
+
+[[attestation]]
+record_id = "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+fingerprint = "7bf24a75f538445febf49c3d31d0a4189f9abefb51d858db7f31cf9df3cf5996"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "51e859df4f2346b520ca484f6662f49e6823ab63d8f613f9776d14f62c61ee68"
+measurement_digest = "148323ac578d79b65c1096c7e7d4e38c916ab4b2f451859d4abca0a9c3c7f452"
 
 [[attestation]]
 record_id = "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_interventional_sample_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_y"
