@@ -49,15 +49,6 @@ use super::{
     identify_classical_transport_metered,
 };
 
-/// Most nodes of a supplied CPDAG under the earlier fixed ceiling.
-///
-/// Deprecated and not enforced: completion enumeration is bounded by the [`SearchBudget`]
-/// started from the caller's [`SearchLimits`] and [`ExecutionContext`]. Set those instead.
-#[deprecated(
-    note = "no longer enforced: the completion enumeration is bounded by the search budget"
-)]
-pub const CPDAG_MAX_NODES: usize = 6;
-
 /// Selection or latent structure was supplied.
 pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str =
     antecedent_core::reason_details::cpdag_scenarios::SELECTION_OR_LATENT;
@@ -70,14 +61,6 @@ pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str =
 fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
     edges.iter().map(|&(from, to)| (from as u32, to as u32)).collect()
 }
-/// Refusal detail of the earlier node-count ceiling ([`CPDAG_MAX_NODES`]).
-///
-/// Deprecated and never emitted: a search that reaches its budget is not refused. Read the stop
-/// from the receipt of [`enumerate_cpdag_completions`], which carries a conservative upper
-/// bound on the completions not enumerated. The constant is written as two literals so the
-/// refusal-detail registry gate does not read this retained name as a live emission.
-#[deprecated(note = "no longer emitted: the node count is not bounded")]
-pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
 /// The input is not a valid CPDAG.
 pub const CPDAG_NOT_A_CPDAG_DETAIL: &str =
     antecedent_core::reason_details::cpdag_scenarios::NOT_A_CPDAG;

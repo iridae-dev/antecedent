@@ -38,16 +38,6 @@ use super::{
     identify_catalog_transport_metered, identify_classical_transport_metered, sid_memory_bytes,
 };
 
-/// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
-///
-/// Deprecated and not enforced: the number of coordinates is bounded by the [`SearchBudget`]
-/// started from the caller's [`SearchLimits`] and [`ExecutionContext`]. Set those instead.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the number of coordinates is bounded by the search budget"
-)]
-pub const TEMPORAL_MAX_OBSERVED: usize = 12;
-
 /// Detail: a required history has no certified support.
 pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =
     "temporal_transport.history_outside_support";

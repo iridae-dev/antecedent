@@ -3952,9 +3952,7 @@ pub const antecedent_identify::discovered_transport::ENVELOPE_ASSUMPTIONS: [&str
 pub const antecedent_identify::path_specific::PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE: &str
 pub const antecedent_identify::recovery::MISSING_LEVEL: &str
 pub const antecedent_identify::response_intervention::RESPONSE_INTERVENTION_RULE: &str
-pub const antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_EVIDENCE_MISMATCH_DETAIL: &str
-pub const antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES: usize
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_NOT_A_CPDAG_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_NO_EVIDENCE_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_SELECTION_OR_LATENT_DETAIL: &str
@@ -3967,7 +3965,6 @@ pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HISTORY_BUDGET: 
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_HORIZON_DETAIL: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SEQUENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_INVALID_SPEC: &str
-pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED: usize
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_MISSING_EVIDENCE: &str
 pub const antecedent_identify::sid::temporal_sequence::TEMPORAL_SEARCH_INCOMPLETE: &str
 pub const antecedent_identify::temporal_iv::TEMPORAL_IV_METHOD: &str
@@ -5535,7 +5532,6 @@ pub fn antecedent_identify::decide_two_source_z_transport(graph: &antecedent_gra
 pub fn antecedent_identify::decide_z_transport_inspecting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportOutcome, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_z_transport_with_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::discovered_transport::ancestral_subgraph(admg: &antecedent_graph::admg::Admg, seeds: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_graph::error::GraphError>
-pub fn antecedent_identify::discovered_transport::refuse_pag_transport(unresolved: alloc::vec::Vec<antecedent_identify::discovered_transport::UnresolvedPair>, exhausted_search_bounds: usize) -> antecedent_identify::discovered_transport::DiscoveredTransportError
 pub fn antecedent_identify::discovered_transport::transport_across_class(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport::transport_across_class_with_context(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::discovered_transport::transport_across_pag(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>

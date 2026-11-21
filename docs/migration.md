@@ -356,6 +356,18 @@ The minimum supported Rust version is 1.97 (edition 2024); 2.4 built on 1.85. Up
 
 `mean_source`, `law_source` and `project_*_source` carry scientific permission into decision and search use; `numerical_*` accessors expose values without that permission. Frozen-fit replay keeps aligned draw slots and failures. Retained and returned results hold their memory reservations until their last owner is dropped; these are allocation quotes, not process memory measurements.
 
+### Retired Rust limits and PAG refusal constructor
+
+| Removed 2.4 API | Migration in 3.0 |
+| --- | --- |
+| `EXACT_MATCHING_ROW_LIMIT` | Pass an `ExecutionContext` with your memory budget to `MatchingIndex::exact_within`. |
+| `TEMPORAL_MAX_OBSERVED`, `CPDAG_MAX_NODES` | Configure `SearchLimits` and the execution context for the temporal search or CPDAG completion enumeration. |
+| `CPDAG_BOUNDS_EXCEEDED_DETAIL` | Inspect the receipt returned by `enumerate_cpdag_completions` for the search stop and the upper bound on unexplored completions. |
+| `LATENT_CLASS_ARTIFACT_MAX_ROWS`, `NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS` | Set the computation budget when calling the artifact’s `seal_with` and the export budget when calling `to_bytes_within`. |
+| `discovered_transport::refuse_pag_transport` | Call `transport_across_pag` or `transport_across_pag_with_context` and handle the returned transport result or refusal. |
+
+These source changes also apply to the corresponding crate and facade re-exports.
+
 ## Behaviour changes that can alter an answer or turn it into a refusal
 
 These corrections change a number you got before, or replace a silently wrong answer with a typed refusal. Rerun affected studies and read the refusal's next attempt.

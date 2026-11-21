@@ -132,8 +132,6 @@ pub use joint_law::{
 };
 pub use linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
 pub use m_estimate::{MEstimateFit, MEstimateOptions, fit_huber_m};
-#[allow(deprecated, reason = "the retained released name stays reachable")]
-pub use matching::EXACT_MATCHING_ROW_LIMIT;
 pub use matching::{MatchingDistance, MatchingIndex, nearest_euclidean_scalar};
 pub use matching_boxtree::BoxTreeIndex;
 pub use observation::{

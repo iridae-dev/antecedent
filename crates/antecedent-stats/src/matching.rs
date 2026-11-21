@@ -431,17 +431,6 @@ impl MatchingIndex {
     }
 }
 
-/// Soft upper bound the brute-force matching path had on its donor count.
-///
-/// Deprecated and not enforced: [`MatchingIndex::exact_within`] scales with the donor count,
-/// bounded by the hard memory limit of the [`ExecutionContext`] it is given. Set that limit
-/// instead.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: the index scales with the donor count, bounded by the execution context's memory limit"
-)]
-pub const EXACT_MATCHING_ROW_LIMIT: usize = 10_000;
-
 /// Entry points of the earlier signatures, which carried no execution context. Each runs the
 /// `_within` form under a context with no memory limit and no cancellation.
 impl MatchingIndex {

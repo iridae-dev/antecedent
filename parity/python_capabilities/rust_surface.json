@@ -26293,11 +26293,6 @@
       "kind": "reexport",
       "target": "antecedent::analysis::joint_panel::designs::replay_joint_design_artifact_with_limits"
     },
-    "export:antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_MAX_ROWS": {
-      "declaration": "pub use antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_MAX_ROWS = antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS",
-      "kind": "reexport",
-      "target": "antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS"
-    },
     "export:antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_VERSION": {
       "declaration": "pub use antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_VERSION = antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_VERSION",
       "kind": "reexport",
@@ -27062,11 +27057,6 @@
       "declaration": "pub use antecedent::analysis::nonlinear_mediation::MediationResultWire = antecedent_io::nonlinear_mediation_artifact::MediationResultWire",
       "kind": "reexport",
       "target": "antecedent_io::nonlinear_mediation_artifact::MediationResultWire"
-    },
-    "export:antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS": {
-      "declaration": "pub use antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS = antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS",
-      "kind": "reexport",
-      "target": "antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS"
     },
     "export:antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_VERSION": {
       "declaration": "pub use antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_VERSION = antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_VERSION",

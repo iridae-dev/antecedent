@@ -4,6 +4,10 @@
 
 Changes since 2.4.1. The [migration guide](docs/migration.md) says who needs to act and gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.
 
+### Removed
+
+- Removed six deprecated Rust limit and refusal-detail constants and the `refuse_pag_transport` constructor. The [Rust migration guide](docs/migration.md#retired-rust-limits-and-pag-refusal-constructor) lists every symbol and replacement.
+
 ### Added
 
 - **Feedback and dynamic systems.** Cyclic routes (`antecedent.cyclic`, `Study::prepare_cyclic`) answer what happens when a component of a system with feedback is observed, clamped or shocked, as a model-conditional response with declared equilibrium and selection assumptions. See [cyclic systems](docs/guides/cyclic-systems.md).

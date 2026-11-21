@@ -6290,7 +6290,6 @@ pub const antecedent_io::joint_response_artifact::MAX_JOINT_RESPONSE_ARTIFACT_BY
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_CALIBRATION: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_FEATURE: &str
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_BOOTSTRAP: u32
-pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS: usize
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_TRACE_HEAD: usize
 pub const antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_VERSION: u16
 pub const antecedent_io::latent_class_artifact::MAX_LATENT_CLASS_ARTIFACT_BYTES: usize
@@ -6361,7 +6360,6 @@ pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIF
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_CLAIM: &str
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_FEATURE: &str
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_BOOTSTRAP: u32
-pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS: usize
 pub const antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16
 pub const antecedent_io::period_refresh_artifact::PERIOD_EXTENDED: &str
 pub const antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_FEATURE: &str

@@ -3481,7 +3481,6 @@ pub const antecedent_stats::DEFAULT_RIDGE_ON_SEPARATION: f64
 pub const antecedent_stats::DEPENDENCE_ENVELOPE_LABEL: &str
 pub const antecedent_stats::DRAW_EXCHANGEABLE_RANK_CONSTRUCTION: &str
 pub const antecedent_stats::DRAW_INTERPOLATED_CONSTRUCTION: &str
-pub const antecedent_stats::EXACT_MATCHING_ROW_LIMIT: usize
 pub const antecedent_stats::GPDC_NYSTROM_MAX_INDUCING_POINTS: usize
 pub const antecedent_stats::MAX_CLUSTER_DIMENSIONS: usize
 pub const antecedent_stats::MAX_EXPRESSION_TERMS: usize
@@ -5945,7 +5944,6 @@ pub use antecedent_stats::m_estimate::MEstimateFit = antecedent_stats::MEstimate
 pub use antecedent_stats::m_estimate::MEstimateOptions = antecedent_stats::MEstimateOptions
 pub use antecedent_stats::m_estimate::fit_huber_m = antecedent_stats::fit_huber_m
 pub use antecedent_stats::marginal_interval_candidate = antecedent_stats::joint_law::marginal_interval_candidate
-pub use antecedent_stats::matching::EXACT_MATCHING_ROW_LIMIT = antecedent_stats::EXACT_MATCHING_ROW_LIMIT
 pub use antecedent_stats::matching::MatchingDistance = antecedent_stats::MatchingDistance
 pub use antecedent_stats::matching::MatchingIndex = antecedent_stats::MatchingIndex
 pub use antecedent_stats::matching_boxtree::BoxTreeIndex = antecedent_stats::BoxTreeIndex

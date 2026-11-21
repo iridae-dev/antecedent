@@ -131,8 +131,6 @@ fn temporal_mask_builders_keep_their_signatures() {
 
 #[test]
 fn matching_index_keeps_its_context_free_entry_points() {
-    let _ = antecedent_stats::EXACT_MATCHING_ROW_LIMIT;
-    let _ = antecedent_stats::matching::EXACT_MATCHING_ROW_LIMIT;
     let donors = [0.0, 1.0, 5.0];
     let index = MatchingIndex::exact(&donors, 1, &[10, 11, 12], MatchingDistance::Absolute)
         .expect("an index");
@@ -162,34 +160,7 @@ fn matching_index_keeps_its_context_free_entry_points() {
 }
 
 #[test]
-fn retired_ceilings_keep_their_released_values() {
-    assert_eq!(antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES, 6);
-    assert_eq!(
-        antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL,
-        "cpdag_scenarios.bounds_exceeded"
-    );
-    assert_eq!(antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS, 10_000);
-    assert_eq!(
-        antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS,
-        20_000
-    );
-    assert_eq!(antecedent::analysis::latent_class_effects::LATENT_CLASS_ARTIFACT_MAX_ROWS, 10_000);
-    assert_eq!(
-        antecedent::analysis::nonlinear_mediation::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS,
-        20_000
-    );
-}
-
-#[test]
-fn refusal_constructor_and_matrix_rows_keep_their_shape() {
-    let refusal = antecedent_identify::discovered_transport::refuse_pag_transport(Vec::new(), 0);
-    let antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(refusal) =
-        refusal
-    else {
-        panic!("the constructor builds a refusal");
-    };
-    assert_eq!(refusal.detail, "discovered_transport.pag_members_not_causal_graphs");
+fn matrix_rows_keep_their_shape() {
     let rows: &[antecedent_counterfactual::selective::MatrixRow; 11] =
         &antecedent_counterfactual::selective::matrix::ROWS;
     assert_eq!(rows.len(), 11);
