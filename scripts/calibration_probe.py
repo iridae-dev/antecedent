@@ -419,21 +419,40 @@ def dry_run_line(task: Task, total: int, threads: int) -> str:
             f"replicate(s), {threads} thread(s), frozen decision context")
 
 
-def parse_log(text: str) -> tuple[dict[tuple[str, int], dict[str, str]], str | None]:
-    """`(record id, grid point) -> prefix digests` from a probe log, and the
-    commit the gate stamped on it."""
-    seen: dict[tuple[str, int], dict[str, str]] = {}
+def probe_output(text: str, expected: list[dict]) -> tuple[dict, str | None, dict]:
+    """Read the observed prefixes and verify that they still measure the stored construction."""
+    from collect_coverage_records import study_record_lines
+
+    records = {record["id"]: record for record in expected}
+    seen, problems = {}, {}
     measured = None
     for line in text.splitlines():
         if line.startswith("calibration-measured-at "):
             measured = line.split()[1]
-        elif line.startswith("calibration-record "):
-            payload = json.loads(line.split(" ", 1)[1])
-            digests = payload.get("prefix_digests")
-            if isinstance(digests, dict) and "grid_point" in payload:
-                seen[(str(payload["id"]), int(payload["grid_point"]))] = {
-                    str(k): str(v) for k, v in digests.items()
-                }
+    for payload in study_record_lines(text):
+        if not isinstance(payload.get("prefix_digests"), dict) or "grid_point" not in payload:
+            continue
+        key = (str(payload["id"]), int(payload["grid_point"]))
+        seen[key] = {str(k): str(v) for k, v in payload["prefix_digests"].items()}
+        if key[0] not in records:
+            continue
+        record = records[key[0]]
+        axes = ("query", "graph_class", "structure", "modality", "inference", "estimator",
+                "interval_method", "se_kind", "dependence", "posterior", "functional",
+                "identification", "nominal", "test", "dgp")
+        changed = [axis for axis in axes if payload.get(axis) != record.get(axis)]
+        point = next((entry for entry in record["grid"] if entry["point"] == key[1]), {})
+        for field in ("interval_counts", "overlap_refusals"):
+            if (field in point) != (field in payload):
+                changed.append(field)
+        if changed:
+            problems[key] = f"grid point {key[1]}: measurement differs in {', '.join(changed)}"
+    return seen, measured, problems
+
+
+def parse_log(text: str) -> tuple[dict[tuple[str, int], dict[str, str]], str | None]:
+    """Read prefix digests and the measured source without an expected construction."""
+    seen, measured, _ = probe_output(text, [])
     return seen, measured
 
 
@@ -463,10 +482,11 @@ def run_tasks(tasks: list[Task], total: int, jobs: int, decision_json: str) -> d
     def done(run: RunTask, result: dict) -> None:
         task = by_key[run.key]
         log = PROBE_LOG_DIR / f"{task.stem}.log"
-        observed, measured = (
-            parse_log(log.read_text(encoding="utf-8", errors="ignore")) if log.is_file() else ({}, None)
+        observed, measured, issues = (
+            probe_output(log.read_text(encoding="utf-8", errors="ignore"), task.records)
+            if log.is_file() else ({}, None, {})
         )
-        results[task.stem] = {"status": result["status"], "observed": observed, "measured_at": measured}
+        results[task.stem] = {"status": result["status"], "observed": observed, "measured_at": measured, "construction_problems": issues}
         print(f"  {'ok' if result['status'] == 0 else 'FAILED'}: {task.group.label} [p{task.point}] k={task.k}",
               flush=True)
 
@@ -494,6 +514,7 @@ def judge(
             continue
         observed: dict[int, dict[str, str]] = {}
         failed = []
+        construction_problems = []
         for task in tasks:
             if not any(r is probe.record or r.get("id") == rid for r in task.records):
                 continue
@@ -501,6 +522,8 @@ def judge(
             if result is None or result["status"] != 0 or result["measured_at"] != sha:
                 failed.append(task.stem)
                 continue
+            if issue := result.get("construction_problems", {}).get((rid, task.point)):
+                construction_problems.append(issue)
             seen = result["observed"].get((rid, task.point))
             if seen is not None:
                 observed[task.point] = seen
@@ -511,7 +534,7 @@ def judge(
         if not fingerprint:
             verdicts[rid] = "unprobed: the record's test has no computable fingerprint"
             continue
-        problems = compare(probe.record, observed, probe.k)
+        problems = construction_problems + compare(probe.record, observed, probe.k)
         rows.append(
             {
                 "record_id": rid,
