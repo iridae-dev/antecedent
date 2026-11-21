@@ -179144,9 +179144,9 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/graph_narrow_policy_calibration.rs::binary_strata_known_assignment_wider_nuisance"
 test = "crates/antecedent/tests/graph_narrow_policy_calibration.rs::graph_narrow_held_out_policy_l95"
-calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
-fingerprint = "d9a22a77da27832fc6a07cfe14fc6ba559d4e830bf040817015ad4b2a0a89f1e"
-dependency_manifest = "810354a34615b016b18eec111c99b52882c9edfa52c5b494242a98abf0c01d31"
+calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "acd0778b4d825bccd82753e43022be5456b81e6f9c02dcc28248158e09a57c09"
+dependency_manifest = "6639a4367890fec7017d4920565bebe543e1c036057a4e2b859556eb3d092986"
 
 [[record]]
 id = "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable"
@@ -241662,9 +241662,9 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data"
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95"
-calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
-fingerprint = "07b7b848c1f3a9c1ca1a0680354e07b6ec0005692f2551c70ddb928ad725878e"
-dependency_manifest = "d5cfda91ad0b6c4729b9ad2202404563d3348c06539079bdf99565a509bc86f2"
+calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+dependency_manifest = "20c030fcb354f9aec780c129c3a4dbec572bbdb50134642c95627b2848bfbe1c"
 
 [[record]]
 id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
@@ -242281,9 +242281,9 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/joint_response_calibration.rs::randomized_selection_data"
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_randomized_selection_exact_ties_l95"
-calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
-fingerprint = "07b7b848c1f3a9c1ca1a0680354e07b6ec0005692f2551c70ddb928ad725878e"
-dependency_manifest = "51f45bf476c441ae94c365eee5a80fd77c6916d03663dc6e96e7cc3925d94c75"
+calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+dependency_manifest = "95691e28be58e58908e9a7f8680234615d8804db25d0a959c0c0d794d1cf4fb6"
 
 [[record]]
 id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable"
@@ -242561,9 +242561,9 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data"
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95"
-calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
-fingerprint = "07b7b848c1f3a9c1ca1a0680354e07b6ec0005692f2551c70ddb928ad725878e"
-dependency_manifest = "9be88e5c700501376658feb150ef55b08fddd6fe6c4ab91db985a1690ba88d29"
+calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+dependency_manifest = "63d6c77604c72b8cf48c060cc283447a53defb27c3e177cc2af09100da7056ec"
 
 [[record]]
 id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"

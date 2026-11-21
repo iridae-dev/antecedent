@@ -189211,7 +189211,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graph_narrow_policy_calibration.rs::binary_strata_known_assignment_wider_nuisance",
       "test": "crates/antecedent/tests/graph_narrow_policy_calibration.rs::graph_narrow_held_out_policy_l95",
-      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
+      "calibration_sha": "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
     },
     {
       "id": "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable",
@@ -257120,7 +257120,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95",
-      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
+      "calibration_sha": "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
     },
     {
       "id": "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable",
@@ -257769,7 +257769,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::randomized_selection_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_randomized_selection_exact_ties_l95",
-      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
+      "calibration_sha": "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
     },
     {
       "id": "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable",
@@ -258064,7 +258064,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95",
-      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
+      "calibration_sha": "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
     },
     {
       "id": "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable",
