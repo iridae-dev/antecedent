@@ -107,6 +107,21 @@ fn synthetic_control_diagnostics(fit: &BayesianSyntheticControlEstimate) -> Vec<
     diagnostics
 }
 
+/// Keep the total donor prior mass of the reference ten-donor design as the
+/// donor pool grows. A per-donor concentration of one increasingly concentrates
+/// the weighted donor level near the pool mean, even with the same pre-history.
+pub(super) fn single_unit_spec<'a>(
+    treated: &'a str,
+    intervention: i64,
+    units: &[String],
+) -> BayesianSyntheticControlSpec<'a> {
+    let donors: std::collections::BTreeSet<_> =
+        units.iter().map(String::as_str).filter(|unit| *unit != treated).collect();
+    let mut spec = BayesianSyntheticControlSpec::new(treated, intervention);
+    spec.dirichlet_concentration = 10.0 / donors.len().max(10) as f64;
+    spec
+}
+
 impl super::CheckedSyntheticControlOperation {
     /// Execute the retained design as a Bayesian posterior of the average post-intervention effect.
     pub(super) fn execute_bayesian(
@@ -124,10 +139,8 @@ impl super::CheckedSyntheticControlOperation {
         };
         refuse_unread_options(&self.query)?;
         let started = Instant::now();
-        let spec = BayesianSyntheticControlSpec::new(
-            &self.query.treated_unit,
-            self.query.intervention_period,
-        );
+        let spec =
+            single_unit_spec(&self.query.treated_unit, self.query.intervention_period, units);
         let fit = fit_bayesian_synthetic_control(
             y,
             units,

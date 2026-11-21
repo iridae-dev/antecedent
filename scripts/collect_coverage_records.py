@@ -449,32 +449,28 @@ def panel_counts_expected(record: dict) -> bool:
 
 
 def panel_prediction_problem(record: dict, point: dict) -> str | None:
-    """Replay the four held-out frequency predictions against their actual returned intervals."""
+    """Verify nominal coverage for the four prespecified short-history panel cells."""
     if record.get("query") != "SyntheticControl" or str(record.get("dgp", "")).rpartition("::")[-1] != "convex_donor_panel_iid_noise":
         return None
-    reference = {
-        ("synthetic_control/posterior_average+donors=40+post_periods=5", 30): (1821, 1994),
-        ("synthetic_control/posterior_average+donors=40+post_periods=5", 40): (1828, 1993),
-        ("synthetic_control/predictive_path_average+donors=40+post_periods=5", 30): (1807, 1993),
-        ("synthetic_control/predictive_path_average+donors=40+post_periods=5", 40): (1806, 1993),
-    }.get((record.get("functional"), point.get("n_min")))
-    if reference is None:
+    averages = {"synthetic_control/posterior_average+donors=40+post_periods=5",
+                "synthetic_control/predictive_path_average+donors=40+post_periods=5"}
+    if record.get("functional") not in averages or point.get("n_min") not in (30, 40):
         return None
-    if point.get("n_min") != point.get("n_max") or point.get("role") != "named_boundary" or point.get("boundary") is not True:
-        return "empirical panel prediction requires an exact measured boundary"
+    if point.get("n_min") != point.get("n_max") or point.get("role") != "gated" or point.get("boundary") is not False:
+        return "nominal panel coverage requires a gated observation at the exact measured design"
     counts = point.get("interval_counts")
     if not valid_interval_counts(counts, point) or counts["attempted"] != 2000:
-        return "empirical panel prediction requires 2000 independent attempts"
+        return "nominal panel coverage requires 2000 independent attempts"
     observed, n = counts["covered"], counts["returned"]
     attempted = counts["attempted"]
     if (attempted - n) / attempted > 0.01 + 2 * (0.01 * 0.99 / attempted) ** 0.5:
-        return "empirical panel exceeded the convergence refusal limit"
-    prediction = reference[0] / reference[1]
+        return "nominal panel exceeded the convergence refusal limit"
+    prediction = 0.95
     rate = observed / n
     lower = coverage_decision.binomial_p_value(n, n - observed, 1 - (prediction - 0.025), True)
     upper = coverage_decision.binomial_p_value(n, observed, prediction + 0.025, True)
     if (rate * (1 - rate) / n) ** 0.5 > 0.01 or max(lower, upper) > 0.05 / 4:
-        return "held-out frequency lacks the precision or agreement required by its panel prediction"
+        return "held-out frequency lacks the precision or agreement required for nominal panel coverage"
     return None
 
 

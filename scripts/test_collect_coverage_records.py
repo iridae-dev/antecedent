@@ -1181,17 +1181,17 @@ class FamilyDecisionRecordTest(unittest.TestCase):
 
         def point(covered, returned, attempted):
             return {
-                "role": "named_boundary", "boundary": True, "n_min": 30, "n_max": 30,
+                "role": "gated", "boundary": False, "n_min": 30, "n_max": 30,
                 "observed": covered / returned, "replicates": returned,
                 "interval_counts": {"attempted": attempted, "returned": returned, "covered": covered},
             }
 
-        self.assertIsNone(collector.panel_prediction_problem(record, point(1820, 1993, 2000)))
+        self.assertIsNone(collector.panel_prediction_problem(record, point(1895, 1993, 2000)))
         self.assertIsNotNone(collector.panel_prediction_problem(record, point(365, 400, 400)))
-        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1760, 1993, 2000)))
-        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1895, 1993, 2000)))
-        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1735, 1900, 2000)))
-        partial = point(1820, 1993, 2000)
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1820, 1993, 2000)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1978, 1993, 2000)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1805, 1900, 2000)))
+        partial = point(1895, 1993, 2000)
         partial["n_max"] = 40
         self.assertIsNotNone(collector.panel_prediction_problem(record, partial))
 

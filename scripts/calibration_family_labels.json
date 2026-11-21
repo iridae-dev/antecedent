@@ -1167,10 +1167,10 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration_design_counts.rs",
-      "sha256": "c944ad98cf4f827540e4f746000386549cd852d0ae4ad6d02375e67106dceb8e",
+      "sha256": "1353d5edcedfbd88950fcb0c3131430a03826e63802d8d635c4ea6e49ce5f0b5",
       "labelled_calls": [],
       "constructor_calls": [],
-      "review": "Reports auxiliary counts and tests four fixed empirical predictions at exact 40-donor panel designs on an independent stream. Their frozen frequencies and final look are chosen before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."
+      "review": "Reports auxiliary counts and tests nominal coverage at four exact 40-donor panel designs on an independent stream. Their final look, precision and simultaneous equivalence bounds are fixed before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."
     },
     {
       "path": "crates/antecedent/tests/common/grid_cell.rs",
@@ -1743,7 +1743,7 @@
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
-      "sha256": "59ccdd5a94c2f9371400bc4acc44dc954280a2b3100f34a38c56f76c8b8837ec",
+      "sha256": "519083746d93172b73f94d7d83ca516891ea181f1f047b25b8e2aaf714f20edb",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1757,17 +1757,17 @@
           "argument": "RecordKey { test, dgp: SC_DGP, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 991,
+          "line": 987,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 1499,
+          "line": 1495,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_type_mixture_population_law\", interval },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1711,
+          "line": 1707,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
         }

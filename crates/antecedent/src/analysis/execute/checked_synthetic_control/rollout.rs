@@ -426,9 +426,10 @@ impl super::CheckedSyntheticControlOperation {
         use antecedent_estimate::rollout_resampling::DesignEffectKind;
         let started = Instant::now();
         let units: Vec<String> = self.query.units.iter().map(ToString::to_string).collect();
-        let spec = BayesianSyntheticControlSpec::new(
+        let spec = super::bayesian::single_unit_spec(
             &self.query.treated_unit,
             self.query.intervention_period,
+            &units,
         );
         let fit = fit_bayesian_synthetic_control(
             y,
@@ -511,7 +512,10 @@ impl super::CheckedSyntheticControlOperation {
                     fit.n_post_periods, fit.max_split_rhat, fit.min_bulk_ess
                 ),
             )],
-            notes: vec![format!("pre_fit_rmse={:.6}", fit.pre_fit_rmse)],
+            notes: vec![format!(
+                "pre_fit_rmse={:.6} dirichlet_concentration={}",
+                fit.pre_fit_rmse, spec.dirichlet_concentration
+            )],
             sampler: Some(SamplerRecord {
                 chains: 4,
                 max_split_rhat: fit.max_split_rhat,

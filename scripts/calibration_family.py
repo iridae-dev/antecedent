@@ -199,7 +199,7 @@ SOURCE_REVIEW = {
 }
 PATH_REVIEW = {
     "crates/antecedent-io-core/src/calibration.rs": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer.",
-    "crates/antecedent/tests/common/calibration_design_counts.rs": "Reports auxiliary counts and tests four fixed empirical predictions at exact 40-donor panel designs on an independent stream. Their frozen frequencies and final look are chosen before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record.",
+    "crates/antecedent/tests/common/calibration_design_counts.rs": "Reports auxiliary counts and tests nominal coverage at four exact 40-donor panel designs on an independent stream. Their final look, precision and simultaneous equivalence bounds are fixed before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record.",
     "crates/antecedent/tests/common/calibration.rs": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources.",
     "crates/antecedent-estimate/src/bayesian/tests.rs": "Four fixed conjugate temporal coverage designs with literal tally names at the source-fixed 90% level; the equal-tailed interval rule is fixed before simulation.",
     "crates/antecedent-estimate/src/dml.rs": "Four fixed learner methods with literal tally names at the fixture's declared nominal level; one source-fixed DGP and truth.",

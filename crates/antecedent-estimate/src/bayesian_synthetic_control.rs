@@ -287,12 +287,27 @@ fn transfer_step(
     let donors = state.weights.len();
     let i = below(rng, donors);
     let j = (i + 1 + below(rng, donors - 1)) % donors;
-    let scale = (panel.step_units[i * donors + j] * STEP_SCALES[below(rng, STEP_SCALES.len())])
-        .min(MAX_TRANSFER);
-    let delta = scale * standard_normal(rng);
-    let (wi, wj) = (state.weights[i] + delta, state.weights[j] - delta);
+    let alpha = spec.dirichlet_concentration;
+    // Conditional on the pair mass, its prior split is Beta(alpha, alpha).
+    // An independence proposal from that law cancels the prior in the MH
+    // ratio and can move appreciable mass to donors near the simplex boundary.
+    let (wi, wj, delta, log_prior_ratio) = if alpha < 1.0 && rng.next_f64() < 0.5 {
+        let a = sample_gamma(alpha, 1.0, rng);
+        let b = sample_gamma(alpha, 1.0, rng);
+        let mass = state.weights[i] + state.weights[j];
+        let wi = mass * (a / (a + b));
+        (wi, mass * (b / (a + b)), wi - state.weights[i], 0.0)
+    } else {
+        let scale = (panel.step_units[i * donors + j] * STEP_SCALES[below(rng, STEP_SCALES.len())])
+            .min(MAX_TRANSFER);
+        let delta = scale * standard_normal(rng);
+        let (wi, wj) = (state.weights[i] + delta, state.weights[j] - delta);
+        let ratio =
+            (alpha - 1.0) * (wi.ln() + wj.ln() - state.weights[i].ln() - state.weights[j].ln());
+        (wi, wj, delta, ratio)
+    };
     let uniform = rng.next_f64();
-    if wi <= 0.0 || wj <= 0.0 {
+    if !(wi.is_finite() && wi > 0.0 && wj.is_finite() && wj > 0.0) {
         return false;
     }
     let proposed: Vec<f64> = state
@@ -303,9 +318,7 @@ fn transfer_step(
         .map(|((r, xi), xj)| r - delta * (xi - xj))
         .collect();
     let ss = whitened_ss(&proposed, spec.ar1_rho);
-    let prior = (spec.dirichlet_concentration - 1.0)
-        * (wi.ln() + wj.ln() - state.weights[i].ln() - state.weights[j].ln());
-    let log_ratio = -(ss - state.ss) / (2.0 * state.sigma2) + prior;
+    let log_ratio = -(ss - state.ss) / (2.0 * state.sigma2) + log_prior_ratio;
     if uniform.ln() < log_ratio {
         state.weights[i] = wi;
         state.weights[j] = wj;

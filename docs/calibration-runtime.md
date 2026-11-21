@@ -172,3 +172,7 @@ The independent validation at `7fd32b4b69` used 40 donors, five post-treatment p
 | Predictive path average | 40 | 1806/1993 (90.62%) | 1840/1999 (92.05%) | 1 | Failed |
 
 All four observed frequencies fell within 2.5 percentage points of their predictions. At 30 periods the posterior interval's lower equivalence test gave (p = 0.06733). At 40 periods the predictive interval's upper equivalence test gave (p = 0.03445). Both exceed the registered cutoff of 0.0125. Each three-point study therefore still owes its calibration record.
+
+The interval correction for single-unit Bayesian panels caps total Dirichlet prior concentration at ten, the concentration of the original ten-donor design. With forty donors the old prior contributed four times that concentration and pulled the synthetic outcome toward the donor pool average. The revised prior gives each donor concentration 0.25. The data still determine the fit through the pre-treatment likelihood. Both average-effect routes use the same prior and report it with their draws.
+
+The corrected constructions require fresh nominal coverage on an independent stream. At thirty and forty pre-periods, both forty-donor averages also require 2,000 attempts, the existing refusal limit, and simultaneous equivalence to 95% within 2.5 percentage points. The previous measurements above describe the original intervals.

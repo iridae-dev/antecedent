@@ -311,10 +311,10 @@ struct Published {
 enum Assertion {
     /// The two-sided band: the construction's size is exactly nominal.
     TwoSided,
+    /// A nominal interval checked at the prespecified 2,000-attempt final look.
+    NominalFinalLook,
     /// A floor with no ceiling: the construction is conservative at this design.
     Conservative(&'static str),
-    /// A frozen prediction of the frequency among returned intervals.
-    Empirical { covered: u32, returned: u32 },
 }
 
 /// Score every replicate's interval against `truth` under its own construction; a refusal or
@@ -338,9 +338,7 @@ fn measure_sc(
     }
     match assertion {
         Assertion::TwoSided => tally.assert_panel_interval(),
-        Assertion::Empirical { covered, returned } => {
-            tally.assert_panel_reference(covered, returned)
-        }
+        Assertion::NominalFinalLook => tally.assert_panel_nominal_at_final_look(),
         Assertion::Conservative(target) => tally.assert_one_sided(CoverageSide::Upper, target),
     }
 }
@@ -447,23 +445,21 @@ fn measure_bayesian(
     scored: Bayesian,
     seed_base: u64,
 ) {
-    // Fixed before the independent run. These four exact panel designs failed
-    // nominal coverage on the primary stream. They now test the empirical
-    // prediction reported to users for their construction and history.
-    let assertion = match (panel.donors, panel.post, pre, scored) {
-        (40, 5, 30, Bayesian::Posterior) => Assertion::Empirical { covered: 1821, returned: 1994 },
-        (40, 5, 40, Bayesian::Posterior) => Assertion::Empirical { covered: 1828, returned: 1993 },
-        (40, 5, 30, Bayesian::Average) => Assertion::Empirical { covered: 1807, returned: 1993 },
-        (40, 5, 40, Bayesian::Average) => Assertion::Empirical { covered: 1806, returned: 1993 },
-        _ => Assertion::TwoSided,
+    let assertion = if panel.donors == 40
+        && panel.post == 5
+        && matches!(pre, 30 | 40)
+        && matches!(scored, Bayesian::Posterior | Bayesian::Average)
+    {
+        Assertion::NominalFinalLook
+    } else {
+        Assertion::TwoSided
     };
     measure_sc(test, POSTERIOR_QUANTILE, scored.truth(panel), assertion, |rep| {
-        let stream = if matches!(assertion, Assertion::Empirical { .. }) {
-            0x5343_484F_4C44_0000
-        } else if matches!(scored, Bayesian::Average) {
-            0x5041_5448_0000_0000
-        } else {
-            0
+        // Reserve a fresh stream for the two revised forty-donor constructions.
+        let stream = match (panel.donors, scored) {
+            (40, Bayesian::Posterior | Bayesian::Average) => 0x5343_5052_494F_5200,
+            (_, Bayesian::Average) => 0x5041_5448_0000_0000,
+            _ => 0,
         };
         bayesian_replicate(panel, pre, scored, grid_seed((seed_base + rep) ^ stream))
     });

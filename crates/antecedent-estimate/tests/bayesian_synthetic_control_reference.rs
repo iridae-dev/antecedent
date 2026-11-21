@@ -90,4 +90,32 @@ fn weights_effect_and_pre_fit_match_the_simplex_quadrature() {
         let rmse = case["pre_fit_rmse"].as_f64().unwrap();
         assert!((fit.pre_fit_rmse - rmse).abs() < 2e-3 + 0.02 * rmse, "alpha {alpha}: rmse");
     }
+
+    // Identical pre-treatment donors make the likelihood independent of their
+    // weights. Their exact posterior marginals are the original Beta(alpha, 2 alpha),
+    // including the singular boundary density used by the forty-donor default.
+    let mut identical_pre = y;
+    for row in identical_pre.chunks_exact_mut(4).take(8) {
+        row[1] = row[0];
+        row[2] = row[0];
+    }
+    let alpha = 0.25;
+    let spec = BayesianSyntheticControlSpec {
+        dirichlet_concentration: alpha,
+        ..BayesianSyntheticControlSpec::new("t", 9)
+    };
+    let fit = fit_bayesian_synthetic_control(
+        &identical_pre,
+        &units,
+        &periods,
+        &spec,
+        DrawSpec::new(40_000, 71),
+    )
+    .unwrap();
+    let mean = 1.0 / 3.0;
+    let sd = (mean * (1.0 - mean) / (3.0 * alpha + 1.0)).sqrt();
+    for ((_, weight), weight_sd) in fit.donor_weight_means.iter().zip(&fit.donor_weight_sds) {
+        assert!((weight - mean).abs() < 6.0 * sd / fit.min_bulk_ess.sqrt() + 1e-3);
+        assert!((weight_sd / sd - 1.0).abs() < 0.05);
+    }
 }
