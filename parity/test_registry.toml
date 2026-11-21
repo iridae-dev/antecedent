@@ -23492,6 +23492,13 @@ path = "scripts/test_evidence_feature_resolution.py"
 gates = ["inventory"]
 
 [[test]]
+id = "scripts-test-release-citation-passes"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_release_citation_passes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "scripts-test-nix-artifact-identity"
 crate = "scripts"
 cargo_target = "script"
