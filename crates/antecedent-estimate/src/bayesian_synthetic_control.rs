@@ -285,9 +285,25 @@ fn transfer_step(
     rng: &mut CausalRng,
 ) -> bool {
     let donors = state.weights.len();
-    let i = below(rng, donors);
-    let j = (i + 1 + below(rng, donors - 1)) % donors;
     let alpha = spec.dirichlet_concentration;
+    // For sparse priors, select an unordered pair with probability proportional
+    // to its combined weight. A transfer preserves that weight, hence the pair
+    // selection probability cancels in the Metropolis ratio.
+    let i = if alpha < 0.5 {
+        let mut remaining = rng.next_f64();
+        state
+            .weights
+            .iter()
+            .position(|weight| {
+                remaining -= weight;
+                remaining <= 0.0
+            })
+            .unwrap_or(donors - 1)
+    } else {
+        below(rng, donors)
+    };
+    let j = (i + 1 + below(rng, donors - 1)) % donors;
+    let (i, j) = if alpha < 0.5 && i > j { (j, i) } else { (i, j) };
     // Conditional on the pair mass, its prior split is Beta(alpha, alpha).
     // An independence proposal from that law cancels the prior in the MH
     // ratio and can move appreciable mass to donors near the simplex boundary.
@@ -389,8 +405,9 @@ fn run_chain(
         proposals: 0,
     };
     let conditional_pair = donors > 10 && conditional::uniform_independent(spec);
+    let transfers = if spec.dirichlet_concentration < 0.5 { 8 } else { 2 } * donors;
     for sweep in 0..spec.burn_in + kept * THIN {
-        for step in 0..2 * donors {
+        for step in 0..transfers {
             if conditional_pair && step % 2 == 0 {
                 conditional::update(&mut state, panel, &mut rng);
                 continue;
