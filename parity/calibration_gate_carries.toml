@@ -136,99 +136,6 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "sc
 "antecedent-stats: weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate" = "5bfa587ac4abd781d9bff487b2fb3885490731079b78ed8c15e21901ce93c18f"
 "antecedent-stats: weighted_parcorr_calibration_gate" = "3f4fe2fd82186343faa9c85ff49de01ff63bb9627b43cfac17fbf944baa0f4d7"
 "antecedent-stats: weighted_parcorr_conditional_null_gate" = "9bcb7bcaa59dd2a08b3013af36a65e6eacacf0e3dfca7f66890e3e79c7020550"
-"effect_constancy_calibration: known_gaussian_null_power_and_holm" = "240f409ed4d06a7a6f0cc548989984644148edc0cb43046602a26ed64f4862ff"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/response/conditional_ipcw/expected.json", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"adaptive_inference_calibration: anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95" = "f9def46e792c2f879d1dea21094236bd0e592056c66f3e4db623ea2958120d80"
-"adaptive_inference_calibration: group_sequential_overall_type_one_error_is_alpha" = "de405e605e331030d21a4da0cf33d4141bdee20997022b20a45d19f56eaa9bd7"
-"adaptive_inference_calibration: group_sequential_power_matches_the_numerical_integration" = "6e2a555f3633cc69361b3dbf092d1f224592be81552a7149ce7f644842a504c6"
-"bootstrap_effect_precision: latent_class_whole_method_bootstrap_se" = "3fafbca22fad4f2a104d6320dce726b54f335e0b4d82bae4c188a8109baa1f7b"
-"choice_inference_calibration: conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten" = "f4a33638d5e0f285e5035ad38a0ee47decef6c6f2e283c14ad94cf96ad788be5"
-"choice_inference_calibration: hierarchical_study_value_matches_importance_sampling" = "78393c3d7dbf0edf2c3d0921f75abc917524ca0f03f971f4a86f676a89133be7"
-"choice_inference_calibration: posterior_probability_best_is_calibrated" = "8484fbb4985775a5646e77d0a9d7417aa462bed646d49754a8243c7fc0ec4d54"
-"choice_inference_calibration: procedure_law_matches_simulation" = "8f5224d2699711adbd1773d7ef20fd9e1036f253d0fd31dbbb66c9cab1db3bd7"
-"choice_inference_calibration: sequential_selection_is_correct_at_least_at_the_threshold" = "b50824b65e0ca376f9cf7fa7a5b6aae7dc369e97e8d27f5d90a84cedc99b9ceb"
-"choice_inference_calibration: study_value_matches_realized_gain" = "89fa5f491983cfad383f6a3964242fb118d84f8750b8a1588dbf06d8ec5ea558"
-"evsi_precision_calibration: evsi_fixed_rank_selection_and_tie_precision" = "b35971b913c7f03a213f243ffb976a2ab641da62d99c722b00d073e4a9d07819"
-"evsi_precision_calibration: paired_crn_adaptive_rank_selection_precision" = "83091cb89e65a4a86df08bc7bea2b4b31ae91bc132e40b302de15c65ec864fb9"
-"mechanism_discrepancy_calibration: independent_mechanism_full_coefficient_diagnostic" = "cff691c1e83f56a3402bdd1608bd0a1fbfc5e78f1db42064b665fced4bdf4165"
-"mechanism_discrepancy_calibration: independent_mechanism_slope_mdd_diagnostic" = "556f0dddaa2b4dd5a3b43c166881300acd4c2d85d07b2c0b4444ea5511c05db7"
-"observational_effects_calibration: rmst_difference_covariate_censoring_n1000_l95" = "18c9fcc7801e3f0982038396719650d9b1493c7db14c412c095283b2dfe65dff"
-"observational_effects_calibration: rmst_difference_covariate_censoring_n3000_l95" = "4534f45f313a179f826ef224cc309e3074940ea29699ddeb49b3ca367b46b9d0"
-"observational_effects_calibration: survival_difference_covariate_censoring_n1000_l95" = "dd7a9436ef1a7bb75f75921d7e0dc5f12d4ba71face2b7468f65c3a98845a698"
-"observational_effects_calibration: survival_difference_covariate_censoring_n3000_l95" = "ca07ad6c84c84b2659cc22493289ba2ab7c7cf71e9bddbb9e63487871e92d55a"
-"observational_effects_calibration: survival_difference_independent_censoring_n1000_l95" = "5022d114efc90e31fa9ed204630de71be9d69f68fc0ce9204fd1b5507fcbfe36"
-"observational_effects_calibration: survival_difference_independent_censoring_n3000_l95" = "fe3da40e98bbf0263a0e8513db4ea781f89c90df28d63461a6347565f01fdc03"
-"scenario_covariance_calibration: shared_row_mean_covariance_precision" = "49145f94ce175d24f69627732e5cbe0bd24b5d0ef921cf8cbdc3d4f5c6a77246"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The policy harness constructs ObservationalPolicyValue with policy_features=None. The new feature-subset regression is skipped and action selection uses the original arm predictions. The new cache-key field distinguishes configurations without changing the fit or folds. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"observational_effects_calibration: policy_cross_fitted_learning_n3000_l95" = "1b4f6f7b367f464dc23b46289d70ba9129c7b51017000b1f4a3b106e2e9b1cb4"
-"observational_effects_calibration: policy_held_out_n1000_l95" = "aad9d452bc1403724d5793a6ca854b9dd167c23bbdaf43642dab0c20bbc34f4e"
-"observational_effects_calibration: policy_held_out_n3000_l95" = "9594c068345960da2b4576b79d712306dc0e5ec37aeea0d1651aefee95306fd5"
-"observational_effects_calibration: policy_prespecified_n1000_l95" = "4c02c3a1b068793eecb705ec64d4288cb901f49571a61654e601a6f52ba6ccb4"
-"observational_effects_calibration: policy_prespecified_n3000_l95" = "9ca9f511d106b15f707b21f4ade02eb91d9e50e2430aaf7eb17718c7965aacf2"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"adjusted_recalc_precision: adjusted_ols_retained_covariance_precision" = "efdeea5b6df9edd1894506a9bd988bc19bb4c2a98d8937f4220db7c1b720bd37"
-"learner_ate_known_truth: coverage" = "0705c57bc44c8e75cf145a0dfa43fcafbfdf7c071f253e0f28f51604bf0a1b03"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The design module adds lookup of a selected-program value interval. This gate still scores the original winner selection, held-out value and bias bound. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased" = "cecf8c085fc52749f8f74a3a78e6fb11d151108d97e3a6dd34aa850766d1f4d7"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "inference_metrics::assess gains a Clippy annotation. The full-fit errors, metrics, seeds and decision limits are unchanged for these vector and categorical treatment designs. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"treatment_inference_calibration: categorical_full_fit_heteroskedastic" = "4aa6ebdf0997880e57544742faf9d1717ce4b1763176513a1a53bc67746f59d1"
-"treatment_inference_calibration: categorical_full_fit_homoskedastic" = "627a38c5fe83ee4f8e19f91c9481a899be258b7a8d1dd13f659d639b7515497d"
-"treatment_inference_calibration: categorical_monotonicity_heteroskedastic" = "ee0bd973b7148f28111720d7881d657bb43194ab947831a2654f9a2db38968e8"
-"treatment_inference_calibration: categorical_monotonicity_homoskedastic" = "2ab758df17c19817308721888c71e5a0579ad92c721c79a12317aa231d5ff2ae"
-"treatment_inference_calibration: vector_full_fit_heteroskedastic" = "a6e9d0eb9484fdddbc84f5eea9d9e2c29f0e39c75b797aa20d90d66ddf6668c3"
-"treatment_inference_calibration: vector_full_fit_homoskedastic" = "6620cf73d5035e4937601d859a92de8efa61a4e70e741a7faacc8c7e4fd75215"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The shared calibration harness module became crate-visible. The unsharded estimator-level IV and RD trials retain the same estimators, seed sequence and coverage rules. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-estimate: iv_2sls_hc1_heteroskedastic_ci_coverage" = "d0a20718609113d7bf5ed3cb80289e434263532e73ee934813cccb119fe08401"
-"antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe" = "e0398292183f304a0a6e42d21f98e6945a01168e2771b0796230b4f4e1919e6c"
-"antecedent-estimate: wald_iv_hc1_ci_coverage" = "ddaa251b66a311ee2ad19137120366ab34ff95ab6e433efe727b63b7a0c875ea"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "These Gaussian fits leave target_moments unset and use no count prior. The new target-mean uncertainty function returns before drawing; the count-prior guard accepts the existing priors. Harness consolidation and removal of identity u64 conversions preserve the replicate seeds. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-estimate: bayesian_panel_hierarchical_nominal_90_coverage" = "1726ce30601e143043063df171145db936f351722f858cb2a67ee8bed41ce914"
-"antecedent-estimate: bayesian_pulse_conjugate_nominal_90_coverage" = "5546344fd1c3c456fc2f127272c1c273f57217624ebc281c7502ac3b017ddcd4"
-"antecedent-estimate: bayesian_sustained_multi_step_conjugate_nominal_90_coverage" = "6763f05228fba85b007a26f51118b19913e4793d56e16c022feabf4d097c55c4"
-"antecedent-estimate: bayesian_sustained_single_step_conjugate_nominal_90_coverage" = "c2acb07c09e00875bd8b01eb09add4f608058b5d81ab405a40d49d618a8d4907"
-"antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform" = "a209f75d72c88cd0844d174ac78ab749c43110ef8d49d18a01dee2fec6fdb920"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The block-length sensitivity test and all recorded Rust sources are unchanged. Added unrelated Cargo test targets, documentation, the host schema and oracle fixtures do not supply its series or block choices. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" = "c1da2c975935d05b74b1b5b232ae3c27df0d1e090d129349cf657adcbba153d3"
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
@@ -238,7 +145,6 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "sc
 "antecedent-discovery: pc_null_fpr_near_alpha" = "4c459406224818d5a0a79ee6892acbc89bacb23a84ddd57088c71fda8da0acde"
 "antecedent-discovery: pcmci_null_fpr_near_alpha" = "c83408ab707c432d31a3ac88efbce77b2c985785990488d42a38264543dd5e7e"
 "antecedent-discovery: pcmci_planted_lag1_power" = "8440dad2e9a3255ec9bcf446175f5cf54328f4930d5f2357c2796fbbe90beb35"
-"sample_split_effect_calibration: sample_split_cancelling_edge_boundary_95" = "4d2985a28ba1e6e8de04ac67a5bcdea294e5375e2bfbe8a84edd73e658ef177a"
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
@@ -253,54 +159,12 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "sc
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/response/trial_transport/expected.json", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"learned_continuous_calibration: learned_trial_aipw_weak_overlap_boundary" = "0713ffce0fc04aa02b97c5ed01e3efad680c2ecac8a7eb2fc61a2a96fb60f5a5"
-"smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The facade Cargo manifest added other integration test targets. The manifest as read for this test binary, its features, and all executed source files are unchanged. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target" = "80bb6640b735972cb3572b1af23b55bb24bfec1d9d218d33b64f82d5a6d4f8d0"
-"refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target" = "905860ace0150fe581233addf08f6fb096e08c17644cfb7cd760392e1e902a57"
-"refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect" = "5993567fc674e16669855442d2a2c0ba15d529e6ec675e207db3e7e088f680cb"
-"refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target" = "087c3a68094e694459969c0a47e4fed8842e9ae3bd2fbdf2d456a1c3b81a7d11"
-"refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target" = "94798970fa1c8234e6c1f1387d3cf1fa2fe76c5c01d120fa1e756e76fd451cee"
-"refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect" = "f0e1df7f16a182e487e7a19ab242f954fee53c82766f5375b7abe0c3c079bda1"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
 basis = "The primary run supplied complete passing grid receipts. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
 inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps" = "2bd27fac79a85cf478d2d6a692395fcb70b7100df9a9b6321882e59fa4e37a21"
 "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors" = "5f98e047190a56645329b87f0de9bb0250b8fe6b0ef3aac0ff362adda9e38a0c"
 "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors" = "c4f444f90a51124a2a75a6d160699973a57ba3f4543dc10faebe82967c59722d"
-"conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage" = "f391072e27cbd571d69031b66aec03d4e44d75c05f953351019ae2e180d754da"
-"conjugate_prior_calibration: beta_binomial_posterior_covers_under_the_stated_prior" = "b8d771db1bcfe869b664a76525ca553f1d57fd49392fad6ccfeebb3bfc4d40a6"
-"conjugate_prior_calibration: gamma_poisson_misspecified_prior_matches_its_exact_coverage" = "2fb86432187c84c87b7459d5c37d1d54c3e5878da493e7b36faeee1b3baae434"
-"conjugate_prior_calibration: gamma_poisson_posterior_covers_under_the_stated_prior" = "702772ccb1243067fdcba31113dd55eeb117adcb106a0ed98ebc2638ee4f9750"
-"conjugate_prior_calibration: selected_alpha_beta_binomial_covers_across_discrepancy" = "c6731c57520319792565d964b0e393a82086096fc5e6585837589e78d3220c9a"
-"conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound" = "681af19ed8381351f8b1488bf9096d24e70fcf3fd4826f6c2ef3dd76dcd64ce6"
-"conjugate_prior_calibration: selected_alpha_uniform_interval_covers_at_every_discrepancy" = "0f56ca4e22e0e619935b40bb50e2c462cb676a67484f8e923d9b1d82969c81aa"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/response/conditional_ipcw/expected.json", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se" = "beef22c78f158e840f1d51a4976b72d66942372779d1ef097f6ff58ffc298fb3"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["conformance/response/trial_transport/expected.json", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases" = "2eb3398386433d96bfc16d1d5238189094af734bf2572d348ee533dd206e11ab"
-"smoothed_dose_calibration: smoothed_dose_transport_grid_points" = "319ffdf6f7778579e07e344c6610f96a54aacfe8c9aaf2109bd317b28a62da13"
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
@@ -336,20 +200,88 @@ inputs = ["crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.
 "antecedent-stats: knn_perm_pvalue_uniformity_gate" = "765f465d9d629c417d2189570e6e0111a646bc12f3655566bd71d8e49c40ab10"
 "antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate" = "523846bb53ea3be06b60a1fb232263b107f6b4eb6a6a8c318b1302cc093531f7"
 "antecedent-stats: scalable_gpdc_replacement_validated_separately" = "0bb0db24e6367db16a25b6f53fed620e714c1e8734f3802e053ff4aba5a2b497"
-"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
-"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
+
 
 [[review]]
-reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
-basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
 
 [[review]]
-reviewed_at = "fbeb101345fca9a8758393cddbb64f5c91218842"
-basis = "Replayed every grid decision against the stored receipt. Only the method provenance table changed. Two record digests and the synthetic-control coverage description changed inside that table. Its entries supply citations and descriptions and do not govern the interval, target, acceptance rule or simulated data."
-inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/src/analysis/contract/calibration.rs", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"adjusted_recalc_precision: adjusted_ols_retained_covariance_precision" = "efdeea5b6df9edd1894506a9bd988bc19bb4c2a98d8937f4220db7c1b720bd37"
+"learner_ate_known_truth: coverage" = "0705c57bc44c8e75cf145a0dfa43fcafbfdf7c071f253e0f28f51604bf0a1b03"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-estimate: bayesian_panel_hierarchical_nominal_90_coverage" = "1726ce30601e143043063df171145db936f351722f858cb2a67ee8bed41ce914"
+"antecedent-estimate: bayesian_pulse_conjugate_nominal_90_coverage" = "5546344fd1c3c456fc2f127272c1c273f57217624ebc281c7502ac3b017ddcd4"
+"antecedent-estimate: bayesian_sustained_multi_step_conjugate_nominal_90_coverage" = "6763f05228fba85b007a26f51118b19913e4793d56e16c022feabf4d097c55c4"
+"antecedent-estimate: bayesian_sustained_single_step_conjugate_nominal_90_coverage" = "c2acb07c09e00875bd8b01eb09add4f608058b5d81ab405a40d49d618a8d4907"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform" = "a209f75d72c88cd0844d174ac78ab749c43110ef8d49d18a01dee2fec6fdb920"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"adaptive_inference_calibration: anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95" = "f9def46e792c2f879d1dea21094236bd0e592056c66f3e4db623ea2958120d80"
+"adaptive_inference_calibration: group_sequential_overall_type_one_error_is_alpha" = "de405e605e331030d21a4da0cf33d4141bdee20997022b20a45d19f56eaa9bd7"
+"adaptive_inference_calibration: group_sequential_power_matches_the_numerical_integration" = "6e2a555f3633cc69361b3dbf092d1f224592be81552a7149ce7f644842a504c6"
+"bootstrap_effect_precision: latent_class_whole_method_bootstrap_se" = "3fafbca22fad4f2a104d6320dce726b54f335e0b4d82bae4c188a8109baa1f7b"
+"bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se" = "beef22c78f158e840f1d51a4976b72d66942372779d1ef097f6ff58ffc298fb3"
+"choice_inference_calibration: conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten" = "f4a33638d5e0f285e5035ad38a0ee47decef6c6f2e283c14ad94cf96ad788be5"
+"choice_inference_calibration: posterior_probability_best_is_calibrated" = "8484fbb4985775a5646e77d0a9d7417aa462bed646d49754a8243c7fc0ec4d54"
+"choice_inference_calibration: procedure_law_matches_simulation" = "8f5224d2699711adbd1773d7ef20fd9e1036f253d0fd31dbbb66c9cab1db3bd7"
+"choice_inference_calibration: sequential_selection_is_correct_at_least_at_the_threshold" = "b50824b65e0ca376f9cf7fa7a5b6aae7dc369e97e8d27f5d90a84cedc99b9ceb"
+"choice_inference_calibration: study_value_matches_realized_gain" = "89fa5f491983cfad383f6a3964242fb118d84f8750b8a1588dbf06d8ec5ea558"
+"mechanism_discrepancy_calibration: independent_mechanism_full_coefficient_diagnostic" = "cff691c1e83f56a3402bdd1608bd0a1fbfc5e78f1db42064b665fced4bdf4165"
+"mechanism_discrepancy_calibration: independent_mechanism_slope_mdd_diagnostic" = "556f0dddaa2b4dd5a3b43c166881300acd4c2d85d07b2c0b4444ea5511c05db7"
+"observational_effects_calibration: rmst_difference_covariate_censoring_n1000_l95" = "18c9fcc7801e3f0982038396719650d9b1493c7db14c412c095283b2dfe65dff"
+"observational_effects_calibration: rmst_difference_covariate_censoring_n3000_l95" = "4534f45f313a179f826ef224cc309e3074940ea29699ddeb49b3ca367b46b9d0"
+"observational_effects_calibration: survival_difference_covariate_censoring_n1000_l95" = "dd7a9436ef1a7bb75f75921d7e0dc5f12d4ba71face2b7468f65c3a98845a698"
+"observational_effects_calibration: survival_difference_covariate_censoring_n3000_l95" = "ca07ad6c84c84b2659cc22493289ba2ab7c7cf71e9bddbb9e63487871e92d55a"
+"observational_effects_calibration: survival_difference_independent_censoring_n1000_l95" = "5022d114efc90e31fa9ed204630de71be9d69f68fc0ce9204fd1b5507fcbfe36"
+"observational_effects_calibration: survival_difference_independent_censoring_n3000_l95" = "fe3da40e98bbf0263a0e8513db4ea781f89c90df28d63461a6347565f01fdc03"
+"scenario_covariance_calibration: shared_row_mean_covariance_precision" = "49145f94ce175d24f69627732e5cbe0bd24b5d0ef921cf8cbdc3d4f5c6a77246"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"choice_inference_calibration: hierarchical_study_value_matches_importance_sampling" = "78393c3d7dbf0edf2c3d0921f75abc917524ca0f03f971f4a86f676a89133be7"
+"evsi_precision_calibration: evsi_fixed_rank_selection_and_tie_precision" = "b35971b913c7f03a213f243ffb976a2ab641da62d99c722b00d073e4a9d07819"
+"evsi_precision_calibration: paired_crn_adaptive_rank_selection_precision" = "83091cb89e65a4a86df08bc7bea2b4b31ae91bc132e40b302de15c65ec864fb9"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["conformance/response/trial_transport/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases" = "2eb3398386433d96bfc16d1d5238189094af734bf2572d348ee533dd206e11ab"
+"learned_continuous_calibration: learned_trial_aipw_weak_overlap_boundary" = "0713ffce0fc04aa02b97c5ed01e3efad680c2ecac8a7eb2fc61a2a96fb60f5a5"
+"smoothed_dose_calibration: smoothed_dose_transport_grid_points" = "319ffdf6f7778579e07e344c6610f96a54aacfe8c9aaf2109bd317b28a62da13"
+"smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "71b6b5cff4a1e62899a725f46067a35b7cb12557babbb286def3d9897664c1ab"
 "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision" = "a8321587dc1296b6d74333afdc79341df596929a754153ccf5cedfd813104b26"
@@ -360,8 +292,6 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice" = "5fdf32bc44430319590d829f915c09c3ae940e68afbd272cbadb888151bc1ae8"
 "derivative_calibration: ade_skewed_heteroskedastic_treatment_probe" = "df8d2b399754cd904ef6697998aa04d0ee21c83dbd6cb6087c03f437f629f210"
 "design_ar_precision_calibration: checked_design_iv_ar_full_method_error_rate_and_weak_boundaries" = "087e6086831421773c6f6cd0ee2a5e21ab37cdb70df0b5525d6966b3b6cd219b"
-"evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "c74b9b5d52e317f83eaa57046078b56786679b9f6a62b201fdc75769c2409bf3"
-"evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision" = "ebb80bbae6c72d6279e69eab24b4ab0000fa001aacb4684ed3ed68622088daf5"
 "generic_aipw_precision: generic_aipw_five_fold_known_target_score_precision" = "6b12748f219b8bdba291aaa0c82a0f6f9dbac7084e3b4f324d7799616fe7fa01"
 "joint_panel_calibration: joint_panel_selection_false_change_frequentist" = "81217efab42de347f81d94328c69f33c9aab5465d9154088591b10b87d5dc57c"
 "mixture_interval_calibration: bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" = "a1baac77978d5bc191d78890f7310d8fca36c96f2a40baec23e4d8a9921c1e44"
@@ -370,10 +300,81 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "retained_score_precision: retained_cell_weighted_score_precision" = "81f6a520118abe8bd411dd898aa22aa1ed779ca73ed3dd8d708b63b0e46e5c16"
 "retained_score_precision: retained_dml_weighted_score_precision" = "33f66a77f9a54f7eaa87e366c9739ac07636f9e250f7cff1482fa08b049096c7"
 "retained_score_precision: retained_dr_weighted_score_precision" = "4cb6eeb20b9a4f52a2074c69beddc152dbd8a953c3c4337301a74ec08d4becb0"
-"sequential_policy_choice_calibration: sequential_known_law_action_choice" = "1ed1a8c283246217fe8cdb32296d6e8fadde8eeb95c5cebb5361dc8ce80b9bc4"
-"sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "db841b82e5b5e9c77790a9c7847a11428e758a935fc64e7b191b0b2ed11291ea"
 "static_calibration: mediation_confounded_mediator_probe" = "1e5a1478e20c7335d738622fdac3f99a14c575f95d5f2dbe7abf0d3297875cd3"
 "static_calibration: response_curve_dag_frequentist_weak_overlap_probe" = "8fcbe306ae4819b6f159eba8e524cd29892ee43ebde4d9cd81a1fe108c2e9276"
 "static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "babac7c06153172608ce7bf2e445059d305b3dd4ce6b737373db375f59336a94"
 "temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "e1c067bb4c07c2f0a8102feb71930fbeab90424aef28564880d10837fafb8297"
 "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "3ce31cd51ffe7d8c7be2b355b3697d075ff51c6a2cbe7f2594a92849cd452798"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
+"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-estimate: iv_2sls_hc1_heteroskedastic_ci_coverage" = "d0a20718609113d7bf5ed3cb80289e434263532e73ee934813cccb119fe08401"
+"antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe" = "e0398292183f304a0a6e42d21f98e6945a01168e2771b0796230b4f4e1919e6c"
+"antecedent-estimate: wald_iv_hc1_ci_coverage" = "ddaa251b66a311ee2ad19137120366ab34ff95ab6e433efe727b63b7a0c875ea"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" = "c1da2c975935d05b74b1b5b232ae3c27df0d1e090d129349cf657adcbba153d3"
+"conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage" = "f391072e27cbd571d69031b66aec03d4e44d75c05f953351019ae2e180d754da"
+"conjugate_prior_calibration: beta_binomial_posterior_covers_under_the_stated_prior" = "b8d771db1bcfe869b664a76525ca553f1d57fd49392fad6ccfeebb3bfc4d40a6"
+"conjugate_prior_calibration: gamma_poisson_misspecified_prior_matches_its_exact_coverage" = "2fb86432187c84c87b7459d5c37d1d54c3e5878da493e7b36faeee1b3baae434"
+"conjugate_prior_calibration: gamma_poisson_posterior_covers_under_the_stated_prior" = "702772ccb1243067fdcba31113dd55eeb117adcb106a0ed98ebc2638ee4f9750"
+"conjugate_prior_calibration: selected_alpha_beta_binomial_covers_across_discrepancy" = "c6731c57520319792565d964b0e393a82086096fc5e6585837589e78d3220c9a"
+"conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound" = "681af19ed8381351f8b1488bf9096d24e70fcf3fd4826f6c2ef3dd76dcd64ce6"
+"conjugate_prior_calibration: selected_alpha_uniform_interval_covers_at_every_discrepancy" = "0f56ca4e22e0e619935b40bb50e2c462cb676a67484f8e923d9b1d82969c81aa"
+"observational_effects_calibration: policy_cross_fitted_learning_n3000_l95" = "1b4f6f7b367f464dc23b46289d70ba9129c7b51017000b1f4a3b106e2e9b1cb4"
+"observational_effects_calibration: policy_held_out_n1000_l95" = "aad9d452bc1403724d5793a6ca854b9dd167c23bbdaf43642dab0c20bbc34f4e"
+"observational_effects_calibration: policy_held_out_n3000_l95" = "9594c068345960da2b4576b79d712306dc0e5ec37aeea0d1651aefee95306fd5"
+"observational_effects_calibration: policy_prespecified_n1000_l95" = "4c02c3a1b068793eecb705ec64d4288cb901f49571a61654e601a6f52ba6ccb4"
+"observational_effects_calibration: policy_prespecified_n3000_l95" = "9ca9f511d106b15f707b21f4ade02eb91d9e50e2430aaf7eb17718c7965aacf2"
+"treatment_inference_calibration: categorical_full_fit_heteroskedastic" = "4aa6ebdf0997880e57544742faf9d1717ce4b1763176513a1a53bc67746f59d1"
+"treatment_inference_calibration: categorical_full_fit_homoskedastic" = "627a38c5fe83ee4f8e19f91c9481a899be258b7a8d1dd13f659d639b7515497d"
+"treatment_inference_calibration: categorical_monotonicity_heteroskedastic" = "ee0bd973b7148f28111720d7881d657bb43194ab947831a2654f9a2db38968e8"
+"treatment_inference_calibration: categorical_monotonicity_homoskedastic" = "2ab758df17c19817308721888c71e5a0579ad92c721c79a12317aa231d5ff2ae"
+"treatment_inference_calibration: vector_full_fit_heteroskedastic" = "a6e9d0eb9484fdddbc84f5eea9d9e2c29f0e39c75b797aa20d90d66ddf6668c3"
+"treatment_inference_calibration: vector_full_fit_homoskedastic" = "6620cf73d5035e4937601d859a92de8efa61a4e70e741a7faacc8c7e4fd75215"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"effect_constancy_calibration: known_gaussian_null_power_and_holm" = "240f409ed4d06a7a6f0cc548989984644148edc0cb43046602a26ed64f4862ff"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "c74b9b5d52e317f83eaa57046078b56786679b9f6a62b201fdc75769c2409bf3"
+"evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision" = "ebb80bbae6c72d6279e69eab24b4ab0000fa001aacb4684ed3ed68622088daf5"
+"sequential_policy_choice_calibration: sequential_known_law_action_choice" = "1ed1a8c283246217fe8cdb32296d6e8fadde8eeb95c5cebb5361dc8ce80b9bc4"
+"sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "db841b82e5b5e9c77790a9c7847a11428e758a935fc64e7b191b0b2ed11291ea"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased" = "cecf8c085fc52749f8f74a3a78e6fb11d151108d97e3a6dd34aa850766d1f4d7"
+"refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target" = "80bb6640b735972cb3572b1af23b55bb24bfec1d9d218d33b64f82d5a6d4f8d0"
+"refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target" = "905860ace0150fe581233addf08f6fb096e08c17644cfb7cd760392e1e902a57"
+"refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect" = "5993567fc674e16669855442d2a2c0ba15d529e6ec675e207db3e7e088f680cb"
+"refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target" = "087c3a68094e694459969c0a47e4fed8842e9ae3bd2fbdf2d456a1c3b81a7d11"
+"refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target" = "94798970fa1c8234e6c1f1387d3cf1fa2fe76c5c01d120fa1e756e76fd451cee"
+"refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect" = "f0e1df7f16a182e487e7a19ab242f954fee53c82766f5375b7abe0c3c079bda1"
+"sample_split_effect_calibration: sample_split_cancelling_edge_boundary_95" = "4d2985a28ba1e6e8de04ac67a5bcdea294e5375e2bfbe8a84edd73e658ef177a"

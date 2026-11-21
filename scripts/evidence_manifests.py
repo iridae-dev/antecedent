@@ -551,8 +551,8 @@ class Checker:
         declarations of other test, bench or example targets, which the build of the
         record's executable does not read (`build_manifest_digest`).
 
-        As for Rust code, the bound bytes come from the commit the record's Nix build used
-        and must hash to the recorded digest; the record's own target comes from that
+        As for Rust code, the bound bytes are recovered from version control and
+        must hash to the recorded digest; the record's own target comes from that
         build's artifact. Anything else leaves the input changed."""
         build = manifest.get("nix_build") or {}
         commit = build.get("source", {}).get("commit")
@@ -574,8 +574,29 @@ class Checker:
             shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
             old_files[commit, key] = shown.stdout if shown.returncode == 0 else None
         data = old_files[commit, key]
-        if data is None or digest(data) != bound:
+        if data is None:
             return False
+        if digest(data) != bound:
+            # A reviewed carry may have rebound the raw file at a later commit.
+            # Recover the exact bytes named by the recorded SHA-256. Never
+            # substitute the current tree or an approximate historical match.
+            history = self.__dict__.setdefault("_cargo_history", {})
+            if key not in history:
+                versions = subprocess.run(["git", "log", "--format=%H", "HEAD", "--", key],
+                                          cwd=self.root, capture_output=True, text=True)
+                history[key] = iter(versions.stdout.splitlines() if versions.returncode == 0 else [])
+            recovered = self.__dict__.setdefault("_cargo_versions", {})
+            if (key, bound) not in recovered:
+                for revision in history[key]:
+                    shown = subprocess.run(["git", "show", f"{revision}:{key}"], cwd=self.root, capture_output=True)
+                    if shown.returncode == 0:
+                        identity = digest(shown.stdout)
+                        recovered[key, identity] = revision, shown.stdout
+                        if identity == bound:
+                            break
+            if (key, bound) not in recovered:
+                return False
+            commit, data = recovered[key, bound]
         cache = self.__dict__.setdefault("_bound_build_manifest", {})
         if (commit, key, target) not in cache:
             old_source = bool(source and subprocess.run(

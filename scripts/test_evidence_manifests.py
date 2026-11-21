@@ -359,6 +359,16 @@ class ManifestTests(unittest.TestCase):
             "crates/c/Cargo.toml", em.digest(b"other"), test))
         self.assertFalse(same({}))
 
+        # A reviewed carry can bind the exact bytes of a subsequent revision.
+        git("add", "crates/c/Cargo.toml")
+        git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "later target")
+        carried = em.digest(added.encode())
+        checker = em.Checker(self.root, {})
+        self.write("crates/c/Cargo.toml", added + '\n[[example]]\nname = "demo"\n')
+        self.assertTrue(checker.same_build_manifest_as_bound("crates/c/Cargo.toml", carried, test))
+        self.write("crates/c/Cargo.toml", added.replace('slow = []', 'slow = ["new"]'))
+        self.assertFalse(checker.same_build_manifest_as_bound("crates/c/Cargo.toml", carried, test))
+
     def test_effective_integration_target_survives_explicit_discovery(self):
         base = b'[package]\nname = "c"\n'
         explicit = base + b'autotests = false\n[[test]]\nname = "mine"\n'
