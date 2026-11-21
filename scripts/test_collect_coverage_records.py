@@ -1121,7 +1121,7 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         self.assertEqual(
             [p["decision_protocol"]["covered"] for p in record["grid"]], [1879, 1880, 1881]
         )
-        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
 
     def test_exact_panel_provenance_keeps_attempted_returned_and_covered(self):
         points = {i: self.point(i, 1880) for i in range(3)}
@@ -1134,7 +1134,10 @@ class FamilyDecisionRecordTest(unittest.TestCase):
             )
         record = collector.merge_grid("id", points)
         self.assertEqual(record["grid"][1]["interval_counts"], points[1]["interval_counts"])
-        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
+        missing_counts = dict(record["grid"][1])
+        del missing_counts["interval_counts"]
+        self.assertFalse(collector.grid_fields_valid(missing_counts, record))
         points[1]["interval_counts"]["covered"] += 1
         with self.assertRaisesRegex(SystemExit, "returned-interval counts"):
             collector.merge_grid("id", points)
@@ -1144,7 +1147,7 @@ class FamilyDecisionRecordTest(unittest.TestCase):
                   for k in range(3)}
         record = collector.merge_grid("id", points)
         self.assertEqual([p["overlap_refusals"] for p in record["grid"]], [100, 101, 102])
-        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
         points[0]["bound_replicates"] = 1999
         with self.assertRaisesRegex(SystemExit, "bound interval"):
             collector.merge_grid("id", points)

@@ -415,7 +415,18 @@ def valid_interval_counts(counts: object, point: dict) -> bool:
     )
 
 
-def grid_fields_valid(point: dict) -> bool:
+def panel_counts_expected(record: dict) -> bool:
+    functional = record.get("functional")
+    return (
+        record.get("query") == "SyntheticControl"
+        and isinstance(functional, str)
+        and functional.startswith("synthetic_control/")
+    )
+
+
+def grid_fields_valid(point: dict, record: dict) -> bool:
+    if panel_counts_expected(record) != ("interval_counts" in point):
+        return False
     if "interval_counts" in point and not valid_interval_counts(point["interval_counts"], point):
         return False
     if "overlap_refusals" in point and (type(point["overlap_refusals"]) is not int or point["overlap_refusals"] < 0):
@@ -541,8 +552,7 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
     for payload in ordered:
         validate_point_decision(payload, final=True)
     for payload in ordered:
-        panel = (payload.get("query") == "SyntheticControl"
-                 and payload.get("functional", "").startswith("synthetic_control/"))
+        panel = panel_counts_expected(payload)
         if panel != ("interval_counts" in payload) or (
             panel and not valid_interval_counts(payload["interval_counts"], payload)
         ):

@@ -756,7 +756,7 @@ def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
             f"{label}: grid must hold one measurement per sample-size grid point "
             f"({collector.GRID_POINTS}); re-measure with scripts/measure_calibration.sh",
         ]
-    if any(not collector.grid_fields_valid(p) for p in grid):
+    if any(not collector.grid_fields_valid(p, rec) for p in grid):
         return [
             *problems,
             f"{label}: grid points must carry exactly {', '.join(collector.GRID_ENTRY_FIELDS)}",
@@ -840,7 +840,7 @@ def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
             not isinstance(confirmation, list)
             or not confirmation
             or not all(isinstance(p, dict) for p in confirmation)
-            or any(not collector.grid_fields_valid(p) for p in confirmation)
+            or any(not collector.grid_fields_valid(p, rec) for p in confirmation)
         ):
             problems.append(
                 f"{label}: confirmation must list points carrying exactly "
