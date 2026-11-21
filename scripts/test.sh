@@ -216,8 +216,18 @@ python_engineering_tests() {
   python_tests "${python_engineering_args[@]}"
 }
 engineering_tests() {
-  uv run --frozen --script "$ROOT/scripts/run_script_tests.py"
-  rust_tests "${workspace[@]}"
+  if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+    # The script suite does not consume Rust artifacts. Start it alongside the
+    # workspace build and wait for both before starting another Cargo profile.
+    ANTECEDENT_SCRIPT_TEST_JOBS="${ANTECEDENT_SCRIPT_TEST_JOBS:-3}" uv run --frozen --script "$ROOT/scripts/run_script_tests.py" &
+    local script_pid=$! status=0
+    rust_tests "${workspace[@]}" || status=$?
+    wait "$script_pid" || status=$?
+    if [[ "$status" -ne 0 ]]; then return "$status"; fi
+  else
+    uv run --frozen --script "$ROOT/scripts/run_script_tests.py"
+    rust_tests "${workspace[@]}"
+  fi
   doctests "${workspace[@]}"
   rust_tests -p antecedent-learn --features ml-full,ml-neural
   doctests -p antecedent-learn --features ml-full,ml-neural

@@ -377,10 +377,23 @@ class ShapeTests(unittest.TestCase):
         out = io.StringIO()
         with (
             patch.object(status, "shape_problems", return_value=["coverage_records.toml x: bad"]),
+            patch.object(status, "current_owed", return_value=([], {}, {status.CURRENT: 0})),
             redirect_stdout(out),
         ):
             self.assertEqual(status.main(["--check"]), 1)
         self.assertIn("bad", out.getvalue())
+
+    def test_snapshot_receives_only_the_current_ids_from_the_same_check(self):
+        states = {"b": status.Status(status.CURRENT, "probe"), "a": status.Status(status.PROBE_OWED, "")}
+        with (
+            patch.object(status, "shape_problems", return_value=[]),
+            patch.object(status, "current_owed", return_value=([], states, {status.CURRENT: 1})) as currency,
+            patch("generate_support_matrix_docs.check", return_value=1) as documents,
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(status.main(["--check", "--check-support-docs"]), 1)
+        currency.assert_called_once()
+        documents.assert_called_once_with(attesting_ids=["b"])
 
     def test_informational_subcommands_exit_zero(self):
         for command in ("intervals", "backlog", "plan"):

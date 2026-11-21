@@ -144,7 +144,7 @@ def matches(rule: dict, cell: dict) -> bool:
     return True
 
 
-def main(release: bool = False) -> int:
+def main(release: bool = False, *, attesting_ids: list[str] | None = None) -> int:
     """Default (in-tree): `status` from evidence alone, so the scientific lane can run the routes
     it re-earns. `release`: `status` from ledger currency (owed -> not_supported), written to the
     two embedded snapshots only; the release packaging runs it before building the artifacts."""
@@ -426,7 +426,7 @@ that class came from that discovery strategy.
         )
         print(headline)
         return 0
-    write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot())
+    write_snapshot(COVERAGE_SNAPSHOT, coverage_snapshot(attesting_ids))
     write_text(REASON_CODES_OUT, render_reason_codes())
     write_release_notes_block(
         supported_cells,
@@ -713,7 +713,7 @@ def _interval_method_reasons(records: list[dict]) -> list[dict]:
     return reasons
 
 
-def coverage_snapshot() -> dict:
+def coverage_snapshot(attesting_ids: list[str] | None = None) -> dict:
     """In-crate snapshot consumed by `coverage_records_data`.
 
     `parity/coverage_records.toml` stays the registry. Floats are decimal
@@ -732,7 +732,7 @@ def coverage_snapshot() -> dict:
     return {
         "records": [_coverage_record(row) for row in records],
         "functional_identity_aliases": [{key: row[key] for key in alias_keys} for row in aliases],
-        "attesting_record_ids": attesting_record_ids(),
+        "attesting_record_ids": attesting_record_ids() if attesting_ids is None else attesting_ids,
         "interval_method_reasons": _interval_method_reasons(records),
     }
 
@@ -931,21 +931,30 @@ def _freeze_cli(version: str) -> int:
     return 0
 
 
+def check(*, attesting_ids: list[str] | None = None) -> int:
+    from _source_cache import verified_source_snapshot
+
+    global STALE_OUTPUTS
+    previous = STALE_OUTPUTS
+    STALE_OUTPUTS = []
+    try:
+        with verified_source_snapshot():
+            main(attesting_ids=attesting_ids)
+        if STALE_OUTPUTS:
+            print("stale (regenerate with generate_support_matrix_docs.py): " + ", ".join(STALE_OUTPUTS))
+            return 1
+        return 0
+    finally:
+        STALE_OUTPUTS = previous
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--freeze":
         sys.exit(_freeze_cli(sys.argv[2]))
     if sys.argv[1:] == ["--release"]:
         sys.exit(main(release=True))
     if sys.argv[1:] == ["--check"]:
-        STALE_OUTPUTS = []
-        main()
-        if STALE_OUTPUTS:
-            print(
-                "stale (regenerate with generate_support_matrix_docs.py): "
-                + ", ".join(STALE_OUTPUTS)
-            )
-            sys.exit(1)
-        sys.exit(0)
+        sys.exit(check())
     if len(sys.argv) > 1:
         print(
             "usage: generate_support_matrix_docs.py [--release | --check | --freeze X.Y.Z]",

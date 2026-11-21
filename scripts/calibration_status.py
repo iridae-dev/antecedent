@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import functools
 import json
 import re
 import sys
@@ -128,15 +129,17 @@ def tree_fingerprints(records: list[dict], root: Path = ROOT) -> dict[str, str |
     from evidence_manifests import Checker
 
     checker = Checker(root)
-    attestation_rows = [r for r in load_attestations(root / "parity/calibration_probe_attestations.toml")
-                        if r.get("dependency_manifest")]
+    attestations_by_id = collections.defaultdict(list)
+    for row in load_attestations(root / "parity/calibration_probe_attestations.toml"):
+        if row.get("dependency_manifest"):
+            attestations_by_id[row.get("record_id")].append(row)
     out: dict[str, str | None] = {}
     for rec in records:
         now = None
         if rec.get("dependency_manifest") and checker.check(measurement_binding(rec), rec["dependency_manifest"])["current"]:
             now = "manifest:" + rec["dependency_manifest"]
         else:
-            for row in attestation_rows:
+            for row in attestations_by_id.get(rec.get("id"), []):
                 if (probe.covers(rec, row) and _same_platform(root, rec, row)
                         and checker.check(probe_binding(row), row["dependency_manifest"])["current"]):
                     now = "manifest:" + row["dependency_manifest"]
@@ -693,7 +696,7 @@ def _unit_interval(value: object) -> bool:
     )
 
 
-def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
+def record_shape_problems(rec: dict, collector, root: Path, *, resolves=_resolves) -> list[str]:
     """Why one coverage record is malformed; empty when its shape is sound.
 
     Shape only: which fields exist, that the grid is internally consistent and that the
@@ -740,9 +743,9 @@ def record_shape_problems(rec: dict, collector, root: Path) -> list[str]:
         problems.append(f"{label}: replicates must be positive")
     if int(rec["n_min"]) < 1 or int(rec["n_max"]) < int(rec["n_min"]):
         problems.append(f"{label}: measured row-count range is empty")
-    if not _resolves(root, test, collector):
+    if not resolves(root, test, collector):
         problems.append(f"{label}: test {test} does not resolve")
-    if not _resolves(root, str(rec["dgp"]), collector):
+    if not resolves(root, str(rec["dgp"]), collector):
         problems.append(f"{label}: dgp {rec['dgp']} does not resolve")
     role, boundary = str(rec["role"]), bool(rec["boundary"])
     grid = rec["grid"]
@@ -899,9 +902,10 @@ def shape_problems(root: Path = ROOT) -> list[str]:
         return ["parity/coverage_records.toml missing"]
     records = tomllib.loads(read_text(path)).get("record", [])
     problems: list[str] = []
+    resolves = functools.cache(_resolves)
     for rec in records:
         try:
-            problems.extend(record_shape_problems(rec, collector, root))
+            problems.extend(record_shape_problems(rec, collector, root, resolves=resolves))
         except (KeyError, TypeError, ValueError) as error:
             problems.append(
                 f"coverage_records.toml {rec.get('id')}: malformed ({error!r})"
@@ -961,7 +965,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         status = 1
     else:
         print("coverage record shape: ok")
-    items, _statuses, counts = current_owed()
+    items, statuses, counts = current_owed()
     if items:
         reasons = owed_counts(items)
         print(
@@ -976,6 +980,11 @@ def cmd_check(args: argparse.Namespace) -> int:
         status = 1
     else:
         print(f"calibration records current: {counts[CURRENT]}")
+    if getattr(args, "check_support_docs", False):
+        import generate_support_matrix_docs as generator
+
+        current_ids = sorted(rid for rid, row in statuses.items() if row.status == CURRENT)
+        status |= generator.check(attesting_ids=current_ids)
     return status
 
 
@@ -988,6 +997,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="exit 1 on a malformed coverage record or any owed record; executes nothing",
     )
+    parser.add_argument("--check-support-docs", action="store_true",
+                        help="also verify the generated support files against this currency result")
     sub = parser.add_subparsers(dest="command")
     status = sub.add_parser("status")
     status.add_argument(
@@ -1010,6 +1021,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("readiness")
     sub.add_parser("plan")
     args = parser.parse_args(argv)
+    if args.check_support_docs and not args.check:
+        parser.error("--check-support-docs requires --check")
     if args.check:
         return cmd_check(args)
     handlers = {

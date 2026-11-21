@@ -49,16 +49,17 @@ parallel_steps=0
 step_pids=()
 step_names=()
 next_step=0
-first_step=0
+active_steps=()
 finish_step() {
-  if ! wait "${step_pids[$first_step]}"; then
-    failed_steps+=("${step_names[$first_step]}")
+  local id="$1"
+  if ! wait "${step_pids[$id]}"; then
+    failed_steps+=("${step_names[$id]}")
   fi
-  cat "$step_logs/$first_step"
-  first_step=$((first_step + 1))
+  cat "$step_logs/$id"
 }
 finish_readers() {
-  while (( first_step < next_step )); do finish_step; done
+  local id
+  for id in "${active_steps[@]}"; do finish_step "$id"; done
   parallel_steps=0
 }
 step() {
@@ -66,9 +67,23 @@ step() {
     "$@" || failed_steps+=("$*")
     return
   fi
-  if (( next_step - first_step >= parallel_steps )); then finish_step; fi
+  local id
+  local pending=()
+  while (( ${#active_steps[@]} >= parallel_steps )); do
+    pending=()
+    for id in "${active_steps[@]}"; do
+      if kill -0 "${step_pids[$id]}" 2>/dev/null; then
+        pending+=("$id")
+      else
+        finish_step "$id"
+      fi
+    done
+    active_steps=(${pending[@]+"${pending[@]}"})
+    if (( ${#active_steps[@]} >= parallel_steps )); then sleep 0.2; fi
+  done
   "$@" > "$step_logs/$next_step" 2>&1 &
   step_pids[$next_step]=$!
+  active_steps+=("$next_step")
   step_names[$next_step]="$*"
   next_step=$((next_step + 1))
 }
@@ -145,7 +160,7 @@ step python3 scripts/check_conformance_references.py
 
 echo "== generated files are current =="
 step python3 scripts/generate_conformance_docs.py --check
-step python3 scripts/generate_support_matrix_docs.py --check
+step python3 scripts/calibration_status.py --check --check-support-docs
 step python3 scripts/generate_host_schema.py --check
 step python3 scripts/generate_supported_route_records.py --check
 step python3 scripts/support_functional_graph_posterior_rows.py --check
@@ -153,8 +168,6 @@ step python3 scripts/support_mixed_graph_functional_rows.py --check
 step python3 scripts/support_distribution_validation_rows.py --check
 step python3 scripts/support_temporal_window_rows.py --check
 
-echo "== scientific and calibration records are current (earned locally, checked here) =="
-step python3 scripts/calibration_status.py --check
 finish_readers
 if (( ${#failed_steps[@]} )); then
   echo "== static: ${#failed_steps[@]} check(s) failed ==" >&2
