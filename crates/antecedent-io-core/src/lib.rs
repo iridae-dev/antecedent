@@ -94,6 +94,7 @@ pub mod provider_replay;
 pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
+mod panel_calibration_design;
 pub mod randomized_ipow_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
