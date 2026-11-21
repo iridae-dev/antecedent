@@ -1417,6 +1417,50 @@ dependency_manifest = "ec7f023fa6dfb943f3f924080ae317ef12a29a430f33f1dae4a789db6
 measurement_digest = "6d6385adf66cc4b147f68a53ee19b14a5c2e6176e5ed062d5a438b61b34d1c7d"
 
 [[attestation]]
+record_id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95.v2_validation_not_applicable"
+calibration_sha = "4780fb33393b367ae722d9a137116d8dda5911df"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "b35ed14edf02f9fd5400c4054a7774a163e7689d9de4e0b21e357432924950fd"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f74303179f27c108d9c79936882514d24978e32f0939fbd0dbd595e913179393"
+measurement_digest = "7f1185be6bb0a34874dfecf0fa425ade13ebb4a38038b69d0d7577c84a19ebe7"
+
+[[attestation]]
+record_id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95.v2_validation_not_applicable"
+calibration_sha = "4780fb33393b367ae722d9a137116d8dda5911df"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "b35ed14edf02f9fd5400c4054a7774a163e7689d9de4e0b21e357432924950fd"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "b34c9a3ab2eff93a60be852fc4a04536aecb84d0a4fb7470ce7eba56547ed34b"
+measurement_digest = "14c5a64974af51937baaa939c76d43d75ba83c911c4f6e81451092f92e0073d0"
+
+[[attestation]]
+record_id = "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95.v2_validation_not_applicable"
+calibration_sha = "4780fb33393b367ae722d9a137116d8dda5911df"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "b35ed14edf02f9fd5400c4054a7774a163e7689d9de4e0b21e357432924950fd"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "e6196da811beb1fb971e965650b9f03f5195c124169d0d54759d43e08285335e"
+measurement_digest = "c3d12857bcec22706873682e2840443ff9f1a3cabbcea70a65126bdf011536c0"
+
+[[attestation]]
+record_id = "cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95.v2_validation_not_applicable"
+calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "b35ed14edf02f9fd5400c4054a7774a163e7689d9de4e0b21e357432924950fd"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "6043fa7ac83cb61eb205fed8d95c0953d1ac9eafd796f8aa93da70d2996c8dbd"
+measurement_digest = "3fa68bcc0c8ed27f3c12a5690f77b71f2bfffb20009ed48da635a92d4886f94f"
+
+[[attestation]]
 record_id = "cov.change_attribution.admg.bayesian.posterior_quantile.l90.change_attribution_admg_graph_posterior_bayesian_coverage.v2_validation_none"
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -1626,6 +1670,17 @@ dependency_manifest = "3110f774883a7714edd042aa85ce087cabb8066400abc4d65734e8c31
 measurement_digest = "f995782d356fd068836c5156f70b6d0e6e94fd028fe5f3c4b96cdf663ab5b501"
 
 [[attestation]]
+record_id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "533d630606db5f9caa9f1f362552866cff5fb7cf41e86e4b1115a352472f0bb7"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "1e43cde12ccbbd4301fd25f7069a293d96b3978ccb78aa23deea07ed3d569856"
+measurement_digest = "f995782d356fd068836c5156f70b6d0e6e94fd028fe5f3c4b96cdf663ab5b501"
+
+[[attestation]]
 record_id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1634,6 +1689,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "e0eaa4a963b6853b2d865bec5f91496318edf92221413042d68919a8f5595802"
+measurement_digest = "2c71cbcd0c351b197b06ef7b1c42ea4d3a983152a1cd28d5f1413400159bc7bf"
+
+[[attestation]]
+record_id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "533d630606db5f9caa9f1f362552866cff5fb7cf41e86e4b1115a352472f0bb7"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "dce35050002d7e16732da68a5c342a277393420aa79930eea2874c451fc4c647"
 measurement_digest = "2c71cbcd0c351b197b06ef7b1c42ea4d3a983152a1cd28d5f1413400159bc7bf"
 
 [[attestation]]
@@ -1648,6 +1714,17 @@ dependency_manifest = "f6bf702e1d860c41d11eeac82baa4c46d986481b6d50573d0dce59c5a
 measurement_digest = "0d677daad760bd3005f78a38a0d3b74790e893d98f2f7867418c5bdbb28f9ca9"
 
 [[attestation]]
+record_id = "cov.conditional_outcome_probability_given_joint_measurement.declared_finite_mechanisms.bayesian.fitted_joint_error_dirichlet_equal_tailed.l95.fitted_dependent_measurement_joint_error_l95.v2_validation_not_applicable"
+calibration_sha = "6613b3ca25acae77a8326fb9dd62f19f4e73ae18"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "4d6dab2ad581d71168292fcfd765626c8f64815b1972e2cba84db94cc9d071a9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "203286dd94eeecffd507a97b9c0c023769adda85a7065e1bcc7781b3340745c9"
+measurement_digest = "0d677daad760bd3005f78a38a0d3b74790e893d98f2f7867418c5bdbb28f9ca9"
+
+[[attestation]]
 record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_score_wald_v1.l95.graph_narrow_cross_fitted_policy_l95.v2_validation_not_applicable"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1659,6 +1736,17 @@ dependency_manifest = "d0f4ac7f21ee6b04065452d6cc6b1993885abc7673c47b58bf13f3189
 measurement_digest = "fc72629c332d7e655f4dae283f8370f8927bc2e746d19369c1869480df7a40a6"
 
 [[attestation]]
+record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_score_wald_v1.l95.graph_narrow_cross_fitted_policy_l95.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "0c57d268002f6afa294496c2246b05223e9128de80c032f5aa29c39ab7a20ffa"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "19fc5980b3e1788334f753d9360ec08233625c8fe2bab9a2613239f88404e3c7"
+measurement_digest = "fc72629c332d7e655f4dae283f8370f8927bc2e746d19369c1869480df7a40a6"
+
+[[attestation]]
 record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_subsampling_basic_v2.l95.graph_narrow_cross_fitted_subsampling_policy_l95.v2_validation_not_applicable"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1667,6 +1755,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "519b0df95341fbcf1e09dca364af79161f8701724877df729d8114974f5cf9a7"
+measurement_digest = "679d0dde8f3a231ae280ed5704bdd691e20f5057db07cdf7894e087523088f9d"
+
+[[attestation]]
+record_id = "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_subsampling_basic_v2.l95.graph_narrow_cross_fitted_subsampling_policy_l95.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "8e607529e5ee596214f9fde322c6e9a09df99bf62fcb6fb6c7c3c8bd9693b2ad"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "4bfa831e6a2f39c75add667f3e883b069850c3cc186c21ed145f5235960cee3b"
 measurement_digest = "679d0dde8f3a231ae280ed5704bdd691e20f5057db07cdf7894e087523088f9d"
 
 [[attestation]]
@@ -1758,6 +1857,17 @@ dependency_manifest = "f845fc0b167bd37ffbce8eef79bb79bc96e9f8c9ea69ea5feb7e8503a
 measurement_digest = "3941662fdf1cba85b928c985a69140748e46bff89d42f452dd84ab94fc5faca4"
 
 [[attestation]]
+record_id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_bayesian_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "a62ec7aae609a458e9a8685b0957a270ad5e37bcc467332521fab7d926c60424"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "eb7b678a08819e112f6b6dc947d2bdd4a987a5ab5ed0a02d7dd1751ee1420f88"
+measurement_digest = "3941662fdf1cba85b928c985a69140748e46bff89d42f452dd84ab94fc5faca4"
+
+[[attestation]]
 record_id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1766,6 +1876,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "2689141b635f88356facb587b35c8b9ac3f3bcd235302515d1ec2848620d263d"
+measurement_digest = "bb20f8b0f1f97f03faa47e1ad5900569b2976f8e11cacb9e48b87aff31d38b9d"
+
+[[attestation]]
+record_id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "a62ec7aae609a458e9a8685b0957a270ad5e37bcc467332521fab7d926c60424"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "a843fc49569d5543b591a6559d1f73406a82de169efb3ab979b59c569c7c565f"
 measurement_digest = "bb20f8b0f1f97f03faa47e1ad5900569b2976f8e11cacb9e48b87aff31d38b9d"
 
 [[attestation]]
@@ -1780,6 +1901,17 @@ dependency_manifest = "034f9728916dbef5e63b9cee80af9c0a78c05c04db4653f9d9d31aec8
 measurement_digest = "f1a601af3a0ef2aab294eff71d2cc77cf14ec5ab527788292938078308f61a40"
 
 [[attestation]]
+record_id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_frequentist_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "a62ec7aae609a458e9a8685b0957a270ad5e37bcc467332521fab7d926c60424"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "fff904019d020efcb0abcb832af479408afbc7463bfac791068275aa7665b579"
+measurement_digest = "f1a601af3a0ef2aab294eff71d2cc77cf14ec5ab527788292938078308f61a40"
+
+[[attestation]]
 record_id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1791,6 +1923,39 @@ dependency_manifest = "3f5f2ddf4c0446f7dd826d6eaecd723bc4a35d55d0925e516015280c5
 measurement_digest = "6c09a7103093845cbb17b3852028f5a8ecd696b9711e53c11905a45c45d286be"
 
 [[attestation]]
+record_id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "a62ec7aae609a458e9a8685b0957a270ad5e37bcc467332521fab7d926c60424"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f536002ceadd436bf69e6d31435f3be000d65597fa344189140178265018b6ef"
+measurement_digest = "6c09a7103093845cbb17b3852028f5a8ecd696b9711e53c11905a45c45d286be"
+
+[[attestation]]
+record_id = "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "263fc486f4544da2af76b12f31267e395f60f3d5e5d397ad4427f36fd10cfc60"
+measurement_digest = "0f745e39fd5a2a41f304d904bd77a8b321a0fdb0b7e6aff3ce10cbe5dcbb45b8"
+
+[[attestation]]
+record_id = "cov.history_match.randomized_trial.frequentist.analytic_se.l95.period_history_contrast_period_interval_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "696af5de7d6c3e870a4c1d20e4abd6686e99d55b34905ea8667e4d6e03df5066"
+measurement_digest = "9d8d64fce93ce1eea59ed65b45d086adb237c77727721630c151c16a119293ed"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1799,6 +1964,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "a1b7dc237c71aad9977128545e5261b6f5bd0cb9156c743aa6f723fe17c946ac"
+measurement_digest = "861951f4e206f4e958bd1ee3f98f41bbec0011fd3837518da0566105c8ffef6c"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "e376402ba7370db9d17a8959247f5b3058b26187a266bf5b55efc2590152f473"
 measurement_digest = "861951f4e206f4e958bd1ee3f98f41bbec0011fd3837518da0566105c8ffef6c"
 
 [[attestation]]
@@ -1813,6 +1989,17 @@ dependency_manifest = "148a6b85e86ca07ec1876cf50adbafb69fbcd86cfb6ae3750436d87a5
 measurement_digest = "08d401c672bdff5d9d54c9a0e7a48c6f876608a6f737a74090f797ad79acd154"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "a2331fda7da556520803426b6877f0c3f53d47d0361134c4bfd2ca68184f5f3a"
+measurement_digest = "08d401c672bdff5d9d54c9a0e7a48c6f876608a6f737a74090f797ad79acd154"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1821,6 +2008,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "48633e4a924332c07558b529de9e9a3531c42bf75650df114f2559e9a1856075"
+measurement_digest = "4068409fd7ebe6bc60daa9c31054dd9f02db810bb2549743e3e33bfd6140437e"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "8de69780f56a5d9c8b871173cac8edeb1bcdec2d79bae406f14def5770c38b50"
 measurement_digest = "4068409fd7ebe6bc60daa9c31054dd9f02db810bb2549743e3e33bfd6140437e"
 
 [[attestation]]
@@ -1835,6 +2033,17 @@ dependency_manifest = "9e39494b87f173ee673d62ccdd3c88567317a2072e3da8f465b9d43ff
 measurement_digest = "6794b830d05d24655ca6be690e7a6250ebf94c2a3abbe85e131328ab153d23ca"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "318b90b05d3f6e652263b6084087b7326559512aa49c6a0582fcd434e3c929e8"
+measurement_digest = "6794b830d05d24655ca6be690e7a6250ebf94c2a3abbe85e131328ab153d23ca"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1843,6 +2052,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "3e28b09d5d2d47b7a8032953ce9903430f3cd006e8a684600ea57b0bd27e6b72"
+measurement_digest = "f483f04e638deac3bbc8c056f0147bc31c44831d560a973fd91b960e5484070a"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "31a7070f9d5ddabf3ed3b697f72fbd99d25d9c730e23f708f4ed2531e6637f96"
 measurement_digest = "f483f04e638deac3bbc8c056f0147bc31c44831d560a973fd91b960e5484070a"
 
 [[attestation]]
@@ -1857,6 +2077,17 @@ dependency_manifest = "2743d5edd27d5ff32577c00112e17ea93c23477e09f1adb231838457d
 measurement_digest = "d51b4a1da0ec822824c9bc1d0525d9f228e005529174cffdaefd2da569ede717"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "3759450cd5b4d6424cb3ef183ed44f480cf8466c6283bfbfd016334fa32c0e2e"
+measurement_digest = "d51b4a1da0ec822824c9bc1d0525d9f228e005529174cffdaefd2da569ede717"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1865,6 +2096,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "9fbc6b66c91712d485f23658775c11697aa2258b2d16ec0b143f43a42a35638f"
+measurement_digest = "50bc567a703a8c566ed8051366516024dbafe1a413d2ca6aae518abfb7a330cd"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "606a22feca1640d226760975e1f03b72b18bc1f971f94ceefc4667704ad0b4cb"
 measurement_digest = "50bc567a703a8c566ed8051366516024dbafe1a413d2ca6aae518abfb7a330cd"
 
 [[attestation]]
@@ -1879,6 +2121,17 @@ dependency_manifest = "f35b56ca28a6b458970ecd05d0b66dcf5f7fb8bcc9c7487f3d9876f4c
 measurement_digest = "926effd17b06c9ae3c410019080e3ceb391605a685c8d82492d1add31a2bf655"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "d0e731627b20dc1783a2a7472fe6e42838f342dba37ad4a7cf4fbe24d9fa545d"
+measurement_digest = "926effd17b06c9ae3c410019080e3ceb391605a685c8d82492d1add31a2bf655"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1887,6 +2140,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "00332006dbd2c179862729f2f7ed519bbeeb484f12e79cfa16ed9525b93bf817"
+measurement_digest = "f2dd772381b589d2da3a8e7e37bf65b73bf1f59d0aedb1156a2ef9dfa26c4f73"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "0253b58be3fa7441b6bf9a4e2c17187815897cc5bb4a984b3e1ff28b5f939edb"
 measurement_digest = "f2dd772381b589d2da3a8e7e37bf65b73bf1f59d0aedb1156a2ef9dfa26c4f73"
 
 [[attestation]]
@@ -1901,6 +2165,17 @@ dependency_manifest = "fe39c15f21b1328d227e17c503875bf4a9af381b391bfce929a9facc1
 measurement_digest = "9d1c1d5b726647dd7e59d92c8912e9e147d085bc5e75ea1e8e7f004cc7d0e031"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "817b04847bd82e2af9a25196b08beefd9b4c5449ee44819bb39eaf74b179e4b3"
+measurement_digest = "9d1c1d5b726647dd7e59d92c8912e9e147d085bc5e75ea1e8e7f004cc7d0e031"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.weighted_equal_tailed_posterior.l95.joint_response_experiment_update_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1909,6 +2184,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "9c69c9dc43f6146005669f78fe1c889b682d53e2f8c55ca58cd92f875aa26e45"
+measurement_digest = "899d840ea68f46e44eab64d2786ccb6ac3ba1efa7a5e369fe0d519a36f5a1c9d"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.bayesian.weighted_equal_tailed_posterior.l95.joint_response_experiment_update_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "aca19e8bfafe2828c9301a389a455a69ce909e7dfb9187b32abfc87a4b95f5db"
 measurement_digest = "899d840ea68f46e44eab64d2786ccb6ac3ba1efa7a5e369fe0d519a36f5a1c9d"
 
 [[attestation]]
@@ -1923,6 +2209,17 @@ dependency_manifest = "3508667ab2982a08850da0d0e7b725746a34669007d4efbae6bad4ecf
 measurement_digest = "14fef6956cc2df8f5b4ff494a9263bf2d86f6242095ff84e2361ea8880b907a3"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "5e3317f97056c9116abee3060744bfd95b9cde59a320c3ee6860670e7d4641db"
+measurement_digest = "14fef6956cc2df8f5b4ff494a9263bf2d86f6242095ff84e2361ea8880b907a3"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1931,6 +2228,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "5de200f003b0296d0b36eee1d307a07d4729e7305ccf1698b5762e7070b859e7"
+measurement_digest = "b0e61d1f113705354a66bd2f6f4228d672f653d6e10f401e754ff9e19f5fb8af"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f001167e4417d32b56156768f73276da7c4f150d224f36854b22149774fae9f4"
 measurement_digest = "b0e61d1f113705354a66bd2f6f4228d672f653d6e10f401e754ff9e19f5fb8af"
 
 [[attestation]]
@@ -1945,6 +2253,17 @@ dependency_manifest = "93f08bd2104ab83a36aad5b586fd7815781e23f848edf08f465bf63a0
 measurement_digest = "ae894d9903d5e76adc46ff65ad5be2eca6d87475362a0b22f8e4522974087b3b"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.bootstrap_covariance_normal.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "0984298b2b3cd6dd3e23d77c3bba58b56b1715779ff17a628849e1945c2357bf"
+measurement_digest = "ae894d9903d5e76adc46ff65ad5be2eca6d87475362a0b22f8e4522974087b3b"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1953,6 +2272,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "898111b6655601a525673a1ee4bbe8067dfc6864861963a09796e2e67e45574c"
+measurement_digest = "9bb72e88d5baea4a4fe88a272c385f9a82aa39e1fed84989f5c857f0db15c84b"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "a2f65018fd4cb7f2dc04dd85662db554d021ab2b9d7d3ecec9060d5e5d907ddd"
 measurement_digest = "9bb72e88d5baea4a4fe88a272c385f9a82aa39e1fed84989f5c857f0db15c84b"
 
 [[attestation]]
@@ -1967,6 +2297,17 @@ dependency_manifest = "2ce1dfb9c403b85a4341de754fd094332333318466edec8e3f84e43d1
 measurement_digest = "fd2fa8be27e5405d44951ff55f908f3f80fe1df8fe6c1cba00a6c28865d71d82"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "830dd3c33fc9a370061159c2d3a2ef8a5114a246ca1a528d75e6b9a14a327c32"
+measurement_digest = "fd2fa8be27e5405d44951ff55f908f3f80fe1df8fe6c1cba00a6c28865d71d82"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_separated_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1975,6 +2316,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "8f13ed0a57cb31ad73530e1f678af19e3cdb4e80fffb96ccaf7de501c0ee6862"
+measurement_digest = "63ba4c6a69a69ccb38e1b146b44794041b87ba0d0a3303322568712df6ba63d6"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_separated_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "e61121a297f2dc941181bd76fc922da2501e65db3a6b0ed160224861789e5bb3"
 measurement_digest = "63ba4c6a69a69ccb38e1b146b44794041b87ba0d0a3303322568712df6ba63d6"
 
 [[attestation]]
@@ -1989,6 +2341,17 @@ dependency_manifest = "513120540131f1995ed6df233a58642032d5516a423250c3d78f5ce7e
 measurement_digest = "a7f89aca20b45b7d329393fb56e868ee6e5e89e7cc3b25374108a1665a58052c"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_structural_selection_weak_separation_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "cc59d9dd42e14dc7ca2897f2a171fffa79d59630ee7019e8e4abe925495698dd"
+measurement_digest = "a7f89aca20b45b7d329393fb56e868ee6e5e89e7cc3b25374108a1665a58052c"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -1997,6 +2360,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "d16bb5fa5fa7832b2aeb7187c44d9d07a7b2b879556ee0ab32175602319570bf"
+measurement_digest = "51ba961bb40ae13b451b8599fd6bf5901ec8b4b8db2c89efd55589b7f1854fe5"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "02f9c932c3083d41cbb2a11c3c8298f695512920a3f05c5b874fb327a938cc5a"
 measurement_digest = "51ba961bb40ae13b451b8599fd6bf5901ec8b4b8db2c89efd55589b7f1854fe5"
 
 [[attestation]]
@@ -2011,6 +2385,17 @@ dependency_manifest = "79e9810cf0fd97ad0c32d7260d91f2255688da17fa058d705adf97b71
 measurement_digest = "ef64a7a186cc5e9576079fbacd7978a6b8b0759fba20ae487efeb9cac3cbaf49"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "49b0576e9710da3dd805bb10f50655c379bcad9436f90a717e052b2c4abd5fc5"
+measurement_digest = "ef64a7a186cc5e9576079fbacd7978a6b8b0759fba20ae487efeb9cac3cbaf49"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -2019,6 +2404,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "b035575de4a6004efb2218d5c2d495e863cc36ebdbe6d52b1bf6ac3efdc2e0dc"
+measurement_digest = "f15e5ae5646f5982ba96c96d6c06d710023f89aacac265f062dff945204ba989"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "ea5c92be87c5625e8ac86d53790b619f65e81d4fe4c0d59c81036760f8592b17"
 measurement_digest = "f15e5ae5646f5982ba96c96d6c06d710023f89aacac265f062dff945204ba989"
 
 [[attestation]]
@@ -2033,6 +2429,17 @@ dependency_manifest = "378ee4d45d3d30b451be1d0ee2a13508722de73f16e6c9443ca770aab
 measurement_digest = "f10e054c774f57565a1cb1b31a2c6dd9abeb0716e72f71026146b18b8a127217"
 
 [[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "3ae4eb2963c16a78d9985f8e06ba10f7d6a48ef8601dc3a4b1c74991ee6f7afb"
+measurement_digest = "f10e054c774f57565a1cb1b31a2c6dd9abeb0716e72f71026146b18b8a127217"
+
+[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -2041,6 +2448,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "6b4790c9eb4071178c23462a6754fa5450f8b5bd1cfd785238e66689a909a552"
+measurement_digest = "df37a925921356373abcc58d610cca6b10c80ff57008a084b66e8ab7624b6427"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "5a30b5912c5e4a5ea18a92870c5561734da16daa4a87a7866a0695eb8955cd26"
 measurement_digest = "df37a925921356373abcc58d610cca6b10c80ff57008a084b66e8ab7624b6427"
 
 [[attestation]]
@@ -2053,6 +2471,39 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "dd300c6a405d94edb8e9f41884927d95bf0e9eff95cc5223fc5ed245eb298722"
 measurement_digest = "65d95792ad4495a08c168010e9c0c3c78f4d5436df643b85b72cb5622440063d"
+
+[[attestation]]
+record_id = "cov.joint_response.not_applicable.frequentist.wald_ratio.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "da7f001658c6929ef0ef83ef40fbc5e0474687f217599df5af64bb132bc2f3a9"
+measurement_digest = "65d95792ad4495a08c168010e9c0c3c78f4d5436df643b85b72cb5622440063d"
+
+[[attestation]]
+record_id = "cov.longitudinal_regime.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "5321a645320eb6e3d14969c7dc0925853e9460ff260d47d01e5d2f4668cd9373"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "296fbbceef11a1f26749bd84b6683587a57a615bced18142bd56ad520a3d5476"
+measurement_digest = "1c9f856b6edc661e77a33b86c7053dbc4d68eb8148d64fa3acea3fe7d298c525"
+
+[[attestation]]
+record_id = "cov.longitudinal_regime.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_regime_value_posterior_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "0d0ad7402d0550cae345eaa61a27b6963c274cc7b97367280cda50c2508f5ba3"
+measurement_digest = "0a7bfbcd26aa1f2d2c6d532753aec83f2a3468de4d173182f6bdcb02e1fa3ad1"
 
 [[attestation]]
 record_id = "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_prevalence_wald_l95.v2_validation_not_applicable"
@@ -2110,6 +2561,17 @@ dependency_manifest = "cce3050b2d4165967fe79befcda0c72d864a61516274ca7c913050759
 measurement_digest = "7cb6c14fd055031b2ee47d36702fd42aea4de3d9c8d2ac15f3d33f2f326489ca"
 
 [[attestation]]
+record_id = "cov.mechanism_composition_contrast.dag.frequentist.delta_method_wald.l95.composed_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable"
+calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "0201fd30d0862d936b91df09743f762776cea92d21a793b7c9f275df1bea6ad8"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "32508126dd0b3563bd8430ae25b6f07f0e6fe41a99b50216be84cc4304b895a7"
+measurement_digest = "377ade5282a5e2dcf6f2cdb2888bf9868baf64e92cf4980c16226bef8f416cd4"
+
+[[attestation]]
 record_id = "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
@@ -2119,6 +2581,116 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "51e859df4f2346b520ca484f6662f49e6823ab63d8f613f9776d14f62c61ee68"
 measurement_digest = "148323ac578d79b65c1096c7e7d4e38c916ab4b2f451859d4abca0a9c3c7f452"
+
+[[attestation]]
+record_id = "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable"
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "41045b231849758f89f8739c61628a43d38f66764f25f9364f56d4d73356c560"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "c274ece410bbb08c974190790db78fbdf74d5c03f7899e11fb3dcee7855ac87a"
+measurement_digest = "148323ac578d79b65c1096c7e7d4e38c916ab4b2f451859d4abca0a9c3c7f452"
+
+[[attestation]]
+record_id = "cov.panel_did.randomized_trial.frequentist.analytic_se.l95.weighted_panel_did_interval.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "a719ce410a6884658297e37637ebb77abdf970a498fdf08756a7e19a4f1cab44"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "96d480af932a064d1a56fdbe86f2394eb974824c7f76e6f5d43ff82c4792a2c4"
+measurement_digest = "0a77dbc75e691f45f62038e3c3dbe11723743bec4c1e7e94a5e9b388ad27e125"
+
+[[attestation]]
+record_id = "cov.policy_value.randomized_trial.bayesian.posterior_quantile.l95.bayesian_binary_policy_value_posterior_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "911d152620f0ef8a056c5c7eb3a5d64175533d0d152e19dfbbf053db03ad0bd8"
+measurement_digest = "0c86c7e0563228a59e7551b24f0c0fba695f08c1834db3da15e8de3248142cf1"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f1ebfb7cf44cfdc607008db9d2a43c8ddf1625188795f7fb0e30534a8842b00b"
+measurement_digest = "6b52dc665464243147ebbeda67b441a6229ea2c23c97f765d7635d69a306ef7c"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "03b63e9c81d66fd11366edcc42314593390ffa4a379572fff03445aa1cd89801"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9f5129c8d082f67093aac110d7cefce8a9f158969531cda1d17e122429985832"
+measurement_digest = "872e973dec8d6da4d270150c016182aef54ae4736e3c9ba7670da50ca897eb23"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "03b63e9c81d66fd11366edcc42314593390ffa4a379572fff03445aa1cd89801"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "70438a9e78a55adf44f99a1f397aa7427a0f6c828d9463b7710704125ca2ac6d"
+measurement_digest = "d5e9c1ed4386931e0da78fbc0850bf7bf67cb6ab05662d8c32d00d240f930f8a"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_coverage.v2_validation_not_applicable"
+calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "af1b5d5160ce92facf124efeb4a5035c5c68b51f7f5fcb329ebd5f24edbb2de9"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "8bde184ee6ccd37443b7eb7f3ffc0327bef82e55134192ba958507f7d79afc9b"
+measurement_digest = "515cc70b68048324f8ff6abf32d4872a074525ae6bd256825b1f79894ec144fe"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_ten_folds_coverage.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "03b63e9c81d66fd11366edcc42314593390ffa4a379572fff03445aa1cd89801"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "53fef39ba0182a1823ba87042e20f8077e7616559d442a6ab4eab6408657db86"
+measurement_digest = "51ded9e5d663758cc217c16816e1ea5e67bf617b130506bc9fd6e1226ee6aaa2"
+
+[[attestation]]
+record_id = "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "03b63e9c81d66fd11366edcc42314593390ffa4a379572fff03445aa1cd89801"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "8cf7abf7ebf8454ec57e2c85e004e9a92acf30da83a28ae7f2145b66a1799cfd"
+measurement_digest = "7e77b4ea957e2a0196222ea64fe566448e3743f1285fb75c567d7f12408c8ba3"
+
+[[attestation]]
+record_id = "cov.sequential_policy_value.not_applicable.frequentist.wald_normal.l95.off_policy_importance_weighted_wald_interval.v2_validation_not_applicable"
+calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "55a5ebad617ff7f83272534d84bbf4e3a6de0ddd7e46bd2b8d643a050432df84"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "37747afc2e097a039e68e19a66e4511aa5f19a17ee091a48c368816add31a983"
+measurement_digest = "9d699ea586f5b84bf006eb697dd54d63807e9884eab554a8d151fcc614f0b65a"
 
 [[attestation]]
 record_id = "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_interventional_sample_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_y"
@@ -2297,6 +2869,17 @@ dependency_manifest = "4efabd3402e4b7697a199e36a134cec0c76db5eff185655c212ec0a88
 measurement_digest = "2e6fe1fce818041597825794849c53956be8a89ee32657b9338430a5e2b7d2e7"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "75d7ddb67a2729b6cc46ad88ba5950e88de81a743bebfe6886363dbc199d44c2"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "74c4b2369688541656fa306c89658c8d8281dc8daf5aab2a0a0b6b29c5b16d13"
+measurement_digest = "d24de2ca7eafcf143184c4f27065460fb178727d77af14e2af7dea02e7004fad"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_twenty_donors.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2305,6 +2888,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "3b5d21a55367f4262b2765ed770b962dc953a8663b6006f9dfdd9151e48c6dc1"
+measurement_digest = "c12e1286c93e5e7c0f6a84d579cba96d338f8b9350c20ba64077b7fbc01ee695"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_twenty_donors.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "75dc1fc69777aa37622029912cf8e9c376eada2480c22c36406aac8a332960b1"
 measurement_digest = "c12e1286c93e5e7c0f6a84d579cba96d338f8b9350c20ba64077b7fbc01ee695"
 
 [[attestation]]
@@ -2319,6 +2913,17 @@ dependency_manifest = "d1e7d05676eb075b868e461a7658f7a9d0d902de6cee388f4887f4b0b
 measurement_digest = "075082282a132664e6f1cb389cd30300d9037fe454a1cc35295e4f52fc23e47a"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_unaligned_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "fe67d99c2942e166cb46cd0b0d682a1bd4ea38f912fc9eb4d461fd6ed6484333"
+measurement_digest = "075082282a132664e6f1cb389cd30300d9037fe454a1cc35295e4f52fc23e47a"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_upper_pre_periods.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2330,6 +2935,28 @@ dependency_manifest = "615796fda75896ac4f53b44fbcf183e41145d685d1d1534f4ac8ab8c5
 measurement_digest = "910d1920ac42ac77400de4a3a2bb1d445e07b81dc7499ae3f5210a3496694d70"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_upper_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "e125f0b56907fa8a21cc069759efa6f0d660d4e258875b18b9fa0870a8f3d4ad"
+measurement_digest = "910d1920ac42ac77400de4a3a2bb1d445e07b81dc7499ae3f5210a3496694d70"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "75d7ddb67a2729b6cc46ad88ba5950e88de81a743bebfe6886363dbc199d44c2"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "a66e012a8d431387cbcbda34dd90aa7ef358bc4ab5b0a23514a8ee389fb9aae2"
+measurement_digest = "07449d87ffbbe84da1c061743ffb471d4faccfb562f12e4adf7f3db66c3175f2"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_twenty_donors.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2338,6 +2965,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "e87e2fb7b235de94579c47ca5031d98860b4e7be19f1aaca7e774621da23a35c"
+measurement_digest = "bbf51eb2971796d14a8ae776d40475012937791115520cc5d5e7e0217f2c53f2"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_twenty_donors.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9bf3a9e912529adc1e4770960aac6fe4f55c92bbedd9ca78c051de09fbbff37b"
 measurement_digest = "bbf51eb2971796d14a8ae776d40475012937791115520cc5d5e7e0217f2c53f2"
 
 [[attestation]]
@@ -2352,6 +2990,17 @@ dependency_manifest = "1a4bc240e1b9be9ff7053173bf92c085a95991e02f899f87aa603b7a4
 measurement_digest = "833fe9fcf8c1f39d26841f232ce0918d448a6276e0fd6a9198c711feac381c61"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_unaligned_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "c6658030b60f5df04284d1d2aed63e11d004b3f79be8490091582c618404f0dd"
+measurement_digest = "833fe9fcf8c1f39d26841f232ce0918d448a6276e0fd6a9198c711feac381c61"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_upper_pre_periods.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2363,6 +3012,28 @@ dependency_manifest = "5a7b6c19f55d8159b078e955545e4727a811c206895ac9d6dd9030b05
 measurement_digest = "ddecca557c09389dc698c3369c93773e04138ed4cf9067ef350308b85f1f30c1"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_upper_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "a5f047a4a3de2e69243cb6deb3bd0984318242f361e83a1d81cafe9c68c41eaf"
+measurement_digest = "ddecca557c09389dc698c3369c93773e04138ed4cf9067ef350308b85f1f30c1"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "75d7ddb67a2729b6cc46ad88ba5950e88de81a743bebfe6886363dbc199d44c2"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9f64d4b9502f5c1fc0b3a209de08c4117dd561b8dcf726899aa0e1ff76f5befe"
+measurement_digest = "43fafbfd10cf100e012361ea306ad56add51acb1f013ff338c99d76ca6fb003f"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_unaligned_pre_periods.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2371,6 +3042,17 @@ k = 100
 bound = 0.03
 result = "pass"
 dependency_manifest = "0d12025c0ba92054aa92b2ad9796802581aadaf458b6e64a7cc77a07215812cc"
+measurement_digest = "245e2a6b17ac6d2c2b17778f28bf60dc4d4b97de55f464400dcaac5caa102ab8"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_unaligned_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "f78640495bb3bfd815e4a54722a0c29e5149034fb8926e96ac89cd7f794627ac"
 measurement_digest = "245e2a6b17ac6d2c2b17778f28bf60dc4d4b97de55f464400dcaac5caa102ab8"
 
 [[attestation]]
@@ -2385,6 +3067,39 @@ dependency_manifest = "663d7b42a1f72637be3cadc1b25ed83a317df3fa920df371f0a2a1c89
 measurement_digest = "bd03ac266553b2a356835e992c8affdb4a0826f6d87104fff843f39f060ced8c"
 
 [[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_upper_pre_periods.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "59a778aede6c1efdd7e28f221ddf54ec9ab3e05a386acef6cce4a837fd7c44ee"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "f01862c8afd9f405e92069451cd597102fd24e317095fd51ac5852a5e81b09a1"
+measurement_digest = "bd03ac266553b2a356835e992c8affdb4a0826f6d87104fff843f39f060ced8c"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_one_post_period_constant_effect_set.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "92d8140141e6aca6563380355fe5339c4110345d1b5a158fa41aaf1dfce7fa70"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "cfc0887ab0619f8166531341dc8a85021d02bc5075c4b62d915acccdfb616171"
+measurement_digest = "6ec2006c6fcdd79ff238e5c62a1fbb0e70bab98df3b6b7881429b7cf49407cfc"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_one_post_period_period_set.v2_validation_not_applicable"
+calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "92d8140141e6aca6563380355fe5339c4110345d1b5a158fa41aaf1dfce7fa70"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "f603ffbcfa54ddacd72fb02b48c125bb02eaed6cf5f28061c7ea85081235ebde"
+measurement_digest = "67ee5147baa897ce903b429cdd6e12f029d0e89cb3e0c75bbe17d4506c12e40a"
+
+[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_constant_effect_set.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2393,6 +3108,17 @@ k = 320
 bound = 0.009375
 result = "pass"
 dependency_manifest = "ee25ec383fb55dcda344889204d83203e70d47b96cbaf71a8cb57304425650f8"
+measurement_digest = "a41df831cbd59b8dc02e0df546d02ea9ec81b042981e294216eb72baf0e21368"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_constant_effect_set.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "92d8140141e6aca6563380355fe5339c4110345d1b5a158fa41aaf1dfce7fa70"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "f8bf0ddff9e408af142d0b1444188c519c9230289446843da94eda97ad064bd8"
 measurement_digest = "a41df831cbd59b8dc02e0df546d02ea9ec81b042981e294216eb72baf0e21368"
 
 [[attestation]]
@@ -2405,6 +3131,28 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "6118c597fa76055020c0ac6b78e8bf2151887ef71b0afc7fb8adc04f886da1dd"
 measurement_digest = "119729ea92fcdee4c35f705ccc56d74595fe6dc7c38687151e35e3260cb41059"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_last_period_set.v2_validation_not_applicable"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "92d8140141e6aca6563380355fe5339c4110345d1b5a158fa41aaf1dfce7fa70"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "9a19008a64fe78cc9db586df8e57edfc310088cb851c30ca0a35c9f8d44fab8b"
+measurement_digest = "119729ea92fcdee4c35f705ccc56d74595fe6dc7c38687151e35e3260cb41059"
+
+[[attestation]]
+record_id = "cov.synthetic_control.randomized_trial.frequentist.placebo_variance.l95.multi_unit_synthetic_placebo_variance_interval.v2_validation_not_applicable"
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "75d7ddb67a2729b6cc46ad88ba5950e88de81a743bebfe6886363dbc199d44c2"
+k = 320
+bound = 0.009375
+result = "pass"
+dependency_manifest = "5527e745a4bf7ac22811738787c2dffa1f64933c4ffaa799e61c63ef72a98e5e"
+measurement_digest = "8a84792aa9600ed981239d0ff843172c34a4e8cb0e462c6b3fe9d7a2be0c8255"
 
 [[attestation]]
 record_id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_categorical_step_interval.v2_validation_not_applicable"
@@ -3230,3 +3978,14 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "ffbafd3b5972491f1d1afa4397308baac64a889133e71e99f06e8556184f22f4"
 measurement_digest = "327f575ce7f9e075d1e457ef483972ad395734cb79aa9d9d1d556058e4918407"
+
+[[attestation]]
+record_id = "cov.transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.transported_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable"
+calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
+fingerprint = "0201fd30d0862d936b91df09743f762776cea92d21a793b7c9f275df1bea6ad8"
+k = 100
+bound = 0.03
+result = "pass"
+dependency_manifest = "9d63c380275060f0165a9cbb06a061e92dd7e787b851a54afdef5ca5b29c41a3"
+measurement_digest = "66208d7eb4fd351cfd2f58b182444eeccf26a3071ab79bd3c392705d7aefc432"
