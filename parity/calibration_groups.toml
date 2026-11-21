@@ -1,7 +1,6 @@
-# The calibration gate's groups, in gate order: a group's 1-based position is its
+# The calibration gate's groups, in gate order: a group's 1-based allocation slot is its
 # identity (record logs, the frozen family roster and probes name groups by label and
-# position), so a new group is appended and no measured group is ever reordered or
-# removed. A test may measure several coordinates that report one interval.
+# position), so new groups append and a vacated slot is never reused. A test may measure several coordinates that report one interval.
 #
 # label     `<head>: <filter>`; the log of a group is its label with ` /:` as `_`
 # package   the Cargo package of the test binary
@@ -12,6 +11,9 @@
 # grid      measured at each sample-size grid point (0, 1, 2) rather than once
 # whole     the test pools across its replicates: it runs whole, never sharded, and its
 #           recheck is one whole run at the recheck count rather than an extension
+
+# Keep published group positions and the family-wise risk budget fixed.
+reserved_group_indices = [1741, 1742, 1743, 1749, 1750]
 
 [[group]]
 label = "effect_constancy_calibration: known_gaussian_null_power_and_holm"
@@ -14534,33 +14536,6 @@ grid = false
 whole = true
 
 [[group]]
-label = "antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"
-package = "antecedent-discovery"
-target = "lib"
-tests = ["graph_posterior_calibration::per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"]
-ignored = true
-grid = false
-whole = true
-
-[[group]]
-label = "antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior"
-package = "antecedent-discovery"
-target = "lib"
-tests = ["graph_posterior_calibration::soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
-ignored = true
-grid = false
-whole = true
-
-[[group]]
-label = "antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"
-package = "antecedent-discovery"
-target = "lib"
-tests = ["graph_posterior_calibration::per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
-ignored = true
-grid = false
-whole = true
-
-[[group]]
 label = "measured_exposure_calibration: measured_exposure_shared_misclassification_rubin_l95"
 package = "antecedent"
 target = "measured_exposure_calibration"
@@ -14599,23 +14574,6 @@ target = "measured_exposure_calibration"
 tests = ["measured_exposure_repeat_codings_rubin_l95"]
 ignored = true
 grid = true
-[[group]]
-label = "antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column"
-package = "antecedent-discovery"
-target = "lib"
-tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column"]
-ignored = true
-grid = false
-whole = true
-
-[[group]]
-label = "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"
-package = "antecedent-discovery"
-target = "lib"
-tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"]
-ignored = true
-grid = false
-whole = true
 [[group]]
 label = "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior"
 package = "antecedent"

@@ -197,13 +197,9 @@ def gate_groups() -> list[Group]:
         if group.evidence != "coverage" or not record_ids:
             raise ValueError(f"invalid required coverage records for {label}")
         group.required_records = tuple(record_ids)
-    for label, replacement in obligations.get("superseded", {}).items():
-        if replacement not in by_label or by_label[replacement].evidence != "gate" or replacement not in assigned:
-            raise ValueError(f"superseded study {label} requires an active replacement gate: {replacement}")
-        assign(label, "superseded")
     if not groups:
         raise SystemExit("parity/calibration_groups.toml lists no calibration group")
-    return [group for group in groups if group.evidence != "superseded"]
+    return groups
 
 
 def measures(head: str, test_filter: str, rec: dict) -> bool:

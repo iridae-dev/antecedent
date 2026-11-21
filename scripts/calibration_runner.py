@@ -84,13 +84,14 @@ class GroupSpec:
 
 
 def load_groups(root: Path) -> list[GroupSpec]:
-    rows = tomllib.loads((root / GROUPS).read_text(encoding="utf-8"))["group"]
+    from calibration_family import group_slots
+    slots = group_slots(tomllib.loads((root / GROUPS).read_text(encoding="utf-8")))
     return [GroupSpec(index=i, label=r["label"], package=r["package"], target=r["target"],
                       features=tuple(r.get("features", ())),
                       tests=tuple(r["tests"]) if "tests" in r else None,
                       ignored=bool(r["ignored"]), grid=bool(r["grid"]),
                       whole=bool(r.get("whole", False)))
-            for i, r in enumerate(rows, start=1)]
+            for i, r in slots if r is not None]
 
 
 @dataclass(frozen=True)

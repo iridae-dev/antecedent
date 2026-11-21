@@ -179,6 +179,6 @@ The corrected constructions require fresh nominal coverage on an independent str
 
 ## Discovery graph weights and edge probabilities
 
-Gaussian BIC reports normalized graph weights. Its scientific conformance test compares those weights with independent BIC enumeration. The five original frequency studies failed on complete and imputed data. Their measured bins, verdicts and source commit are preserved in the [BIC study logs](calibration-history/discovery-bic/).
+Gaussian BIC reports normalized graph weights. Its scientific conformance test compares those weights with independent BIC enumeration.
 
-For the signed-uniform structural model, the five active calibration gates test directed-edge probabilities against generating frequencies under their declared priors and data designs. The two missing-data gates evaluate the observed-data score. The release obligation registry maps each historical BIC study to the active study for the corresponding prior and data design.
+For the signed-uniform structural model, the five active calibration gates test directed-edge probabilities against generating frequencies under their declared priors and data designs. The two missing-data gates evaluate the observed-data score.

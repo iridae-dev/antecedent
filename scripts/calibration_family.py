@@ -375,12 +375,27 @@ def validate_label_audit(audit: dict, root: Path = ROOT, sha: str | None = None)
             raise ValueError(f"source-fixed label review is stale: {row['path']}")
 
 
+def group_slots(table: dict):
+    """Yield each permanent family slot; reserved slots have no runnable study."""
+    rows = table["group"]
+    reserved = table.get("reserved_group_indices", [])
+    size = len(rows) + len(reserved)
+    if (any(type(i) is not int or not 1 <= i <= size for i in reserved)
+            or len(set(reserved)) != len(reserved)):
+        raise ValueError("invalid reserved calibration group indices")
+    unused = set(reserved)
+    active = iter(rows)
+    for index in range(1, size + 1):
+        yield index, None if index in unused else next(active)
+
+
 def gate_roster(gate: bytes, acceptance: bytes) -> list[dict]:
     """The complete roster: the group table's rows, or an earlier shell driver's dry run."""
     if not gate.startswith(b"#!"):
         import tomllib
-        rows = tomllib.loads(gate.decode("utf-8"))["group"]
-        groups = [{"index": i, "label": r["label"], "grid": bool(r["grid"])} for i, r in enumerate(rows, start=1)]
+        slots = group_slots(tomllib.loads(gate.decode("utf-8")))
+        groups = [{"index": i, "label": row["label"], "grid": bool(row["grid"])} if row is not None
+                  else {"index": i, "label": f"reserved slot {i}", "grid": False} for i, row in slots]
         return _complete_roster(groups)
     # Execute only the earlier driver's dry-run path in a scratch source tree.
     # This obtains the complete roster even when the caller selected a shard.

@@ -34,7 +34,11 @@ class TableTests(unittest.TestCase):
 
     def test_the_table_lists_every_gate_group_in_order(self):
         groups = cr.load_groups(REPO_ROOT)
-        self.assertEqual([g.index for g in groups], list(range(1, len(groups) + 1)))
+        import tomllib
+        table = tomllib.loads((REPO_ROOT / cr.GROUPS).read_text())
+        reserved = set(table.get("reserved_group_indices", []))
+        slots = range(1, len(groups) + len(reserved) + 1)
+        self.assertEqual([g.index for g in groups], [i for i in slots if i not in reserved])
         self.assertEqual(len({g.label for g in groups}), len(groups))
         whole = [g for g in groups if g.tests is None]
         self.assertTrue(whole and all(g.ignored and g.target != "lib" for g in whole))

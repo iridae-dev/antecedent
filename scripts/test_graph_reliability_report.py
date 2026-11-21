@@ -19,7 +19,7 @@ def two_populated_bins(observed):
                    cluster_residual_squares=400 * (observed - 1) ** 2)
     bins[9].update(cells=4000, predicted_sum=3800, observed_sum=3800,
                    cluster_residual_squares=100)
-    return dict(design="per_edge", score="GaussianBic", variables=6, rows_per_dataset=400,
+    return dict(design="per_edge", score="GaussianSignedUniform", variables=6, rows_per_dataset=400,
                 minimum_bin_cells=200, maximum_abs_z=3.5, dataset_bins=raw, bins=bins,
                 reliability_passed=observed == 1)
 
@@ -50,6 +50,7 @@ class ReliabilityReportTests(unittest.TestCase):
                 return log_problems(path)[0]
 
             report = two_populated_bins(1)
+            report["score"] = "GaussianBic"
             self.assertTrue(problems(report))
             report["score"] = "GaussianSignedUniform"
             self.assertFalse(problems(report))
