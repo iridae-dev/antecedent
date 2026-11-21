@@ -62,14 +62,16 @@ def run_rustdoc(crates: list[str], target_dir: Path | None) -> Path:
     env["RUSTDOCFLAGS"] = (
         "-Z unstable-options --output-format json --document-hidden-items -A warnings"
     )
-    if target_dir is not None:
-        env["CARGO_TARGET_DIR"] = str(target_dir)
+    # proc-macro2 tracks RUSTC_BOOTSTRAP. Sharing its fingerprint directory
+    # makes each switch between rustdoc and engineering rebuild the dependency tree.
+    if target_dir is None:
+        target_dir = Path(env.get("CARGO_TARGET_DIR", ROOT / "target")) / "public-api"
+    env["CARGO_TARGET_DIR"] = str(target_dir)
     cmd = ["cargo", "doc", "--no-deps", "--lib", "--quiet"]
     for name in crates:
         cmd += ["-p", name]
     subprocess.run(cmd, cwd=ROOT, env=env, check=True)
-    out = target_dir or Path(env.get("CARGO_TARGET_DIR", ROOT / "target"))
-    return out / "doc"
+    return target_dir / "doc"
 
 
 # ---------------------------------------------------------------------------

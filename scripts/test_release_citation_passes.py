@@ -1,6 +1,7 @@
 """Candidate citations use exact passing assertions from the prerequisite lanes."""
 
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -8,6 +9,22 @@ from pathlib import Path
 from unittest.mock import patch
 
 import test_evidence as evidence
+
+
+class ReleaseBuildCacheTest(unittest.TestCase):
+    def test_bootstrapped_rustdoc_uses_a_separate_target_directory(self):
+        import gate_public_api
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"CARGO_TARGET_DIR": tmp}), \
+             patch.object(gate_public_api.subprocess, "run") as cargo:
+            directory = gate_public_api.run_rustdoc(["example"], None)
+            env = cargo.call_args.kwargs["env"]
+            self.assertEqual(env["RUSTC_BOOTSTRAP"], "1")
+            self.assertEqual(env["CARGO_TARGET_DIR"], str(Path(tmp) / "public-api"))
+            self.assertEqual(directory, Path(tmp) / "public-api/doc")
+            explicit = Path(tmp) / "custom"
+            self.assertEqual(gate_public_api.run_rustdoc(["example"], explicit), explicit / "doc")
+            self.assertEqual(cargo.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(explicit))
 
 
 class ReleaseCitationPassesTest(unittest.TestCase):
