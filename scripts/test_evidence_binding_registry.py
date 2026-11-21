@@ -83,16 +83,18 @@ class RegistryTests(unittest.TestCase):
             lay(rel, (ROOT / rel).read_text(encoding="utf-8") + "\n# An edit to a comment.\n")
         checker = Overlaid(ROOT, edited)
         coverage = calibration_status.load_records(ROOT / "parity" / "coverage_records.toml")
-        statuses = calibration_status.classify(
-            coverage,
-            calibration_status.load_attestations(ROOT / "parity" / "calibration_probe_attestations.toml"),
-            calibration_status.tree_fingerprints(coverage, root=ROOT),
-        )
-        by_probe = {rid for rid, status in statuses.items() if status.via == "probe"}
-        cls.records = [
-            record for record in narrowing.records(ROOT, "all")
-            if not (record[0] == "calibration" and record[1]["key"] in by_probe)
-        ]
+        # A probe confirms one measurement. Compare the active binding for that
+        # measurement and report the route's original test, including when several
+        # historical attestations exist for the same record.
+        active = calibration_status.tree_fingerprints(coverage, root=ROOT)
+        tests = {row["id"]: row["test"] for row in coverage}
+        cls.records = []
+        for kind, bound, ref, test in narrowing.records(ROOT, "all"):
+            rid = bound["key"]
+            if kind == "scientific":
+                cls.records.append((kind, bound, ref, test))
+            elif active.get(rid) == "manifest:" + ref or (kind == "calibration" and not active.get(rid)):
+                cls.records.append(("calibration", bound, ref, tests[rid]))
         cls.reasons: dict[tuple[str, str], list[str]] = {}
         cls.tests: dict[tuple[str, str], str] = {}
         for kind, binding, ref, test in cls.records:
