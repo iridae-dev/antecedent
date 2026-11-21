@@ -2000,17 +2000,6 @@ dependency_manifest = "d16bb5fa5fa7832b2aeb7187c44d9d07a7b2b879556ee0ab321756023
 measurement_digest = "51ba961bb40ae13b451b8599fd6bf5901ec8b4b8db2c89efd55589b7f1854fe5"
 
 [[attestation]]
-record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable"
-calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
-sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
-fingerprint = "7adc8efe45c3c85abb2376df7cdf15597f3e67ba14a8fba41a5115021de94bca"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "b42bb84f7987033c9b4f65a3eb36f1c34b110173e70248042e515dce0171eaaa"
-measurement_digest = "0d08ef892437da567e8fd0fd67f0aa4a5ea775d4860ef89cae6cc98f4622e18d"
-
-[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
 sha = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"

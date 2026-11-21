@@ -189211,7 +189211,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graph_narrow_policy_calibration.rs::binary_strata_known_assignment_wider_nuisance",
       "test": "crates/antecedent/tests/graph_narrow_policy_calibration.rs::graph_narrow_held_out_policy_l95",
-      "calibration_sha": "6613b3ca25acae77a8326fb9dd62f19f4e73ae18"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable",
@@ -257120,7 +257120,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95",
-      "calibration_sha": "a60c728db674fadfe79d9c08666dd3907d55cf53"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable",
@@ -257769,7 +257769,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::randomized_selection_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_randomized_selection_exact_ties_l95",
-      "calibration_sha": "a60c728db674fadfe79d9c08666dd3907d55cf53"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable",
@@ -258064,7 +258064,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudinal_data",
       "test": "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95",
-      "calibration_sha": "a60c728db674fadfe79d9c08666dd3907d55cf53"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable",
@@ -284261,6 +284261,65 @@
       "dgp": "crates/antecedent/tests/trial_ipw_predictive_calibration.rs::known_randomization_shared_gaussian_outcomes",
       "test": "crates/antecedent/tests/trial_ipw_predictive_calibration.rs::trial_ipw_predictive_treated_outcome_l95",
       "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+    },
+    {
+      "id": "cov.outcome_prediction.event.frequentist.smoothed_rank_90.l90.hawkes_recursive_refit_count_l90.v2_validation_none",
+      "query": "OutcomePrediction",
+      "graph_class": "Event",
+      "structure": "fixed",
+      "modality": "event",
+      "inference": "Frequentist",
+      "estimator": "forecast.event_count_interval",
+      "interval_method": "smoothed_rank_90",
+      "se_kind": "",
+      "dependence": "complete_event_history_and_future",
+      "posterior": "recursive_hawkes_refit_v1",
+      "functional": "event_count:construction=08273d064d4d4e07e807fb3195988490c9641fdaed273151a8fad2f1ccbda073",
+      "identification": "model_conditional",
+      "nominal": "0.9",
+      "n_min": 126,
+      "n_max": 993,
+      "replicates_min": 0,
+      "posterior_draws_min": 256,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.877",
+      "mcse": "0.007344079247938437",
+      "replicates": 2000,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 126,
+          "n_max": 303,
+          "observed": "0.877",
+          "mcse": "0.007344079247938437",
+          "replicates": 2000,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 334,
+          "n_max": 535,
+          "observed": "0.91",
+          "mcse": "0.014309088021254182",
+          "replicates": 400,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 716,
+          "n_max": 993,
+          "observed": "0.8825",
+          "mcse": "0.016100756969782512",
+          "replicates": 400,
+          "boundary": false
+        }
+      ],
+      "validation_schema": 2,
+      "validation": "none",
+      "dgp": "crates/antecedent/tests/event_count_calibration.rs::hawkes_exponential_cluster_interior",
+      "test": "crates/antecedent/tests/event_count_calibration.rs::hawkes_recursive_refit_count_l90",
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_rollout_bootstrap_credible_interval.v2_validation_not_applicable",
@@ -328805,7 +328864,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_series",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage",
-      "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior",
@@ -328864,7 +328923,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_series",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage",
-      "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
@@ -329454,7 +329513,7 @@
       "validation": "cheap",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_series",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage",
-      "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior",
@@ -329513,7 +329572,7 @@
       "validation": "full",
       "dgp": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_series",
       "test": "crates/antecedent/tests/grid_temporal_effect_calibration.rs::pulse_effect_temporal_cpdag_bayesian_graph_posterior_coverage",
-      "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
@@ -455068,6 +455127,68 @@
       "calibration_sha": "935d928b7b2812a14ef79ee21833c3955d133949"
     },
     {
+      "id": "cov.sequential_contrast.randomized_trial.bayesian.posterior_absolute_deviation.l95.bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage.v2_validation_not_applicable",
+      "query": "SequentialContrast",
+      "graph_class": "RandomizedTrial",
+      "structure": "design",
+      "modality": "tabular",
+      "inference": "Bayesian",
+      "estimator": "bayesian.sequential_crossfit_contrast",
+      "interval_method": "posterior_absolute_deviation",
+      "se_kind": "",
+      "dependence": "iid",
+      "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
+      "functional": "",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 200,
+      "n_max": 800,
+      "replicates_min": 0,
+      "posterior_draws_min": 2000,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.9325",
+      "mcse": "0.0125442965127583",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 200,
+          "n_max": 200,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
+          "replicates": 400,
+          "overlap_refusals": 768,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 400,
+          "n_max": 400,
+          "observed": "0.9425",
+          "mcse": "0.01163977555625537",
+          "replicates": 400,
+          "overlap_refusals": 456,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 800,
+          "n_max": 800,
+          "observed": "0.9325",
+          "mcse": "0.0125442965127583",
+          "replicates": 400,
+          "overlap_refusals": 177,
+          "boundary": false
+        }
+      ],
+      "validation_schema": 2,
+      "validation": "not_applicable",
+      "dgp": "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_panel_wide_probabilities",
+      "test": "crates/antecedent/tests/temporal_wider_range_calibration.rs::bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage",
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
+    },
+    {
       "id": "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_coverage.v2_validation_not_applicable",
       "query": "SequentialContrast",
       "graph_class": "RandomizedTrial",
@@ -455420,6 +455541,68 @@
       "dgp": "crates/antecedent/tests/temporal_routes_range_calibration.rs::sequential_panel",
       "test": "crates/antecedent/tests/temporal_routes_range_calibration.rs::sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage",
       "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+    },
+    {
+      "id": "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_wide_probability_coverage.v2_validation_not_applicable",
+      "query": "SequentialContrast",
+      "graph_class": "RandomizedTrial",
+      "structure": "design",
+      "modality": "tabular",
+      "inference": "Frequentist",
+      "estimator": "sequential.crossfit_contrast.wald",
+      "interval_method": "analytic_se",
+      "se_kind": "crossfit_score",
+      "dependence": "iid",
+      "posterior": "",
+      "functional": "",
+      "identification": "point",
+      "nominal": "0.95",
+      "n_min": 200,
+      "n_max": 800,
+      "replicates_min": 0,
+      "posterior_draws_min": 0,
+      "unidentified_mass_max": "0.0",
+      "observed": "0.94",
+      "mcse": "0.011874342087037922",
+      "replicates": 400,
+      "boundary": false,
+      "grid": [
+        {
+          "point": 0,
+          "n_min": 200,
+          "n_max": 200,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
+          "replicates": 400,
+          "overlap_refusals": 882,
+          "boundary": false
+        },
+        {
+          "point": 1,
+          "n_min": 400,
+          "n_max": 400,
+          "observed": "0.9425",
+          "mcse": "0.01163977555625537",
+          "replicates": 400,
+          "overlap_refusals": 440,
+          "boundary": false
+        },
+        {
+          "point": 2,
+          "n_min": 800,
+          "n_max": 800,
+          "observed": "0.94",
+          "mcse": "0.011874342087037922",
+          "replicates": 400,
+          "overlap_refusals": 203,
+          "boundary": false
+        }
+      ],
+      "validation_schema": 2,
+      "validation": "not_applicable",
+      "dgp": "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_panel_wide_probabilities",
+      "test": "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_crossfit_contrast_wald_interval_wide_probability_coverage",
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.sequential_policy_value.not_applicable.frequentist.wald_normal.l95.off_policy_importance_weighted_wald_interval.v2_validation_not_applicable",
@@ -479682,11 +479865,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/posterior_average+donors=10+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -479697,29 +479880,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.955",
           "mcse": "0.010365206220813944",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 382,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.96",
           "mcse": "0.009797958971132717",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 384,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.94",
           "mcse": "0.011874342087037922",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 376,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -479727,7 +479925,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_calibration.rs::bayesian_synthetic_control_posterior_interval",
-      "calibration_sha": "31aeae4afd736f0cec95281fda46c8fe37153285"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_posterior_interval_one_post_period.v2_validation_not_applicable",
@@ -479741,11 +479939,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/posterior_average+donors=10+post_periods=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 31,
-      "n_max": 81,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -479756,29 +479954,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 31,
-          "n_max": 31,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 41,
-          "n_max": 41,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.9375",
           "mcse": "0.012103072956898178",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 375,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 81,
-          "n_max": 81,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9475",
           "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -479786,7 +479999,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_posterior_interval_one_post_period",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_posterior_interval_three_post_periods.v2_validation_not_applicable",
@@ -479800,11 +480013,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/posterior_average+donors=10+post_periods=3",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 33,
-      "n_max": 83,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -479815,29 +480028,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 33,
-          "n_max": 33,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9325",
           "mcse": "0.0125442965127583",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 373,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 43,
-          "n_max": 43,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.95",
           "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 83,
-          "n_max": 83,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9575",
           "mcse": "0.004510751046111944",
           "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1915,
+            "returned": 2000
+          },
           "boundary": false
         }
       ],
@@ -479845,7 +480073,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_posterior_interval_three_post_periods",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_posterior_interval_twenty_donors.v2_validation_not_applicable",
@@ -479859,11 +480087,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/posterior_average+donors=20+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -479874,29 +480102,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.935",
           "mcse": "0.012326293035621046",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 374,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.955",
           "mcse": "0.010365206220813944",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 382,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9325",
           "mcse": "0.0125442965127583",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 373,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -479904,7 +480147,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_posterior_interval_twenty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_posterior_interval_upper_pre_periods.v2_validation_not_applicable",
@@ -479918,11 +480161,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/posterior_average+donors=10+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 125,
-      "n_max": 325,
+      "n_min": 120,
+      "n_max": 320,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -479933,29 +480176,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 125,
-          "n_max": 125,
+          "n_min": 120,
+          "n_max": 120,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 165,
-          "n_max": 165,
+          "n_min": 160,
+          "n_max": 160,
           "observed": "0.945",
           "mcse": "0.011399013115178002",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 378,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 325,
-          "n_max": 325,
+          "n_min": 320,
+          "n_max": 320,
           "observed": "0.9375",
           "mcse": "0.012103072956898178",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 375,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -479963,7 +480221,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_posterior_interval_upper_pre_periods",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_average_interval.v2_validation_not_applicable",
@@ -479977,44 +480235,59 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9325",
-      "mcse": "0.0125442965127583",
+      "observed": "0.9375",
+      "mcse": "0.012103072956898178",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9375",
           "mcse": "0.012103072956898178",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 375,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
-          "observed": "0.935",
-          "mcse": "0.012326293035621046",
+          "n_min": 40,
+          "n_max": 40,
+          "observed": "0.9625",
+          "mcse": "0.009499177595981663",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 385,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
-          "observed": "0.9325",
-          "mcse": "0.0125442965127583",
+          "n_min": 80,
+          "n_max": 80,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480022,7 +480295,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_calibration.rs::bayesian_synthetic_control_predictive_path_average_interval",
-      "calibration_sha": "31aeae4afd736f0cec95281fda46c8fe37153285"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_average_interval_twenty_donors.v2_validation_not_applicable",
@@ -480036,44 +480309,59 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=20+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
-      "observed": "0.93",
-      "mcse": "0.01275735082217307",
-      "replicates": 400,
+      "observed": "0.9345",
+      "mcse": "0.005532167296819575",
+      "replicates": 2000,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
-          "observed": "0.9625",
-          "mcse": "0.009499177595981663",
-          "replicates": 400,
+          "n_min": 30,
+          "n_max": 30,
+          "observed": "0.9345",
+          "mcse": "0.005532167296819575",
+          "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1869,
+            "returned": 2000
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
-          "observed": "0.93",
-          "mcse": "0.01275735082217307",
-          "replicates": 400,
+          "n_min": 40,
+          "n_max": 40,
+          "observed": "0.9455",
+          "mcse": "0.005075911248239078",
+          "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1891,
+            "returned": 2000
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
-          "observed": "0.955",
-          "mcse": "0.010365206220813944",
+          "n_min": 80,
+          "n_max": 80,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480081,7 +480369,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_average_interval_twenty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods.v2_validation_not_applicable",
@@ -480095,44 +480383,59 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 125,
-      "n_max": 325,
+      "n_min": 120,
+      "n_max": 320,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9325",
-      "mcse": "0.0125442965127583",
+      "observed": "0.94",
+      "mcse": "0.011874342087037922",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 125,
-          "n_max": 125,
-          "observed": "0.955",
-          "mcse": "0.010365206220813944",
+          "n_min": 120,
+          "n_max": 120,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 165,
-          "n_max": 165,
-          "observed": "0.955",
-          "mcse": "0.010365206220813944",
+          "n_min": 160,
+          "n_max": 160,
+          "observed": "0.94",
+          "mcse": "0.011874342087037922",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 376,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 325,
-          "n_max": 325,
-          "observed": "0.9325",
-          "mcse": "0.0125442965127583",
+          "n_min": 320,
+          "n_max": 320,
+          "observed": "0.955",
+          "mcse": "0.010365206220813944",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 382,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480140,7 +480443,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_first_period_interval.v2_validation_not_applicable",
@@ -480154,11 +480457,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5+period=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480169,29 +480472,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9375",
           "mcse": "0.012103072956898178",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 375,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
-          "observed": "0.95",
-          "mcse": "0.010897247358851688",
-          "replicates": 400,
+          "n_min": 40,
+          "n_max": 40,
+          "observed": "0.9523809523809523",
+          "mcse": "0.01066127768665822",
+          "replicates": 399,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 399
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.965",
           "mcse": "0.009188987974744557",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 386,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480199,7 +480517,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_calibration.rs::bayesian_synthetic_control_predictive_path_first_period_interval",
-      "calibration_sha": "31aeae4afd736f0cec95281fda46c8fe37153285"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors.v2_validation_not_applicable",
@@ -480213,11 +480531,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=40+post_periods=5+period=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480228,29 +480546,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9475",
           "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.96",
           "mcse": "0.009797958971132717",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 384,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480258,7 +480591,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors.v2_validation_not_applicable",
@@ -480272,11 +480605,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=20+post_periods=5+period=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480287,29 +480620,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9525",
           "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.96",
           "mcse": "0.009797958971132717",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 384,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9375",
           "mcse": "0.012103072956898178",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 375,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480317,7 +480665,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods.v2_validation_not_applicable",
@@ -480331,11 +480679,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5+period=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 125,
-      "n_max": 325,
+      "n_min": 120,
+      "n_max": 320,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480346,29 +480694,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 125,
-          "n_max": 125,
+          "n_min": 120,
+          "n_max": 120,
           "observed": "0.9575",
           "mcse": "0.010086345968684594",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 383,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 165,
-          "n_max": 165,
+          "n_min": 160,
+          "n_max": 160,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 325,
-          "n_max": 325,
+          "n_min": 320,
+          "n_max": 320,
           "observed": "0.965",
           "mcse": "0.009188987974744557",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 386,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480376,7 +480739,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_last_period_interval.v2_validation_not_applicable",
@@ -480390,11 +480753,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5+period=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480405,29 +480768,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.95",
           "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.943",
           "mcse": "0.005184158562389852",
           "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1886,
+            "returned": 2000
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9525",
           "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480435,7 +480813,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_calibration.rs::bayesian_synthetic_control_predictive_path_last_period_interval",
-      "calibration_sha": "31aeae4afd736f0cec95281fda46c8fe37153285"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors.v2_validation_not_applicable",
@@ -480449,11 +480827,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=40+post_periods=5+period=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480464,29 +480842,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
-          "observed": "0.9425",
-          "mcse": "0.01163977555625537",
-          "replicates": 400,
+          "n_min": 40,
+          "n_max": 40,
+          "observed": "0.9472361809045227",
+          "mcse": "0.011206131497557283",
+          "replicates": 398,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 398
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9485",
           "mcse": "0.004942051699446293",
           "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1897,
+            "returned": 2000
+          },
           "boundary": false
         }
       ],
@@ -480494,7 +480887,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors.v2_validation_not_applicable",
@@ -480508,11 +480901,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=20+post_periods=5+period=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 35,
-      "n_max": 85,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480523,29 +480916,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 35,
-          "n_max": 35,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.955",
           "mcse": "0.010365206220813944",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 382,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 45,
-          "n_max": 45,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.95",
           "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 85,
-          "n_max": 85,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9625",
           "mcse": "0.009499177595981663",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 385,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480553,7 +480961,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods.v2_validation_not_applicable",
@@ -480567,11 +480975,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=5+period=5",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 125,
-      "n_max": 325,
+      "n_min": 120,
+      "n_max": 320,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480582,29 +480990,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 125,
-          "n_max": 125,
+          "n_min": 120,
+          "n_max": 120,
           "observed": "0.935",
           "mcse": "0.012326293035621046",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 374,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 165,
-          "n_max": 165,
+          "n_min": 160,
+          "n_max": 160,
           "observed": "0.9325",
           "mcse": "0.0125442965127583",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 373,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 325,
-          "n_max": 325,
+          "n_min": 320,
+          "n_max": 320,
           "observed": "0.9475",
           "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480612,7 +481035,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_one_post_period_average_interval.v2_validation_not_applicable",
@@ -480626,11 +481049,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 31,
-      "n_max": 81,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480641,29 +481064,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 31,
-          "n_max": 31,
-          "observed": "0.95",
-          "mcse": "0.010897247358851688",
+          "n_min": 30,
+          "n_max": 30,
+          "observed": "0.9475",
+          "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 41,
-          "n_max": 41,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.9425",
           "mcse": "0.01163977555625537",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 377,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 81,
-          "n_max": 81,
-          "observed": "0.9575",
-          "mcse": "0.010086345968684594",
-          "replicates": 400,
+          "n_min": 80,
+          "n_max": 80,
+          "observed": "0.9548872180451128",
+          "mcse": "0.01039057058301162",
+          "replicates": 399,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 399
+          },
           "boundary": false
         }
       ],
@@ -480671,7 +481109,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::bayesian_synthetic_control_predictive_path_one_post_period_average_interval",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_one_post_period_period_interval.v2_validation_not_applicable",
@@ -480685,11 +481123,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=1",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 31,
-      "n_max": 81,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480700,29 +481138,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 31,
-          "n_max": 31,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9525",
           "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 41,
-          "n_max": 41,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.9625",
           "mcse": "0.009499177595981663",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 385,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 81,
-          "n_max": 81,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.95",
           "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480730,7 +481183,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::bayesian_synthetic_control_predictive_path_one_post_period_period_interval",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_average_interval.v2_validation_not_applicable",
@@ -480744,44 +481197,59 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=3",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 33,
-      "n_max": 83,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
-      "observed": "0.9425",
-      "mcse": "0.01163977555625537",
+      "observed": "0.95",
+      "mcse": "0.010897247358851688",
       "replicates": 400,
       "boundary": false,
       "grid": [
         {
           "point": 0,
-          "n_min": 33,
-          "n_max": 33,
-          "observed": "0.9475",
-          "mcse": "0.01115165346484547",
+          "n_min": 30,
+          "n_max": 30,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 43,
-          "n_max": 43,
-          "observed": "0.945",
-          "mcse": "0.011399013115178002",
+          "n_min": 40,
+          "n_max": 40,
+          "observed": "0.9525",
+          "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 83,
-          "n_max": 83,
-          "observed": "0.9425",
-          "mcse": "0.01163977555625537",
+          "n_min": 80,
+          "n_max": 80,
+          "observed": "0.95",
+          "mcse": "0.010897247358851688",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 380,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480789,7 +481257,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::bayesian_synthetic_control_predictive_path_three_post_periods_average_interval",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval.v2_validation_not_applicable",
@@ -480803,11 +481271,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=3",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 33,
-      "n_max": 83,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480818,29 +481286,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 33,
-          "n_max": 33,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9475",
           "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 43,
-          "n_max": 43,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.9525",
           "mcse": "0.010635289135702893",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 381,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 83,
-          "n_max": 83,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9475",
           "mcse": "0.01115165346484547",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 379,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480848,7 +481331,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval.v2_validation_not_applicable",
@@ -480862,11 +481345,11 @@
       "se_kind": "",
       "dependence": "iid",
       "posterior": "conjugate_gaussian.gaussian_identity.prior_scale=10",
-      "functional": "",
+      "functional": "synthetic_control/predictive_path_average+donors=10+post_periods=3",
       "identification": "point",
       "nominal": "0.95",
-      "n_min": 33,
-      "n_max": 83,
+      "n_min": 30,
+      "n_max": 80,
       "replicates_min": 0,
       "posterior_draws_min": 2000,
       "unidentified_mass_max": "0.0",
@@ -480877,29 +481360,44 @@
       "grid": [
         {
           "point": 0,
-          "n_min": 33,
-          "n_max": 33,
+          "n_min": 30,
+          "n_max": 30,
           "observed": "0.9455",
           "mcse": "0.005075911248239078",
           "replicates": 2000,
+          "interval_counts": {
+            "attempted": 2000,
+            "covered": 1891,
+            "returned": 2000
+          },
           "boundary": false
         },
         {
           "point": 1,
-          "n_min": 43,
-          "n_max": 43,
+          "n_min": 40,
+          "n_max": 40,
           "observed": "0.955",
           "mcse": "0.010365206220813944",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 382,
+            "returned": 400
+          },
           "boundary": false
         },
         {
           "point": 2,
-          "n_min": 83,
-          "n_max": 83,
+          "n_min": 80,
+          "n_max": 80,
           "observed": "0.9325",
           "mcse": "0.0125442965127583",
           "replicates": 400,
+          "interval_counts": {
+            "attempted": 400,
+            "covered": 373,
+            "returned": 400
+          },
           "boundary": false
         }
       ],
@@ -480907,7 +481405,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval",
-      "calibration_sha": "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set.v2_validation_not_applicable",
@@ -482028,7 +482526,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise",
       "test": "crates/antecedent/tests/synthetic_control_range_calibration.rs::conformal_synthetic_control_three_post_periods_first_period_set",
-      "calibration_sha": "5aedfdd715ee96e311212435fe8ba0ff2cba0467"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_last_period_set.v2_validation_not_applicable",
@@ -538609,7 +539107,7 @@
       "validation": "not_applicable",
       "dgp": "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs::source_and_shifted_target_poisson_count_closed_form_interventional_mean",
       "test": "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs::typed_transported_poisson_mechanism_first_order_interval",
-      "calibration_sha": "434787cc9d8b641f42d9970eb052eb69cc8cf772"
+      "calibration_sha": "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
     },
     {
       "id": "cov.weighted_target_transported_prior.dag.frequentist.reweighted_mean_wald.l95.epanechnikov_kernel_transported_estimate_covers_across_bandwidths.v2_validation_not_applicable.bandwidth_0_06",
@@ -540632,10 +541130,6 @@
     "cov.average_effect.unknown.bayesian.simultaneous_band.l95.average_effect_undecided_tier_bayesian_given.v2_validation_none.scenario_0",
     "cov.average_effect.unknown.bayesian.simultaneous_band.l95.average_effect_undecided_tier_bayesian_given.v2_validation_none.scenario_1",
     "cov.average_effect.unknown.frequentist.simultaneous_band.l95.average_effect_unknown_frequentist_joint_band_nominal_coverage.v2_validation_none",
-    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95.v2_validation_not_applicable",
-    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95.v2_validation_not_applicable",
-    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95.v2_validation_not_applicable",
-    "cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95.v2_validation_not_applicable",
     "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r1",
     "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r16",
     "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable.k2_r4",
@@ -540725,8 +541219,6 @@
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h.v2_validation_not_applicable",
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.source_target_imbalance_standardize_nominal_coverage.v2_validation_not_applicable",
     "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.weak_overlap_near_empty_conditioner_boundary.v2_validation_not_applicable",
-    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_positive_box.v2_validation_not_applicable",
-    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_independent_intercepts_l95.v2_validation_not_applicable",
     "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_shared_intercepts_l95.v2_validation_not_applicable",
@@ -540921,7 +541413,6 @@
     "cov.conditional_effect.temporal_admg.bayesian.posterior_quantile.l95.conditional_effect_temporal_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted",
     "cov.conditional_effect.temporal_admg.bayesian.posterior_quantile.l95.conditional_effect_temporal_admg_given_bayesian_coverage.v2_validation_none",
     "cov.conditional_effect.temporal_admg.bayesian.posterior_quantile.l95.conditional_effect_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
-    "cov.conditional_outcome_probability_given_joint_measurement.declared_finite_mechanisms.bayesian.fitted_joint_error_dirichlet_equal_tailed.l95.fitted_dependent_measurement_joint_error_l95.v2_validation_not_applicable",
     "cov.continuous_dose_response.randomized_trial.bayesian.posterior_quantile.l95.dose_policy_incremental_value_credible_interval.v2_validation_not_applicable",
     "cov.continuous_dose_response.randomized_trial.bayesian.posterior_quantile.l95.dose_policy_value_credible_interval.v2_validation_not_applicable",
     "cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap",
@@ -541164,8 +541655,6 @@
     "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district.v2_validation_not_applicable",
     "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift.v2_validation_not_applicable",
     "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint.v2_validation_not_applicable",
-    "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_score_wald_v1.l95.graph_narrow_cross_fitted_policy_l95.v2_validation_not_applicable",
-    "cov.cross_fitted_learned_policy_value.declared_dag_checked_backdoor.frequentist.cross_fitted_policy_subsampling_basic_v2.l95.graph_narrow_cross_fitted_subsampling_policy_l95.v2_validation_not_applicable",
     "cov.decision_evidence.observational.frequentist.delta_method_normal_95.l95.decision_margin_adaptive_regime_jackknife_delta_interval.v2_validation_none",
     "cov.decision_evidence.observational.frequentist.delta_method_normal_95.l95.decision_margin_static_regime_bootstrap_delta_interval.v2_validation_none",
     "cov.decision_evidence.randomized_trial.frequentist.delta_method_normal_95.l95.decision_margin_centered_cuped_cluster_delta_interval.v2_validation_none",
@@ -541173,8 +541662,6 @@
     "cov.decision_evidence.randomized_trial.frequentist.delta_method_normal_95.l95.decision_margin_lagged_excursion_delta_interval.v2_validation_none",
     "cov.decision_evidence.randomized_trial.frequentist.delta_method_student_95.l95.decision_margin_matched_pair_delta_interval.v2_validation_none",
     "cov.decision_evidence.randomized_trial.frequentist.delta_method_student_95.l95.decision_margin_switchback_delta_interval.v2_validation_none",
-    "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_bayesian_l95.v2_validation_not_applicable",
-    "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable",
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.v2_validation_not_applicable.separate_streams",
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.v2_validation_not_applicable.shared_rho_0_0",
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.v2_validation_not_applicable.shared_rho_0_5",
@@ -541232,8 +541719,6 @@
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.v2_validation_not_applicable.separate_streams",
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.v2_validation_not_applicable.shared_rho_0_0",
     "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_two_candidates_l95.v2_validation_not_applicable.shared_rho_0_5",
-    "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_frequentist_l95.v2_validation_not_applicable",
-    "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable",
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.v2_validation_not_applicable.shared_rho_0_5",
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.v2_validation_not_applicable.separate_streams",
     "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_eight_candidates_l95.v2_validation_not_applicable.shared_rho_0_0",
@@ -542352,8 +542837,6 @@
     "cov.elasticity.temporal_pag.frequentist.circular_block_se.l95.gcomp_elasticity_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior",
     "cov.elasticity.temporal_pag.frequentist.circular_block_se.l95.gcomp_elasticity_temporal_pag_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
     "cov.held_out_learned_policy_value.declared_dag_checked_backdoor.frequentist.held_out_policy_score_wald_v1.l95.graph_narrow_held_out_policy_l95.v2_validation_not_applicable",
-    "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable",
-    "cov.history_match.randomized_trial.frequentist.analytic_se.l95.period_history_contrast_period_interval_coverage.v2_validation_not_applicable",
     "cov.identified_set.none.frequentist.bonferroni_basic_bootstrap.l95.iid_sampling_assumption_union_joint_endpoints_l95.v2_validation_none",
     "cov.identified_set.none.frequentist.bonferroni_basic_cluster_bootstrap.l95.cluster_sampling_assumption_union_joint_endpoints_l95.v2_validation_none",
     "cov.interference_query.admg.bayesian.posterior_quantile.l90.interference_dag_given_bayesian_gaussian_coverage.v2_validation_cheap",
@@ -543497,33 +543980,9 @@
     "cov.joint_panel_experiment_update.not_applicable.bayesian.weighted_posterior_quantile.l95.joint_panel_experiment_update_weights_time_varying_bayesian_l95.v2_validation_not_applicable",
     "cov.joint_response.dag.bayesian.posterior_quantile.l95.prepared_joint_response_contrast_bayesian_l95.v2_validation_not_applicable",
     "cov.joint_response.dag.frequentist.analytic_se.l95.prepared_joint_response_contrast_frequentist_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable",
     "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.bayesian.weighted_equal_tailed_posterior.l95.joint_response_experiment_update_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.bootstrap_covariance_normal.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable",
     "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_exact_ties_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_separated_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_structural_selection_weak_separation_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable",
     "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable",
-    "cov.joint_response.not_applicable.frequentist.wald_ratio.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable",
     "cov.local_polynomial_ratio.randomized_trial.bayesian.posterior_quantile.l90.bayesian_fuzzy_rd_posterior_interval_covers_the_local_ratio.v2_validation_not_applicable",
     "cov.local_polynomial_ratio.randomized_trial.bayesian.posterior_quantile.l90.bayesian_regression_kink_posterior_interval_covers_the_slope_ratio.v2_validation_not_applicable",
     "cov.local_polynomial_ratio.randomized_trial.bayesian.posterior_quantile.l90.bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump.v2_validation_not_applicable",
@@ -543553,8 +544012,6 @@
     "cov.local_polynomial_ratio.randomized_trial.frequentist.bootstrap_se.l95.temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio.v2_validation_not_applicable",
     "cov.local_polynomial_ratio.randomized_trial.frequentist.bootstrap_se.l95.temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors.v2_validation_not_applicable",
     "cov.local_polynomial_ratio.randomized_trial.frequentist.bootstrap_se.l95.temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio.v2_validation_not_applicable",
-    "cov.longitudinal_regime.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage.v2_validation_not_applicable",
-    "cov.longitudinal_regime.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_regime_value_posterior_coverage.v2_validation_not_applicable",
     "cov.matched_odds_ratio.not_applicable.frequentist.wald_normal.l95.matched_pairs_conditional_odds_ratio_wald_interval.v2_validation_not_applicable",
     "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_mean_substitution_wald_l95.v2_validation_not_applicable",
     "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_multiple_imputation_wald_l95.v2_validation_not_applicable",
@@ -543590,7 +544047,6 @@
     "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_shared_misclassification_rubin_l95.v2_validation_not_applicable",
     "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_soft_probabilities_rubin_l95.v2_validation_not_applicable",
     "cov.mechanism_change.trial_level_bridge.frequentist.bonferroni_normal_wald_95_grid.l95.bridge_target_mapping_discrepancy_grid_l95.v2_validation_none",
-    "cov.mechanism_composition_contrast.dag.frequentist.delta_method_wald.l95.composed_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable",
     "cov.mediation_effect.admg.bayesian.posterior_quantile.l90.mediation_admg_given_bayesian_coverage.v2_validation_cheap",
     "cov.mediation_effect.admg.bayesian.posterior_quantile.l90.mediation_admg_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
     "cov.mediation_effect.admg.bayesian.posterior_quantile.l90.mediation_admg_given_bayesian_coverage.v2_validation_full",
@@ -543767,7 +544223,6 @@
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior",
     "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
-    "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
     "cov.nested_counterfactual_effect.admg.bayesian.posterior_quantile.l90.nested_counterfactual_effect_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
@@ -543963,12 +544418,12 @@
     "cov.outcome_prediction.cyclic.bayesian.nearest_rank_95.l95.cyclic_posterior_population_outcome_l95.v2_validation_none",
     "cov.outcome_prediction.dag.bayesian.nearest_rank_95.l95.joint_transport_predictive_treated_outcome_l95.v2_validation_none",
     "cov.outcome_prediction.dag.bayesian.nearest_rank_95.l95.trial_ipw_predictive_treated_outcome_l95.v2_validation_none",
+    "cov.outcome_prediction.event.frequentist.smoothed_rank_90.l90.hawkes_recursive_refit_count_l90.v2_validation_none",
     "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_rollout_bootstrap_credible_interval.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_rollout_bootstrap_credible_interval_upper_units.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval_from_the_row_floor.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval_upper_group_sizes.v2_validation_not_applicable",
-    "cov.panel_did.randomized_trial.frequentist.analytic_se.l95.weighted_panel_did_interval.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.augmented_panel_estimated_nuisance_bootstrap_interval.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.augmented_panel_in_sample_nuisance_bootstrap_interval.v2_validation_not_applicable",
     "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.augmented_panel_true_nuisance_bootstrap_interval.v2_validation_not_applicable",
@@ -544621,7 +545076,6 @@
     "cov.point_derivative.temporal_pag.frequentist.circular_block_se.l95.gcomp_point_derivative_temporal_pag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior",
     "cov.point_derivative.temporal_pag.frequentist.circular_block_se.l95.gcomp_point_derivative_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior",
     "cov.point_derivative.temporal_pag.frequentist.circular_block_se.l95.gcomp_point_derivative_temporal_pag_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
-    "cov.policy_value.randomized_trial.bayesian.posterior_quantile.l95.bayesian_binary_policy_value_posterior_coverage.v2_validation_not_applicable",
     "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_fifteen_studies.v2_validation_not_applicable",
     "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_five_studies.v2_validation_not_applicable",
     "cov.pooled_effect.no_graph.frequentist.independent_gaussian_study_t.l95.pooled_random_effects_homogeneous_fifteen_studies.v2_validation_not_applicable",
@@ -546858,13 +547312,8 @@
     "cov.semi_elasticity.temporal_pag.frequentist.circular_block_se.l95.gcomp_semi_elasticity_temporal_pag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior",
     "cov.semi_elasticity.temporal_pag.frequentist.circular_block_se.l95.gcomp_semi_elasticity_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior",
     "cov.semi_elasticity.temporal_pag.frequentist.circular_block_se.l95.gcomp_semi_elasticity_temporal_pag_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
-    "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_coverage.v2_validation_not_applicable",
-    "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage.v2_validation_not_applicable",
-    "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage.v2_validation_not_applicable",
-    "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_coverage.v2_validation_not_applicable",
-    "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_ten_folds_coverage.v2_validation_not_applicable",
-    "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage.v2_validation_not_applicable",
-    "cov.sequential_policy_value.not_applicable.frequentist.wald_normal.l95.off_policy_importance_weighted_wald_interval.v2_validation_not_applicable",
+    "cov.sequential_contrast.randomized_trial.bayesian.posterior_absolute_deviation.l95.bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage.v2_validation_not_applicable",
+    "cov.sequential_contrast.randomized_trial.frequentist.analytic_se.l95.sequential_crossfit_contrast_wald_interval_wide_probability_coverage.v2_validation_not_applicable",
     "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.baseline_mean",
     "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference",
     "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.policy_mean",
@@ -547296,27 +547745,11 @@
     "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_average_interval.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_forty_donors.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_twenty_donors.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_unaligned_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_upper_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_forty_donors.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_twenty_donors.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_unaligned_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_upper_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_forty_donors.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_twenty_donors.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_unaligned_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_upper_pre_periods.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_one_post_period_constant_effect_set.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_one_post_period_period_set.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_constant_effect_set.v2_validation_not_applicable",
     "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_first_period_set.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_last_period_set.v2_validation_not_applicable",
-    "cov.synthetic_control.randomized_trial.frequentist.placebo_variance.l95.multi_unit_synthetic_placebo_variance_interval.v2_validation_not_applicable",
     "cov.target_refutation.target_native.bayesian.target.posterior_predictive.l95.static_bayesian_predictive_check_false_rejection_under_a_correct_model.v2_validation_not_applicable.target_posterior_predictive",
     "cov.target_refutation.target_native.bayesian.target.posterior_predictive.l95.temporal_bayesian_predictive_check_false_rejection_under_a_correct_model.v2_validation_not_applicable.target_posterior_predictive",
     "cov.target_refutation.target_native.frequentist.target.bootstrap_stability.l95.static_frequentist_refuters_false_rejection_under_a_sound_procedure.v2_validation_not_applicable.target_bootstrap_stability",
@@ -548272,7 +548705,6 @@
     "cov.transport_query.temporal_admg.frequentist.analytic_se.l95.transport_temporal_admg_given_frequentist_coverage.v2_validation_none",
     "cov.transport_query.temporal_admg.frequentist.analytic_se.l95.transport_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted",
     "cov.transport_query.temporal_admg.frequentist.analytic_se.l95.transport_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
-    "cov.transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.transported_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable",
     "cov.typed_transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.typed_transported_poisson_mechanism_first_order_interval.v2_validation_not_applicable",
     "cov.weighted_target_transported_prior.dag.frequentist.reweighted_mean_wald.l95.epanechnikov_kernel_transported_estimate_covers_across_bandwidths.v2_validation_not_applicable.bandwidth_0_06",
     "cov.weighted_target_transported_prior.dag.frequentist.reweighted_mean_wald.l95.epanechnikov_kernel_transported_estimate_covers_across_bandwidths.v2_validation_not_applicable.bandwidth_0_12",
@@ -548295,6 +548727,10 @@
     },
     {
       "method": "PosteriorQuantile",
+      "reason": null
+    },
+    {
+      "method": "PosteriorAbsoluteDeviation",
       "reason": null
     },
     {
