@@ -46,7 +46,7 @@ class ReliabilityReportTests(unittest.TestCase):
             path = Path(directory) / "antecedent-discovery__signed_uniform_per_edge_edge_probabilities_match_generating_frequencies.log"
             def problems(report):
                 path.write_text("graph-reliability-report " + json.dumps(report) +
-                                "\ntest result: ok. 1 passed; 0 failed;\n")
+                                "\ntest result: ok. 1 passed; 0 failed;\n", encoding="utf-8")
                 return log_problems(path)[0]
 
             report = two_populated_bins(1)
@@ -57,7 +57,7 @@ class ReliabilityReportTests(unittest.TestCase):
             report["dataset_bins"].pop()
             self.assertTrue(problems(report))
             path.write_text("calibration-smoke graph discovery coverage slice; no measurement verdict\n"
-                            "test result: ok. 1 passed; 0 failed;\n")
+                            "test result: ok. 1 passed; 0 failed;\n", encoding="utf-8")
             self.assertTrue(any("smoke" in why for why in log_problems(path)[0]))
 
     def test_rejects_false_pass_and_inconsistent_cluster_denominator(self):

@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import calibration_groups as groups  # noqa: E402
@@ -134,7 +134,7 @@ class OwedSelectionTest(unittest.TestCase):
         self.assertIn("no gate group 'nobody: x' for route:cap/typo", text)
 
     def test_graphless_claim_keys_resolve_to_published_design_methods(self):
-        support = groups.load_toml(groups.ROOT / "parity/support_graphless.toml")["support"]
+        support = load_toml(groups.ROOT / "parity/support_graphless.toml")["support"]
         keys = {" / ".join(row[key] for key in ("family", "design", "method")) for row in support}
         for group in groups.gate_groups():
             if group.claim and group.head != "joint_panel_calibration":

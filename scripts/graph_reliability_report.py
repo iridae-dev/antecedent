@@ -88,7 +88,7 @@ def main() -> int:
     status = 0
     for path in parser.parse_args().logs:
         try:
-            report = parse_report(path.read_text())
+            report = parse_report(path.read_text(encoding="utf-8"))
             failed = check_report(report)
         except (KeyError, OSError, TypeError, ValueError, OverflowError) as error:
             parser.exit(2, f"{path}: invalid reliability report: {error}\n")

@@ -56,7 +56,7 @@ class PassingGroupHarvestTest(unittest.TestCase):
             old = f"{prior.label}\t1\t0\t{sha}\t1\t400\n".encode()
             timings.write_bytes(old)
             (root / f"{prior.safe}.log").touch()
-            with timings.open("a") as out:
+            with timings.open("a", encoding="utf-8") as out:
                 for group in (good, bad):
                     for point in group.points:
                         status = int(group is bad and point == 2)
@@ -91,7 +91,7 @@ class PassingGroupHarvestTest(unittest.TestCase):
             incomplete = [log("partial.p0.log"), log("partial.p2.log")]
             wrong_sha = [log("wrong.log", measured="b" * 40)]
             unfinished = log("unfinished.log")
-            unfinished.write_text("test t ... calibration-recheck t: extend\n" + unfinished.read_text())
+            unfinished.write_text("test t ... calibration-recheck t: extend\n" + unfinished.read_text(encoding="utf-8"), encoding="utf-8")
             self.assertEqual(
                 collector.passing_group_logs(complete + failed + incomplete + wrong_sha + [unfinished], sha),
                 complete,
