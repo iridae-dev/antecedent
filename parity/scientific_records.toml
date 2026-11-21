@@ -994,7 +994,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "de2c24ceded3da3e8f948815d82db50563dee822870c578603b226d6f5ffac13"
 recorded_at = "2026-11-09T21:25:35Z"
-dependency_manifest = "e993c49d7eb8a9683951becbe8cd1345dd6e2b5eca5045f467750bd3c0b3af5d"
+dependency_manifest = "2367b946748c8a6cd513d682d106eedba5053d7ec6b694cc37edad02af80c237"
 
 [[record]]
 test = "antecedent-design::suite_01::decision_reliability_producers::structurally_shared_rollout_noise_supports_ranking_to_the_carrier"
