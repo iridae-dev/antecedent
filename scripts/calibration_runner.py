@@ -376,6 +376,23 @@ def coverage_path(stem: Path) -> Path:
     return stem.with_name(stem.name + ".coverage.json")
 
 
+def build_target_selection(
+    groups: list[GroupSpec], tasks: list[Task], shared_groups: str | None,
+) -> list[tuple[str, str, str]]:
+    """Select canonical binaries. A fixed group list lets probes and full runs share one build."""
+    requested = {t.group.build_target for t in tasks}
+    by_label = {g.label: g.build_target for g in groups}
+    if shared_groups is None:
+        return sorted(requested if len(requested) == 1 else set(by_label.values()) | requested)
+    labels = json.loads(shared_groups)
+    if not isinstance(labels, list) or not all(isinstance(label, str) and label in by_label for label in labels):
+        raise ValueError("shared calibration build groups must be a JSON list of registered group labels")
+    selected = {by_label[label] for label in labels}
+    if missing := requested - selected:
+        raise ValueError(f"shared calibration build omits requested targets: {sorted(missing)}")
+    return sorted(selected)
+
+
 def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path, jobs: int,
             first_nsim: int, recheck_nsim: int, acceptance_nsim: int = 2000, smoke: bool = False,
             confirm: bool = False, decision_context: str | None = None, on_done=None,
@@ -410,9 +427,9 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
     # A focused repair needs only its target. Keep the full dependency target set
     # so it can reuse the normal suite's dependency build and resolved features.
     # Multi-target measurements retain the shared build used across suite runs.
-    specs = {g.build_target: g for g in (*load_groups(root), *(t.group for t in tasks))}
-    requested = {task.group.build_target for task in tasks}
-    targets = sorted(requested if len(requested) == 1 else specs)
+    groups = load_groups(root)
+    specs = {g.build_target: g for g in (*groups, *(t.group for t in tasks))}
+    targets = build_target_selection(groups, tasks, env.get("ANTECEDENT_CALIBRATION_BUILD_GROUPS"))
     features = {target: list(g.features) for target, g in specs.items() if g.features}
     built = build_committed_targets(root, targets, deps_targets=sorted(specs), features=features)
     for record in built.values():
@@ -427,6 +444,7 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
     parent_protocol = env.get("ANTECEDENT_PARENT_PROTOCOL_VERSION", "2")
     # `env` is the caller's whole environment for the tests; the runner sets the profile.
     base = {**env, "ANTECEDENT_CALIBRATION_SHA": sha, "RUST_TEST_THREADS": "1"}
+    base.pop("ANTECEDENT_CALIBRATION_BUILD_GROUPS", None)
     if decision_context:
         base["ANTECEDENT_CALIBRATION_DECISION_CONFIG"] = decision_context
     if confirm:

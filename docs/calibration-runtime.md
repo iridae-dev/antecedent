@@ -15,6 +15,13 @@ tail policy can allocate additional workers to unusually long jobs within the
 global worker budget. Pilot and earlier smoke timings are scheduling estimates
 only; they never count as calibration evidence.
 
+When a bounded probe batch and a full measurement batch share one clean commit, set
+`ANTECEDENT_CALIBRATION_BUILD_GROUPS` to the same JSON array of registered group
+labels for both invocations. Include one label per binary needed across the two batches.
+The runner builds that set once and reuses it through Nix. Each invocation verifies its
+requested tests are covered before compiling. The canonical dependency targets,
+features, test selections and evidence checks still apply.
+
 ## Preserve completed work
 
 Use `scripts/measure_calibration.sh --missing-only` to fill missing current-method

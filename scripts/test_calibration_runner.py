@@ -17,6 +17,19 @@ def group(tests=("one",), grid=True, ignored=True, label="suite: one", target="s
 
 
 class TableTests(unittest.TestCase):
+    def test_frozen_build_targets_cover_both_phases_and_preserve_default_selection(self):
+        a, b, c = [group(label=name, target=name) for name in ("a", "b", "c")]
+        groups = [a, b, c]
+        first, second = [cr.Task(a, 1)], [cr.Task(b, 0)]
+        planned = '["b", "a"]'
+        for tasks in (first, second, first + second):
+            self.assertEqual(cr.build_target_selection(groups, tasks, planned), [a.build_target, b.build_target])
+        self.assertEqual(cr.build_target_selection(groups, first, None), [a.build_target])
+        self.assertEqual(cr.build_target_selection(groups, first + second, None), [g.build_target for g in groups])
+        for invalid in ('["a"]', '["absent"]', '"a"', '[2]'):
+            with self.assertRaises(ValueError):
+                cr.build_target_selection(groups, first + second, invalid)
+
     def test_the_table_lists_every_gate_group_in_order(self):
         groups = cr.load_groups(REPO_ROOT)
         self.assertEqual([g.index for g in groups], list(range(1, len(groups) + 1)))
