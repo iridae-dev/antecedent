@@ -45,8 +45,8 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/identi
 "design_ar_precision_calibration: checked_design_iv_ar_full_method_error_rate_and_weak_boundaries" = "132d787af0651a9cddf24a46a63ab7dd0b65e1af668c706afae4036c79258569"
 
 [[review]]
-reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
-basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged."
+reviewed_at = "48f7bec9ffb2215ec32d714b6978049b483745d0"
+basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged. The additional optional wire field reports returned interval counts for scoped panel studies. This gate compiles and executes logged policy-choice evaluations, checks that at least one evaluation returns, and checks scope identity. Its assertions do not read the coverage registry or the interval serialization. Runner target selection and the optional tally preserve this study’s inputs and decisions."
 inputs = []
 [review.receipts]
 "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "83a4b031e6a8d9cc2d81a7664f14d50047386a3a799e81faebf2629bb793c739"
