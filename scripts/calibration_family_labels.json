@@ -1167,7 +1167,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration_design_counts.rs",
-      "sha256": "f9c5d09dedfe3c81630c1090a76981f4365242ccafba965df53a464d90fdce6b",
+      "sha256": "e0ada51fd9ded49b6cb0a559dcddcb48a42aa84ce29f1688f29e59aa9d571ec3",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Reports auxiliary counts for an existing bound panel or sequential hypothesis. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."

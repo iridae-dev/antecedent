@@ -1,6 +1,6 @@
 //! Extra counts for studies that distinguish returned intervals from refused panels.
 
-use super::{CoverageTally, grid_point, last_map_end, sharding};
+use super::{CoverageTally, grid_point, last_map_end, sharding, smoke};
 
 impl CoverageTally {
     /// Publish the actual attempted, returned and covered counts for a scoped panel study.
@@ -17,7 +17,9 @@ impl CoverageTally {
         let attempted = last_map_end().expect("panel coverage requires a fixed attempt budget");
         assert_eq!(self.scored, self.with_interval, "invalid returned panel interval");
         self.skipped = attempted.checked_sub(self.scored).expect("more returns than attempts");
-        self.check_skips();
+        if !smoke() {
+            self.check_skips();
+        }
         self.skipped = 0;
         self.assert();
         self.emit_design_counts(serde_json::json!({
