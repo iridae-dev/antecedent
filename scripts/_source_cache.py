@@ -9,6 +9,7 @@ attestation; durable evidence uses content digests separately.
 from __future__ import annotations
 
 import functools
+from contextlib import contextmanager
 from pathlib import Path
 
 _active: list[dict] = []
@@ -30,6 +31,26 @@ def signature(path: Path):
         value = stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
     _validation[path] = value
     return value
+
+
+@contextmanager
+def verified_source_snapshot():
+    """Share stat results across a read-only gate, then verify every observed file."""
+    if _active:
+        raise RuntimeError("source snapshot requires a top-level reader")
+    _validation.clear()
+    _generation[0] += 1
+    _active.append({})
+    try:
+        yield
+        observed = dict(_validation)
+        _validation.clear()
+        for path, stamp in observed.items():
+            if signature(path) != stamp:
+                raise RuntimeError(f"source changed during verification: {path}")
+    finally:
+        _active.pop()
+        _validation.clear()
 
 
 def source_cache(function):

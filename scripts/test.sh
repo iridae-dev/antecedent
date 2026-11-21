@@ -9,7 +9,7 @@ usage() {
 Usage: bash scripts/test.sh [LANE] [arguments...]
 
 Lanes: (none)|all|engineering|scientific|calibration, and the focused lanes
-       dev|rust|rust-calibration-acceptance|integration|scripts|docs|python-test|python|
+       dev|rust|rust-calibration-acceptance|integration|scripts|docs|python-build|python-test|python|
        python-calibration-acceptance|slow
 
   (none)  The development-machine run: engineering, then the owed scientific
@@ -54,6 +54,7 @@ Lanes: (none)|all|engineering|scientific|calibration, and the focused lanes
   integration  Run Rust integration targets (excluding library unit tests).
   scripts Run discovered script unit tests in their isolated locked environment.
           Empty selections and unexpected skipped assertions fail.
+  python-build  Prepare and check the release extension for Python consumers.
   python  Sync the locked dev environment, rebuild the release extension, run pytest.
           Excludes scientific assertions, measured acceptance and calibration
           simulations; preserves other marker filters.
@@ -92,7 +93,7 @@ suite="${1:-all}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$suite" in
   -h|--help) usage; exit 0 ;;
-  engineering|dev|rust|rust-calibration-acceptance|integration|scientific|calibration|scripts|docs|python-test|python|python-calibration-acceptance|slow|all) ;;
+  engineering|dev|rust|rust-calibration-acceptance|integration|scientific|calibration|scripts|docs|python-build|python-test|python|python-calibration-acceptance|slow|all) ;;
   *) usage >&2; exit 2 ;;
 esac
 # `scientific` and `calibration` take --all and repeatable --only PATTERN.
@@ -150,13 +151,16 @@ rust_tests() {
     return 1
   fi
   local status=0
-  local report="${CARGO_TARGET_DIR:-$ROOT/target}/nextest/ci/junit.xml"
+  local report="$ROOT/target/nextest/ci/junit.xml"
   rust_run_index=$((rust_run_index + 1))
   rm -f "$report"
   cargo nextest run --locked --profile ci --no-tests fail --timings "$@" || status=$?
   if [[ -f "$report" ]]; then
     mkdir -p "$report_directory"
     cp "$report" "$report_directory/rust-$rust_run_index.xml"
+    if [[ "$suite" == engineering && -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+      cp "$report" "$ANTECEDENT_RC_RECEIPTS/rust-$rust_run_index.xml"
+    fi
     echo "Test durations: $report_directory/rust-$rust_run_index.xml"
   fi
   return "$status"
@@ -164,7 +168,7 @@ rust_tests() {
 doctests() {
   cargo test --locked --doc "$@"
 }
-python_tests() {
+prepare_python_extension() {
   if [[ "${ANTECEDENT_SKIP_NATIVE_BUILD:-0}" != 1 ]]; then
     uv sync --project "$ROOT/python" --locked --group dev --no-install-project
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" begin)
@@ -174,6 +178,9 @@ python_tests() {
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" stamp)
   fi
   (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
+}
+python_tests() {
+  prepare_python_extension
   (cd "$ROOT/python" && uv run --no-sync pytest "$@")
 }
 
@@ -259,6 +266,7 @@ case "$suite" in
     bash "$ROOT/scripts/measure_calibration.sh" ${calibration_args[@]+"${calibration_args[@]}"}
     ;;
   scripts) uv run --frozen --script "$ROOT/scripts/run_script_tests.py" "$@" ;;
+  python-build) prepare_python_extension ;;
   python) python_engineering_tests "$@" ;;
   python-test|python-calibration-acceptance)
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)

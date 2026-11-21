@@ -45,12 +45,6 @@ required_jobs() {
   ci_workflow required-jobs
 }
 
-# The CI-run acceptance rule and the self-tests that pin it (a run must be on this
-# SHA with every display name of every required job green).
-ci_workflow_tests() {
-  uv run --quiet --project python --only-group dev python scripts/test_ci_workflow.py
-}
-
 # check_ci_run RUN_JSON HEAD_SHA — the one acceptance rule for a CI run.
 check_ci_run() {
   local run_json="$1" head="$2"
@@ -130,10 +124,12 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 verification_head="$(git rev-parse HEAD)"
+ANTECEDENT_RC_RECEIPTS="$(mktemp -d)"
+export ANTECEDENT_RC_RECEIPTS
+trap 'rm -rf "$ANTECEDENT_RC_RECEIPTS"' EXIT
 if [[ "$local_only" == 0 ]]; then
   echo "== release candidate: CI run ${CI_RUN_ID} =="
-  run_json="$(mktemp)"
-  trap 'rm -f "$run_json"' EXIT
+  run_json="$ANTECEDENT_RC_RECEIPTS/ci-run.json"
   gh run view "$CI_RUN_ID" --json headSha,jobs >"$run_json"
   check_ci_run "$run_json" "$verification_head"
 fi
@@ -145,11 +141,18 @@ fi
 export CARGO_PROFILE_TEST_OPT_LEVEL="${CARGO_PROFILE_TEST_OPT_LEVEL:-2}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-line-tables-only}"
 run_build_and_test_sections() {
-  for gate_section in python-lint public-api deny engineering development cited-tests benches; do
+  for gate_section in python-lint public-api deny engineering development benches; do
     echo "== release candidate: gate_release.sh --section ${gate_section} =="
     bash scripts/gate_release.sh --section "$gate_section" || return "$?"
   done
 }
+# Registry integrity collects Python routes during static verification.
+# Prepare the same extension the engineering suite will use, exactly once.
+if [[ -x python/.venv/bin/python ]] && python/.venv/bin/python scripts/native_build_identity.py check >/dev/null 2>&1; then
+  export ANTECEDENT_SKIP_NATIVE_BUILD=1
+fi
+bash scripts/test.sh python-build
+export ANTECEDENT_SKIP_NATIVE_BUILD=1
 ANTECEDENT_STATIC_JOBS=2 bash scripts/gate_release.sh --section static &
 static_pid=$!
 gate_status=0
@@ -157,14 +160,11 @@ run_build_and_test_sections || gate_status=$?
 wait "$static_pid" || gate_status=$?
 if [[ "$gate_status" -ne 0 ]]; then exit "$gate_status"; fi
 
-echo "== release candidate: cited tests listed by cargo =="
-bash scripts/gate_capability_records.sh --resolve
+echo "== release candidate: resolve citations against current science and engineering passes =="
+python3 scripts/gate_support.py --cited-tests --release-receipts "$ANTECEDENT_RC_RECEIPTS"
 
 echo "== release candidate: no implemented capability is left open =="
 python3 scripts/check_open_capabilities.py --require-zero
-
-echo "== release candidate: strict bounds and final claims =="
-python3 scripts/check_limits_agreement.py --strict
 
 # The composition and decision exit stories are ordinary engineering tests (tier 2 runs them and
 # fails on any failing story); here only the verdict logic that joins their per-story tables is checked.
@@ -175,14 +175,9 @@ bash scripts/gate_decision_exit.sh --self-test
 echo "== release candidate: release-only scale cases within their frozen budgets =="
 bash scripts/gate_scale_cases.sh
 
-echo "== release candidate: every supported unit's cited checks have a current passing record (zero owed) =="
-python3 scripts/gate_support.py
-
 echo "== release candidate: release-closure receipts =="
 python3 scripts/check_release_closure.py
 python3 scripts/run_scale_cases.py --self-test
-python3 scripts/test_check_release_closure.py
-ci_workflow_tests
 
 echo "== release candidate: Rust producer, Python consumer of the Gaussian joint law =="
 (

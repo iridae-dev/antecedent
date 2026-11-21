@@ -505,6 +505,11 @@ def force_all(args: argparse.Namespace | None = None) -> bool:
 def cmd_status(root: Path, args: argparse.Namespace) -> int:
     rows = all_scientific_rows(root)
     owed, current = classify(root, rows)
+    return report_status(root, owed, current, check=args.check)
+
+
+def report_status(root: Path, owed: list[dict], current: list[dict], *, check: bool) -> int:
+    rows = owed + current
     print(f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)}")
     for item in owed:
         print(f"  owed: {item['selector']} ({', '.join(item['manifest_reasons'][:3])})")
@@ -523,7 +528,7 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
     if orphans:
         print(f"FAIL: {len(orphans)} stored evidence file(s) no record reaches; "
               "run `python3 scripts/scientific_records.py prune`")
-    return int(bool(unresolved) or (args.check and bool(owed or orphans)))
+    return int(bool(unresolved) or (check and bool(owed or orphans)))
 
 
 def cmd_refine(root: Path, args: argparse.Namespace) -> int:

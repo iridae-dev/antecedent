@@ -242,7 +242,8 @@ features: set[str] = set()
 if rust_cited:
     try:
         resolved = registered_rust_assertions([(t, a) for t, a, _ in rust_cited], root)
-        groups = [(t, a, labels, [r for r in resolved if (r["evidence_test"], r["evidence_assertion"]) == (t, a)])
+        by_assertion = {(r["evidence_test"], r["evidence_assertion"]): r for r in resolved}
+        groups = [(t, a, labels, [by_assertion[t, a]])
                   for t, a, labels in rust_cited]
     except ValueError:
         groups = []

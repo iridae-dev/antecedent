@@ -160,6 +160,9 @@ class Ledger:
 
         rows = scientific_records.all_scientific_rows(ROOT)
         owed, current = scientific_records.classify(ROOT, rows)
+        self.set_classification(owed, current)
+
+    def set_classification(self, owed: list[dict], current: list[dict]) -> None:
         key = lambda item: (item["evidence_test"], item["evidence_assertion"])  # noqa: E731
         self._owed = {key(i): i["selector"] for i in owed}
         self._current = {key(i) for i in current}
@@ -1569,8 +1572,8 @@ def transport_problems(registry_path: Path | None = None, *, resolve: bool = Fal
 
 
 # --------------------------------------------------------------------------- run
-def count_main(report: bool, evidence_only: bool = False) -> int:
-    result = evaluate(evidence_only=evidence_only)
+def count_main(report: bool, evidence_only: bool = False, ledger: Ledger | None = None) -> int:
+    result = evaluate(ledger=ledger, evidence_only=evidence_only)
     summary = summarize(result)
     failing = summary["failing"]
     print(headline(summary))
@@ -1673,11 +1676,36 @@ def main(argv: list[str]) -> int:
     evidence_only = "--evidence-only" in argv
     if "--cited-tests" in argv:
         shard = argv[argv.index("--matrix-shard") + 1] if "--matrix-shard" in argv else "all"
+        capabilities = []
+        if "--release-receipts" in argv:
+            directory = Path(argv[argv.index("--release-receipts") + 1])
+            test_evidence.release_passes = test_evidence.ReleasePasses(directory)
+            rows = _repo.load_toml(directory / "capabilities.toml")["fixture_evidence"]
+            capabilities = sorted({(ROOT / row["evidence_test"], row["evidence_assertion"]) for row in rows})
         found = cited_test_problems(shard)
+        test_evidence.prefetch_rust_listings(capabilities)
+        for path, name in capabilities:
+            problems = resolve_rust_test(path, name)[1] if path.suffix == ".rs" else resolve_python_test(path, name)
+            found.extend(f"capability {path}::{name}: {problem}" for problem in problems)
+        if test_evidence.release_passes:
+            for lane, used in test_evidence.release_passes.used.items():
+                print(f"{len(used)} distinct citations resolved by {lane} passes")
         for problem in found:
             print(f"FAIL: {problem}", file=sys.stderr)
         return 1 if found and not report else 0
-    status = count_main(report, evidence_only)
+    ledger = None
+    record_status = 0
+    if "--check-scientific" in argv:
+        import scientific_records
+
+        owed, current = scientific_records.classify(ROOT, scientific_records.all_scientific_rows(ROOT))
+        record_status = scientific_records.report_status(ROOT, owed, current, check=True)
+        ledger = Ledger()
+        ledger.set_classification(owed, current)
+        if not record_status and "--write-current" in argv:
+            destination = Path(argv[argv.index("--write-current") + 1])
+            destination.write_text(json.dumps([(r["evidence_test"], r["evidence_assertion"]) for r in current]))
+    status = count_main(report, evidence_only, ledger) or record_status
     found = structure_problems()
     for problem in found:
         print(f"FAIL: {problem}")
@@ -1685,4 +1713,10 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    from _source_cache import verified_source_snapshot
+
+    if "--self-test" in sys.argv:
+        sys.exit(main(sys.argv[1:]))
+    with verified_source_snapshot():
+        result = main(sys.argv[1:])
+    sys.exit(result)

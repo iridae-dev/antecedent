@@ -78,4 +78,7 @@ for registry in parity/capability_records.toml; do
   echo "== capability evidence: cited fixtures and refusals resolve to exact tests =="
   python3 scripts/run_evidence_rows.py "$ROOT" "$EVIDENCE" "$ROOT" fixture_evidence gate_capability_records --static
 done
+if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+  cp "$EVIDENCE" "$ANTECEDENT_RC_RECEIPTS/capabilities.toml"
+fi
 echo "gate_capability_records: ok"

@@ -116,7 +116,11 @@ step bash scripts/gate_checked_execution.sh
 step bash scripts/gate_gcm_conformance.sh --tests-only
 
 echo "== support: the one count, the matrix, the graphless supports, the transport stages =="
-step python3 scripts/gate_support.py
+if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+  step python3 scripts/gate_support.py --check-scientific --write-current "$ANTECEDENT_RC_RECEIPTS/current.json"
+else
+  step python3 scripts/gate_support.py --check-scientific
+fi
 step python3 scripts/gate_not_supported_sites.py
 step bash scripts/gate_docs_support_matrix.sh
 
@@ -130,7 +134,11 @@ echo "== bounds, release claims, links, conformance references =="
 step python3 scripts/generate_reason_details.py --check
 step python3 scripts/gate_reason_detail_literals.py
 step python3 scripts/gate_python_bindings_use_facade.py
-step python3 scripts/check_limits_agreement.py
+if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+  step python3 scripts/check_limits_agreement.py --strict
+else
+  step python3 scripts/check_limits_agreement.py
+fi
 step python3 scripts/check_release_claims.py
 step python3 scripts/check_doc_links.py
 step python3 scripts/check_conformance_references.py
@@ -146,7 +154,6 @@ step python3 scripts/support_distribution_validation_rows.py --check
 step python3 scripts/support_temporal_window_rows.py --check
 
 echo "== scientific and calibration records are current (earned locally, checked here) =="
-step python3 scripts/scientific_records.py status --check
 step python3 scripts/calibration_status.py --check
 finish_readers
 if (( ${#failed_steps[@]} )); then

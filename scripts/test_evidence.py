@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -542,6 +543,39 @@ _CARGO_LIST_CACHE: dict[
 ] = {}
 
 
+class ReleasePasses:
+    """Exact assertions proved executable by the candidate's successful prerequisite lanes."""
+
+    def __init__(self, directory: Path) -> None:
+        self.scientific = {tuple(row) for row in json.loads((directory / "current.json").read_text())}
+        self.engineering = set()
+        for report in sorted(directory.glob("rust-*.xml")):
+            for suite in ET.parse(report).getroot().findall("testsuite"):
+                for case in suite.findall("testcase"):
+                    if all(case.find(tag) is None for tag in ("error", "failure", "skipped")):
+                        self.engineering.add((suite.attrib["name"], case.attrib["name"]))
+        self.used: dict[str, set] = {"scientific": set(), "engineering": set()}
+
+    def contains(self, path: Path, name: str) -> bool:
+        relative = path.relative_to(ROOT).as_posix()
+        if (relative, name) in self.scientific:
+            self.used["scientific"].add((relative, name))
+            return True
+        owner = target_root(path) if path.suffix == ".rs" else None
+        if owner:
+            root_file, crate, target = owner
+            binary = crate if target[0] == "--lib" else f"{crate}::{target[1]}"
+            key = binary, libtest_name(path, name, root_file)
+            if key in self.engineering:
+                self.used["engineering"].add(key)
+                return True
+        return False
+
+
+# Set only by the candidate citation command after both prerequisite lanes pass.
+release_passes: ReleasePasses | None = None
+
+
 def prefetch_rust_listings(citations: list[tuple[Path, str]]) -> None:
     """List all requested targets in one Cargo invocation per package and feature set."""
     if not shutil.which("cargo-nextest"):
@@ -549,6 +583,8 @@ def prefetch_rust_listings(citations: list[tuple[Path, str]]) -> None:
     groups = {}
     for path, name in sorted(set(citations)):
         if path.suffix != ".rs" or not path.is_file() or not path.resolve().is_relative_to(ROOT):
+            continue
+        if release_passes and release_passes.contains(path, name):
             continue
         owner = target_root(path)
         if owner is None:
@@ -687,6 +723,8 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
     if root is None:
         return None, problems + [f"{path} is not under a cargo test or library target"]
     root_file, crate, target = root
+    if cwd == ROOT and release_passes and release_passes.contains(path, name):
+        return libtest_name(path, name, root_file), problems
     listed, ignored, err = cargo_listed(
         crate, target, cwd, rust_test_features(path, name)
     )
@@ -1081,6 +1119,8 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
     if problems:
         return problems
     rel = path.resolve().relative_to((cwd / "python").resolve())
+    if cwd == ROOT and release_passes and release_passes.contains(path, name):
+        return []
     code, listing = _python_collection(path, cwd)
     nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))
     if code != 0 or not any(
