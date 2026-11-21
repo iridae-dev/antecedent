@@ -1167,10 +1167,10 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration_design_counts.rs",
-      "sha256": "e0ada51fd9ded49b6cb0a559dcddcb48a42aa84ce29f1688f29e59aa9d571ec3",
+      "sha256": "c944ad98cf4f827540e4f746000386549cd852d0ae4ad6d02375e67106dceb8e",
       "labelled_calls": [],
       "constructor_calls": [],
-      "review": "Reports auxiliary counts for an existing bound panel or sequential hypothesis. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."
+      "review": "Reports auxiliary counts and tests four fixed empirical predictions at exact 40-donor panel designs on an independent stream. Their frozen frequencies and final look are chosen before validation. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."
     },
     {
       "path": "crates/antecedent/tests/common/grid_cell.rs",
@@ -1743,7 +1743,7 @@
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
-      "sha256": "66bc9eff53964e2c766db6771c55ce035965c5f55bd519bebc93454d89f6a7a1",
+      "sha256": "59ccdd5a94c2f9371400bc4acc44dc954280a2b3100f34a38c56f76c8b8837ec",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1752,22 +1752,22 @@
           "argument": "RecordKey { test, dgp, interval: POSTERIOR_QUANTILE },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 328,
+          "line": 330,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: SC_DGP, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 970,
+          "line": 991,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 1478,
+          "line": 1499,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_type_mixture_population_law\", interval },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1690,
+          "line": 1711,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
         }

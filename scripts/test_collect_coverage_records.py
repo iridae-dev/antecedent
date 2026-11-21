@@ -1170,6 +1170,29 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "different coverage denominators"):
             collector.merge_grid("id", points)
 
+    def test_panel_prediction_requires_independent_precision_and_equivalence(self):
+        record = {
+            "query": "SyntheticControl",
+            "functional": "synthetic_control/posterior_average+donors=40+post_periods=5",
+            "dgp": "wider.rs::convex_donor_panel_iid_noise",
+        }
+
+        def point(covered, returned, attempted):
+            return {
+                "role": "named_boundary", "boundary": True, "n_min": 30, "n_max": 30,
+                "observed": covered / returned, "replicates": returned,
+                "interval_counts": {"attempted": attempted, "returned": returned, "covered": covered},
+            }
+
+        self.assertIsNone(collector.panel_prediction_problem(record, point(1820, 1993, 2000)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(365, 400, 400)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1760, 1993, 2000)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1895, 1993, 2000)))
+        self.assertIsNotNone(collector.panel_prediction_problem(record, point(1735, 1900, 2000)))
+        partial = point(1820, 1993, 2000)
+        partial["n_max"] = 40
+        self.assertIsNotNone(collector.panel_prediction_problem(record, partial))
+
     def test_conditional_sequential_grid_cannot_drop_all_refusal_counts(self):
         points = {i: self.point(i) for i in range(3)}
         for p in points.values():
