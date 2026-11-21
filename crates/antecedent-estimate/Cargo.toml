@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "antecedent-estimate"
 version.workspace = true
 edition.workspace = true
@@ -80,3 +81,237 @@ harness = false
 [[bench]]
 name = "propensity_bootstrap_measured"
 harness = false
+
+[[test]]
+name = "adaptive_inference_calibration"
+
+[[test]]
+name = "adaptive_procedure_prior_predictive_calibration"
+
+[[test]]
+name = "adaptive_whole_procedure_calibration"
+
+[[test]]
+name = "admg_conditional_posterior_exact"
+
+[[test]]
+name = "admg_conditional_transport_scm"
+
+[[test]]
+name = "aipw_reference"
+
+[[test]]
+name = "bayesian_dose_grid_calibration"
+
+[[test]]
+name = "bayesian_robust_ate_reference"
+
+[[test]]
+name = "bootstrap_effect_precision"
+
+[[test]]
+name = "categorical_treatment"
+
+[[test]]
+name = "categorical_treatment_posterior"
+
+[[test]]
+name = "choice_interval_calibration"
+
+[[test]]
+name = "cohort_linear_effect_calibration"
+
+[[test]]
+name = "conjugate_prior_calibration"
+
+[[test]]
+name = "count_fitted_posterior_calibration"
+
+[[test]]
+name = "counterfactual_transport_execution"
+
+[[test]]
+name = "counterfactual_transport_general_sweep"
+
+[[test]]
+name = "counterfactual_transport_sampled"
+
+[[test]]
+name = "counterfactual_transport_sampled_multi_table_reference"
+
+[[test]]
+name = "counterfactual_transport_sampled_replicate"
+
+[[test]]
+name = "coverage_determinism"
+
+[[test]]
+name = "descriptive_comparison"
+
+[[test]]
+name = "descriptive_comparison_interval_calibration"
+
+[[test]]
+name = "distance_matching_reference"
+
+[[test]]
+name = "dml_outcome_prior_reference"
+
+[[test]]
+name = "dml_reference"
+
+[[test]]
+name = "dr_learner_reference"
+
+[[test]]
+name = "effect_constancy"
+
+[[test]]
+name = "estimate_association_reference"
+
+[[test]]
+name = "estimate_causal_forest_reference"
+
+[[test]]
+name = "frontdoor_functional_reference"
+
+[[test]]
+name = "frontdoor_two_stage_reference"
+
+[[test]]
+name = "functional_distribution_reference"
+
+[[test]]
+name = "generalized_propensity_aipw_reference"
+
+[[test]]
+name = "ipw_weighting_reference"
+
+[[test]]
+name = "iv_reference"
+
+[[test]]
+name = "joint_bayesian_transport_calibration"
+
+[[test]]
+name = "joint_cell_factorized"
+
+[[test]]
+name = "knn_distance_matching_reference"
+
+[[test]]
+name = "knn_matching_calibration"
+
+[[test]]
+name = "learned_continuous_interval_construction"
+
+[[test]]
+name = "learned_joint_calibration"
+
+[[test]]
+name = "matched_case_control"
+
+[[test]]
+name = "matched_odds_ratio_interval_calibration"
+
+[[test]]
+name = "matching_construction_identity"
+
+[[test]]
+name = "mechanism_discrepancy"
+
+[[test]]
+name = "mechanism_discrepancy_calibration"
+
+[[test]]
+name = "mixed_source_execution"
+
+[[test]]
+name = "nested_markov_fisher_calibration"
+
+[[test]]
+name = "nonlinear_mediation_interval_calibration"
+
+[[test]]
+name = "observational_effects_calibration"
+
+[[test]]
+name = "observational_policy_reference"
+
+[[test]]
+name = "observational_policy_value"
+
+[[test]]
+name = "observational_survival_effects"
+
+[[test]]
+name = "observational_survival_replicated"
+
+[[test]]
+name = "propensity_matching_reference"
+
+[[test]]
+name = "randomized_posterior"
+
+[[test]]
+name = "rd_reference"
+
+[[test]]
+name = "recovery_held_out_regimes"
+
+[[test]]
+name = "recovery_sampled_observation_reference"
+
+[[test]]
+name = "recovery_whole_method_calibration"
+
+[[test]]
+name = "scenario_covariance_calibration"
+
+[[test]]
+name = "stratification_reference"
+
+[[test]]
+name = "switchback_posterior"
+
+[[test]]
+name = "temporal_dependent_interval_reference"
+
+[[test]]
+name = "temporal_sequential_reference"
+
+[[test]]
+name = "temporal_unit_calibration"
+
+[[test]]
+name = "treatment_inference_calibration"
+
+[[test]]
+name = "treatment_levels"
+
+[[test]]
+name = "vector_treatment"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
+
+[[test]]
+name = "suite_02"
+path = "tests/suite_02.rs"
+
+[[test]]
+name = "suite_03"
+path = "tests/suite_03.rs"
+
+[[test]]
+name = "suite_04"
+path = "tests/suite_04.rs"
+
+[[test]]
+name = "suite_05"
+path = "tests/suite_05.rs"
+
+[[test]]
+name = "suite_06"
+path = "tests/suite_06.rs"
