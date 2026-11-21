@@ -459,20 +459,31 @@ impl super::CheckedSyntheticControlOperation {
             effect.comparison = fit.donor_weight_means.len();
             effect
         };
-        let mut effects = vec![effect(DesignEffectKind::Overall, &fit.effect_draws)];
+        // Every column at a draw index belongs to the same predictive path.
+        // Keep that joint draw intact when reporting its average.
+        let average_draws: Vec<f64> = (0..fit.effect_draws.len())
+            .map(|draw| {
+                fit.period_effect_draws.iter().map(|period| period[draw]).sum::<f64>()
+                    / fit.n_post_periods as f64
+            })
+            .collect();
+        let mut effects = vec![effect(DesignEffectKind::Overall, &average_draws)];
+        let point = effects[0].estimate;
+        let point_sd = (average_draws.iter().map(|draw| (draw - point).powi(2)).sum::<f64>()
+            / (average_draws.len() - 1) as f64)
+            .sqrt();
         let mut columns: Vec<(antecedent_prob::PosteriorQuantityKind, Vec<f64>)> =
-            vec![(effect_quantity("att"), fit.effect_draws.clone())];
+            vec![(effect_quantity("att"), average_draws)];
         for (period, draws) in fit.post_periods.iter().zip(&fit.period_effect_draws) {
             let mut period_effect = effect(DesignEffectKind::Period, draws);
             period_effect.period = Some(*period);
             effects.push(period_effect);
             columns.push((scalar_quantity(format!("effect_period_{period}")), draws.clone()));
         }
-        let point = effects[0].estimate;
         let design = DesignPosterior {
             columns,
             point,
-            point_sd: fit.sd,
+            point_sd,
             n_obs: (fit.n_pre_periods + fit.n_post_periods) as u64,
             interval_withheld: false,
             backend: "bayesian_synthetic_control.posterior_predictive_path",
