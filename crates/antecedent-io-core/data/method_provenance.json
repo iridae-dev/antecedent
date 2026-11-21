@@ -5232,9 +5232,9 @@
     "The posterior has no closed form; it is sampled and is reported only when split R-hat and effective sample size pass their gates, otherwise the fit is refused rather than reported.",
     "Placebo-in-space and placebo-in-time permutation inference of the paper is not performed; the interval is an equal-tailed credible interval and carries no repeated-sampling guarantee.",
     "A treated path outside the donor hull is reported as a diagnostic, not repaired by extrapolation; the difference-in-differences synthetic variant is not given a posterior and is refused naming the frequentist route.",
-    "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval."
+    "Coverage of returned intervals is measured for specific donor counts and pre-treatment histories. The calibration record attached to a result identifies its interval and measured design."
    ],
-   "digest": "8cdc029d8264fa415ef171e9119208beff5fb9866753a37b79dc2e13cb05527f",
+   "digest": "5b08d0629465647cdf17ef0543ceaf1fb99571a744fa1d69d5287709cbe0702d",
    "id": "estimate.bayesian_synthetic_control",
    "review": "method_review",
    "scope_limits": [
@@ -12175,7 +12175,7 @@
     "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are separately exercised by the retained public workflow tests, not granted by this generator.",
     "Additive and interaction variants share all random draws; the zero-interaction reference isolates the declared main effects."
    ],
-   "digest": "3931f9fa20c1961ef0c5e4bcacb548b47f934131c1e337d8997482dfb55d0499",
+   "digest": "876ae7506664ab9c6acf4aa3270820f1580352ba69a36adb83aeb85b47b33b59",
    "id": "response.joint_panel_reference",
    "review": "none",
    "scope_limits": [],

@@ -31,7 +31,7 @@ scope = "The exact Gaussian-BIC graph target shared by the exact, order and stru
 assumptions = ["The target is a Gaussian-BIC pseudo-posterior of linear-Gaussian local models, not an integrated Bayesian marginal likelihood; it is score-equivalent within Markov classes only for Gaussian data.", "Only n = 3 is enumerated against the independent reference; larger node counts rely on the same score decomposition and are not separately enumerated here.", "MCMC marginals are finite-chain estimates compared at the fixture band of 0.08; agreement does not establish convergence on other data or tight Monte-Carlo error."]
 historical_exposure = "The original fixture generator (a NumPy clean-room enumeration run from a temporary path) was not retained and its author exposure cannot be established. The retained reference added by this review is written from the textbook Gaussian likelihood and BIC definition with a different linear solver (pivoted Gaussian elimination, standard library only); no upstream implementation or test source was consulted or copied. The primary BIC paper was not re-read for this review: the check is against the defined target, not against a reading of Schwarz."
 redistribution = "The reference script and new tests are repository-authored under MIT OR Apache-2.0 and need no third-party packages. The BIC paper is cited, not redistributed."
-limitations = "Exact-path agreement is shown on two three-variable data sets and two priors only. Order and structure MCMC kernels (proposal ratios, tempering, the topological-order count correction) are not independently re-derived; their evidence remains the 0.08-band exhaustive comparisons and the existing unit tests. Constrained priors (forbidden or required edges, parent caps) are not covered by the new reference. Calibration remains deferred."
+limitations = "Exact-path agreement is shown on two three-variable data sets and two priors only. Order and structure MCMC kernels (proposal ratios, tempering, the topological-order count correction) are not independently re-derived; their evidence remains the 0.08-band exhaustive comparisons and the existing unit tests. Constrained priors (forbidden or required edges, parent caps) are not covered by the new reference. Calibration remains deferred. The signed-uniform score has its own dispatch path. The Gaussian BIC factors and normalization covered by this numerical review retain their definitions. Calibration of edge probabilities is assessed separately."
 sources = ["https://doi.org/10.1214/aos/1176344136", "conformance/discovery/graph_mcmc_exact/reference_exact.py", "conformance/discovery/graph_mcmc_exact/expected.json"]
 findings_resolved = ["No defect found in the exact normalisation, parent-set score decomposition, Bernoulli edge prior or acyclicity filter: the independent enumeration matches product marginals to better than 1e-9 for both priors.", "The fixture's only generator was an unretained external script; a standard-library generator that reproduces its marginals to 2.5e-14 is now retained, and the exact path is asserted against the fixture at rounding level rather than only through a sampler band.", "Recorded that the noise-variance parameter is omitted from the penalty count and why this does not change the posterior."]
 record_sha256 = "8b047fb441f98562f3649a8b95f7f85c648efeab8fe6c6cb9b022f2803448046"
@@ -40,7 +40,7 @@ record_sha256 = "8b047fb441f98562f3649a8b95f7f85c648efeab8fe6c6cb9b022f280344804
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
 items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
-sha256 = "d476d5e163fff24927af3414c10c34ef896c67a4d5f9db37911a3c58b41d66e6"
+sha256 = "cf0d28895866aba1cfd47a51b52d42b1796d8f2edce255a8a23664de88bfe776"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -52,7 +52,7 @@ sha256 = "d845f04f6d17923e16183380169b183c85e4d8e3112402bdc098413fa7c72825"
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
 items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
-sha256 = "1c4c26fb839e748c1441b8978f71a0932c28750b100cc61ef8424bc6eaa532fd"
+sha256 = "f75d536d4eb997e71098cbfa2ceb0122bfb15a99acf15a9ddea56ab4b52a46f4"
 
 [[method_review.artifacts]]
 role = "implementation"
