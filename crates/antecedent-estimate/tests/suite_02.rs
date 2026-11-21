@@ -3,52 +3,6 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "cohort_linear_effect.rs"]
-mod cohort_linear_effect;
-#[path = "complier_posterior_reference.rs"]
-mod complier_posterior_reference;
-#[path = "conditional_reference.rs"]
-mod conditional_reference;
-#[path = "continuous_measurement_error.rs"]
-mod continuous_measurement_error;
-#[path = "count_fitted_posterior_reference.rs"]
-mod count_fitted_posterior_reference;
-#[path = "cpdag_scenarios.rs"]
-mod cpdag_scenarios;
-#[path = "cyclic_general_systems_reference.rs"]
-mod cyclic_general_systems_reference;
-#[path = "dependence_aipw_hac.rs"]
-mod dependence_aipw_hac;
-#[path = "dependence_aware_interval_reference.rs"]
-mod dependence_aware_interval_reference;
-#[path = "discrete_treatment_contrast.rs"]
-mod discrete_treatment_contrast;
-#[path = "dose_grid_declared_reference.rs"]
-mod dose_grid_declared_reference;
-#[path = "dose_grid_functional.rs"]
-mod dose_grid_functional;
-#[path = "dose_grid_functional_bayesian_reference.rs"]
-mod dose_grid_functional_bayesian_reference;
-#[path = "dose_grid_local_quadratic_reference.rs"]
-mod dose_grid_local_quadratic_reference;
-#[path = "dose_posterior_reference.rs"]
-mod dose_posterior_reference;
-#[path = "effect_constancy_calibration.rs"]
-mod effect_constancy_calibration;
-#[path = "effect_constancy_reference.rs"]
-mod effect_constancy_reference;
-#[path = "envelope_reference.rs"]
-mod envelope_reference;
-#[path = "estimate_policy_continuous_dose_reference.rs"]
-mod estimate_policy_continuous_dose_reference;
-#[path = "estimate_response_bayesian_reference.rs"]
-mod estimate_response_bayesian_reference;
-#[path = "estimate_response_gam_derivative_reference.rs"]
-mod estimate_response_gam_derivative_reference;
-#[path = "estimate_response_intervention_gcomp_reference.rs"]
-mod estimate_response_intervention_gcomp_reference;
-#[path = "estimate_response_kennedy_dr_reference.rs"]
-mod estimate_response_kennedy_dr_reference;
 #[path = "estimate_response_kennedy_dr_simultaneous_reference.rs"]
 mod estimate_response_kennedy_dr_simultaneous_reference;
 #[path = "estimate_response_observation_adjusted_reference.rs"]
@@ -63,3 +17,49 @@ mod estimate_response_temporal_bayesian_reference;
 mod estimator_degeneracy;
 #[path = "estimator_dependence_axes.rs"]
 mod estimator_dependence_axes;
+#[path = "gam_derivative_band_construction.rs"]
+mod gam_derivative_band_construction;
+#[path = "glm_adjustment_reference.rs"]
+mod glm_adjustment_reference;
+#[path = "history_match_variance_reference.rs"]
+mod history_match_variance_reference;
+#[path = "influence_se_reference.rs"]
+mod influence_se_reference;
+#[path = "interference_observational_calibration.rs"]
+mod interference_observational_calibration;
+#[path = "interference_saturation_calibration.rs"]
+mod interference_saturation_calibration;
+#[path = "intervention_support.rs"]
+mod intervention_support;
+#[path = "joint_bayesian_transport_reference.rs"]
+mod joint_bayesian_transport_reference;
+#[path = "joint_design_reference.rs"]
+mod joint_design_reference;
+#[path = "joint_if_reference.rs"]
+mod joint_if_reference;
+#[path = "lagged_instrument_ratio_reference.rs"]
+mod lagged_instrument_ratio_reference;
+#[path = "lagged_instrument_wald_reference.rs"]
+mod lagged_instrument_wald_reference;
+#[path = "latent_class_reference.rs"]
+mod latent_class_reference;
+#[path = "learned_joint_transport_reference.rs"]
+mod learned_joint_transport_reference;
+#[path = "linear_adjustment_reference.rs"]
+mod linear_adjustment_reference;
+#[path = "local_polynomial_ratio_calibration.rs"]
+mod local_polynomial_ratio_calibration;
+#[path = "local_ratio_row_weights.rs"]
+mod local_ratio_row_weights;
+#[path = "longitudinal_g_formula_calibration.rs"]
+mod longitudinal_g_formula_calibration;
+#[path = "matching_ties.rs"]
+mod matching_ties;
+#[path = "measurement_exposure_reference.rs"]
+mod measurement_exposure_reference;
+#[path = "mechanism_discrepancy_reference.rs"]
+mod mechanism_discrepancy_reference;
+#[path = "multiple_imputation.rs"]
+mod multiple_imputation;
+#[path = "multiple_imputation_dynamics.rs"]
+mod multiple_imputation_dynamics;

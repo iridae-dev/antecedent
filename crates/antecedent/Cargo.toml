@@ -266,6 +266,10 @@ name = "weighted_interval_calibration"
 path = "tests/weighted_interval_calibration.rs"
 
 [[test]]
+name = "observational_survival_policy_routes"
+path = "tests/observational_survival_policy_routes.rs"
+
+[[test]]
 name = "adjusted_recalc_precision"
 path = "tests/adjusted_recalc_precision.rs"
 
@@ -292,6 +296,10 @@ path = "tests/bayesian_recalc_calibration.rs"
 [[test]]
 name = "bayesian_temporal"
 path = "tests/bayesian_temporal.rs"
+
+[[test]]
+name = "bayesian_temporal_mediation_validation_targets"
+path = "tests/bayesian_temporal_mediation_validation_targets.rs"
 
 [[test]]
 name = "temporal_graph_posterior_product_routes"
@@ -579,12 +587,56 @@ name = "typed_transported_mechanism_interval_calibration"
 path = "tests/typed_transported_mechanism_interval_calibration.rs"
 
 [[test]]
+name = "temporal_derivative_refuter_known_truth"
+path = "tests/temporal_derivative_refuter_known_truth.rs"
+
+[[test]]
+name = "class_derivative_known_truth"
+path = "tests/class_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_admg_derivative_known_truth"
+path = "tests/temporal_admg_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_class_derivative_known_truth"
+path = "tests/temporal_class_derivative_known_truth.rs"
+
+[[test]]
+name = "graph_posterior_derivative_known_truth"
+path = "tests/graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "temporal_graph_posterior_derivative_known_truth"
+path = "tests/temporal_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "class_graph_posterior_derivative_known_truth"
+path = "tests/class_graph_posterior_derivative_known_truth.rs"
+
+[[test]]
+name = "cross_world_counterfactual_posterior_truth"
+path = "tests/cross_world_counterfactual_posterior_truth.rs"
+
+[[test]]
+name = "derivative_refuter_known_truth"
+path = "tests/derivative_refuter_known_truth.rs"
+
+[[test]]
 name = "response_curve_validation_known_truth"
 path = "tests/response_curve_validation_known_truth.rs"
 
 [[test]]
 name = "response_curve_validation_routes_known_truth"
 path = "tests/response_curve_validation_routes_known_truth.rs"
+
+[[test]]
+name = "staged_derivatives"
+path = "tests/staged_derivatives.rs"
+
+[[test]]
+name = "staged_static_kinds"
+path = "tests/staged_static_kinds.rs"
 
 [[test]]
 name = "static_calibration"
@@ -613,6 +665,10 @@ path = "tests/temporal_frequentist.rs"
 [[test]]
 name = "temporal_response_calibration"
 path = "tests/temporal_response_calibration.rs"
+
+[[test]]
+name = "temporal_response_facade"
+path = "tests/temporal_response_facade.rs"
 
 [[test]]
 name = "temporal_transport"
@@ -688,6 +744,26 @@ name = "path_specific_pag_route"
 path = "tests/path_specific_pag_route.rs"
 
 [[test]]
+name = "path_specific_mixed_graph_route_evidence"
+path = "tests/path_specific_mixed_graph_route_evidence.rs"
+
+[[test]]
+name = "interventional_distribution_class_route_evidence"
+path = "tests/interventional_distribution_class_route_evidence.rs"
+
+[[test]]
+name = "mediation_mixed_graph_route_evidence"
+path = "tests/mediation_mixed_graph_route_evidence.rs"
+
+[[test]]
+name = "temporal_pag_mediation"
+path = "tests/temporal_pag_mediation.rs"
+
+[[test]]
+name = "horizon_composition"
+path = "tests/horizon_composition.rs"
+
+[[test]]
 name = "treatment_score_product"
 path = "tests/treatment_score_product.rs"
 
@@ -738,6 +814,14 @@ path = "tests/structure_compiler_routes.rs"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "structure_prior_routes"
+path = "tests/structure_prior_routes.rs"
+
+[[test]]
+name = "quasi_rollout_routes"
+path = "tests/quasi_rollout_routes.rs"
+
+[[test]]
 name = "plan_view"
 path = "tests/plan_view.rs"
 
@@ -748,6 +832,10 @@ path = "tests/plan_view_stages.rs"
 [[test]]
 name = "report"
 path = "tests/report.rs"
+
+[[test]]
+name = "association_count_conjugate"
+path = "tests/association_count_conjugate.rs"
 
 [[test]]
 name = "count_conjugate_calibration"
@@ -790,6 +878,18 @@ name = "calibration_decision_contract"
 path = "tests/calibration_decision_contract.rs"
 
 [[test]]
+name = "period_refresh_reference"
+path = "tests/period_refresh_reference.rs"
+
+[[test]]
+name = "estimate_uncertainty_reference"
+path = "tests/estimate_uncertainty_reference.rs"
+
+[[test]]
+name = "smoothed_dose_reference"
+path = "tests/smoothed_dose_reference.rs"
+
+[[test]]
 name = "temporal_response_observation_adjusted_reference"
 path = "tests/temporal_response_observation_adjusted_reference.rs"
 
@@ -826,6 +926,114 @@ name = "build_quasi_experimental_synthetic_dependence"
 path = "tests/build_quasi_experimental_synthetic_dependence.rs"
 
 [[test]]
+name = "transport_interference_cell_evidence"
+path = "tests/transport_interference_cell_evidence.rs"
+
+[[test]]
+name = "cross_world_dag_validation_truth"
+path = "tests/cross_world_dag_validation_truth.rs"
+
+[[test]]
+name = "codetermined_bayesian_response_truth"
+path = "tests/codetermined_bayesian_response_truth.rs"
+
+[[test]]
+name = "bayesian_intervention_response_refuter_truth"
+path = "tests/bayesian_intervention_response_refuter_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_validation_truth"
+path = "tests/conditional_effect_admg_validation_truth.rs"
+
+[[test]]
+name = "lag_zero_average_effect_truth"
+path = "tests/lag_zero_average_effect_truth.rs"
+
+[[test]]
+name = "cross_world_class_truth"
+path = "tests/cross_world_class_truth.rs"
+
+[[test]]
+name = "attribution_refuter_known_truth"
+path = "tests/attribution_refuter_known_truth.rs"
+
+[[test]]
+name = "cross_world_posterior_truth"
+path = "tests/cross_world_posterior_truth.rs"
+
+[[test]]
+name = "temporal_conditional_validation_truth"
+path = "tests/temporal_conditional_validation_truth.rs"
+
+[[test]]
+name = "intervention_response_class_validation_truth"
+path = "tests/intervention_response_class_validation_truth.rs"
+
+[[test]]
+name = "response_curve_posterior_validation_truth"
+path = "tests/response_curve_posterior_validation_truth.rs"
+
+[[test]]
+name = "conditional_effect_admg_bayesian_interval"
+path = "tests/conditional_effect_admg_bayesian_interval.rs"
+
+[[test]]
+name = "class_attribution_known_truth"
+path = "tests/class_attribution_known_truth.rs"
+
+[[test]]
+name = "cross_world_temporal_truth"
+path = "tests/cross_world_temporal_truth.rs"
+
+[[test]]
+name = "temporal_window_route_evidence"
+path = "tests/temporal_window_route_evidence.rs"
+
+[[test]]
+name = "distribution_validation_route_evidence"
+path = "tests/distribution_validation_route_evidence.rs"
+
+[[test]]
+name = "functional_graph_posterior_mixture_truth"
+path = "tests/functional_graph_posterior_mixture_truth.rs"
+
+[[test]]
+name = "graphless_did_known_truth"
+path = "tests/graphless_did_known_truth.rs"
+
+[[test]]
+name = "class_posterior_known_truth"
+path = "tests/class_posterior_known_truth.rs"
+
+[[test]]
+name = "temporal_class_posterior_known_truth"
+path = "tests/temporal_class_posterior_known_truth.rs"
+
+[[test]]
+name = "class_explicit_known_truth"
+path = "tests/class_explicit_known_truth.rs"
+
+[[test]]
+name = "admg_frontdoor_validation_known_truth"
+path = "tests/admg_frontdoor_validation_known_truth.rs"
+
+[[test]]
+name = "dag_response_validation_known_truth"
+path = "tests/dag_response_validation_known_truth.rs"
+
+[[test]]
+name = "counterfactual_accepted_known_truth"
+path = "tests/counterfactual_accepted_known_truth.rs"
+
+[[test]]
+name = "tiered_average_effect_closed_form"
+path = "tests/tiered_average_effect_closed_form.rs"
+
+[[test]]
+name = "dirichlet_update_exact"
+path = "tests/dirichlet_update_exact.rs"
+
+[[test]]
 name = "learned_continuous_posterior_exact"
 path = "tests/learned_continuous_posterior_exact.rs"
 
@@ -834,12 +1042,44 @@ name = "smoothed_dose_posterior_exact"
 path = "tests/smoothed_dose_posterior_exact.rs"
 
 [[test]]
+name = "recalc_exact_effect"
+path = "tests/recalc_exact_effect.rs"
+
+[[test]]
 name = "scenario_claims_exact"
 path = "tests/scenario_claims_exact.rs"
 
 [[test]]
+name = "native_response_claims_exact"
+path = "tests/native_response_claims_exact.rs"
+
+[[test]]
+name = "recalc_cell_exact_effect"
+path = "tests/recalc_cell_exact_effect.rs"
+
+[[test]]
+name = "recalc_attempt_exact_effect"
+path = "tests/recalc_attempt_exact_effect.rs"
+
+[[test]]
+name = "source_evidence_exact"
+path = "tests/source_evidence_exact.rs"
+
+[[test]]
+name = "callback_downstream_exact"
+path = "tests/callback_downstream_exact.rs"
+
+[[test]]
+name = "joint_sensitivity_source_exact"
+path = "tests/joint_sensitivity_source_exact.rs"
+
+[[test]]
 name = "recalc_composite_hand_utilities"
 path = "tests/recalc_composite_hand_utilities.rs"
+
+[[test]]
+name = "proposal_arrival_exact"
+path = "tests/proposal_arrival_exact.rs"
 
 [[test]]
 name = "conditional_study_ranking_exact"
@@ -849,6 +1089,10 @@ path = "tests/conditional_study_ranking_exact.rs"
 name = "estimator_support_enumeration"
 path = "tests/estimator_support_enumeration.rs"
 required-features = ["development"]
+
+[[test]]
+name = "tier_diagnostics_exact"
+path = "tests/tier_diagnostics_exact.rs"
 
 [[test]]
 name = "temporal_lagged_instrument_known_truth"
@@ -883,6 +1127,10 @@ name = "bayesian_static_known_truth"
 path = "tests/bayesian_static_known_truth.rs"
 
 [[test]]
+name = "temporal_sequential_gcomp_multistep_known_truth"
+path = "tests/temporal_sequential_gcomp_multistep_known_truth.rs"
+
+[[test]]
 name = "admg_response_known_truth"
 path = "tests/admg_response_known_truth.rs"
 
@@ -895,8 +1143,20 @@ name = "response_cells_known_truth"
 path = "tests/response_cells_known_truth.rs"
 
 [[test]]
+name = "graph_imputation_known_truth"
+path = "tests/graph_imputation_known_truth.rs"
+
+[[test]]
+name = "prepared_adjusted_retarget"
+path = "tests/prepared_adjusted_retarget.rs"
+
+[[test]]
 name = "prepared_adjusted_retarget_calibration"
 path = "tests/prepared_adjusted_retarget_calibration.rs"
+
+[[test]]
+name = "compiled_robust_decisions"
+path = "tests/compiled_robust_decisions.rs"
 
 [[test]]
 name = "bayesian_randomized_calibration"
@@ -929,8 +1189,19 @@ name = "measurement_exposure_calibration"
 name = "measured_exposure_calibration"
 
 [[test]]
+name = "measured_exposure_known_truth"
+
+[[test]]
 name = "transport_weighted_target_calibration"
 path = "tests/transport_weighted_target_calibration.rs"
+
+[[test]]
+name = "weighted_target_effect"
+path = "tests/weighted_target_effect.rs"
+
+[[test]]
+name = "composition_chain"
+path = "tests/composition_chain.rs"
 
 [[test]]
 name = "weighted_target_effect_calibration"
@@ -941,8 +1212,16 @@ name = "weighted_target_trial_transport"
 path = "tests/weighted_target_trial_transport.rs"
 
 [[test]]
+name = "graph_posterior_weighted_target"
+path = "tests/graph_posterior_weighted_target.rs"
+
+[[test]]
 name = "graph_posterior_weighted_target_calibration"
 path = "tests/graph_posterior_weighted_target_calibration.rs"
+
+[[test]]
+name = "pooled_structure_and_prior_selection"
+path = "tests/pooled_structure_and_prior_selection.rs"
 
 [[test]]
 name = "weighted_target_transport_calibration"
@@ -1064,6 +1343,10 @@ path = "tests/event_count_calibration.rs"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "composition_posterior_decision_bundle"
+path = "tests/composition_posterior_decision_bundle.rs"
+
+[[test]]
 name = "bridge_transport_premise_calibration"
 
 [[test]]
@@ -1169,11 +1452,3 @@ path = "tests/suite_12.rs"
 [[test]]
 name = "suite_13"
 path = "tests/suite_13.rs"
-
-[[test]]
-name = "suite_14"
-path = "tests/suite_14.rs"
-
-[[test]]
-name = "suite_15"
-path = "tests/suite_15.rs"

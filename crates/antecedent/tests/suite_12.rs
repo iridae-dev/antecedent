@@ -3,63 +3,63 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "cross_world_temporal_truth.rs"]
-mod cross_world_temporal_truth;
-#[path = "cyclic_dag_regression.rs"]
-mod cyclic_dag_regression;
-#[path = "cyclic_independent_consumer.rs"]
-mod cyclic_independent_consumer;
-#[path = "dag_response_validation_known_truth.rs"]
-mod dag_response_validation_known_truth;
-#[path = "data_diagnostics.rs"]
-mod data_diagnostics;
-#[path = "dependence_aware_estimators.rs"]
-mod dependence_aware_estimators;
-#[path = "derivative_refuter_known_truth.rs"]
-mod derivative_refuter_known_truth;
-#[path = "derivative_validation_on_classes.rs"]
-mod derivative_validation_on_classes;
-#[path = "descriptive_fallback.rs"]
-mod descriptive_fallback;
-#[path = "dirichlet_update_exact.rs"]
-mod dirichlet_update_exact;
-#[path = "distribution_validation_route_evidence.rs"]
-mod distribution_validation_route_evidence;
-#[path = "estimate_response_kennedy_dr_declarations.rs"]
-mod estimate_response_kennedy_dr_declarations;
-#[path = "estimate_uncertainty_reference.rs"]
-mod estimate_uncertainty_reference;
-#[path = "estimator_validity_snapshot.rs"]
-mod estimator_validity_snapshot;
-#[path = "evidence_plan_study.rs"]
-mod evidence_plan_study;
-#[path = "experiment_planning.rs"]
-mod experiment_planning;
-#[path = "facade_route_replay.rs"]
-mod facade_route_replay;
-#[path = "fitted_model_support_routes.rs"]
-mod fitted_model_support_routes;
-#[path = "flagship_shared_parameter.rs"]
-mod flagship_shared_parameter;
-#[path = "functional_effect_average_dag_known_truth.rs"]
-mod functional_effect_average_dag_known_truth;
-#[path = "functional_graph_posterior_mixture_truth.rs"]
-mod functional_graph_posterior_mixture_truth;
-#[path = "gcm_bayesian_refit_reference.rs"]
-mod gcm_bayesian_refit_reference;
-#[path = "graph_imputation_known_truth.rs"]
-mod graph_imputation_known_truth;
-#[path = "graph_posterior_attribution_routes.rs"]
-mod graph_posterior_attribution_routes;
-#[path = "graph_posterior_cross_world_routes.rs"]
-mod graph_posterior_cross_world_routes;
-#[path = "graph_posterior_derivative_known_truth.rs"]
-mod graph_posterior_derivative_known_truth;
-#[path = "graph_posterior_exposure_routes.rs"]
-mod graph_posterior_exposure_routes;
-#[path = "graph_posterior_temporal_pag_mediation.rs"]
-mod graph_posterior_temporal_pag_mediation;
-#[path = "graph_posterior_weighted_target.rs"]
-mod graph_posterior_weighted_target;
-#[path = "graphless_did_known_truth.rs"]
-mod graphless_did_known_truth;
+#[path = "mapped_posterior_transfer_reference.rs"]
+mod mapped_posterior_transfer_reference;
+#[path = "mechanism_refit_bootstrap_construction.rs"]
+mod mechanism_refit_bootstrap_construction;
+#[path = "missing_data_routes.rs"]
+mod missing_data_routes;
+#[path = "missing_imputation_aipw_weighting.rs"]
+mod missing_imputation_aipw_weighting;
+#[path = "missing_imputation_estimator_families.rs"]
+mod missing_imputation_estimator_families;
+#[path = "missing_imputation_routes.rs"]
+mod missing_imputation_routes;
+#[path = "missing_policy_support.rs"]
+mod missing_policy_support;
+#[path = "missing_policy_unmodelled_routes.rs"]
+mod missing_policy_unmodelled_routes;
+#[path = "panel_link_contrast_route.rs"]
+mod panel_link_contrast_route;
+#[path = "point_only_routes.rs"]
+mod point_only_routes;
+#[path = "prepared_retained_refresh.rs"]
+mod prepared_retained_refresh;
+#[path = "randomized_design_boundaries.rs"]
+mod randomized_design_boundaries;
+#[path = "randomized_design_missing_policies.rs"]
+mod randomized_design_missing_policies;
+#[path = "randomized_quantile_artifact.rs"]
+mod randomized_quantile_artifact;
+#[path = "randomized_quantile_known_truth.rs"]
+mod randomized_quantile_known_truth;
+#[path = "sample_split_analysis_reference.rs"]
+mod sample_split_analysis_reference;
+#[path = "sampling_weight_routes.rs"]
+mod sampling_weight_routes;
+#[path = "scenario_class_route_boundaries.rs"]
+mod scenario_class_route_boundaries;
+#[path = "scenario_dependence_declarations.rs"]
+mod scenario_dependence_declarations;
+#[path = "scenario_equivalence_class_estimators.rs"]
+mod scenario_equivalence_class_estimators;
+#[path = "scenario_invalid_input_refusals.rs"]
+mod scenario_invalid_input_refusals;
+#[path = "scenario_iv_route_boundaries.rs"]
+mod scenario_iv_route_boundaries;
+#[path = "scenario_route_declarations.rs"]
+mod scenario_route_declarations;
+#[path = "scenario_treatment_levels.rs"]
+mod scenario_treatment_levels;
+#[path = "scientific_bridge_interval_reference.rs"]
+mod scientific_bridge_interval_reference;
+#[path = "static_route_input_boundaries.rs"]
+mod static_route_input_boundaries;
+#[path = "static_route_table_weights.rs"]
+mod static_route_table_weights;
+#[path = "structure_uncertainty_routes.rs"]
+mod structure_uncertainty_routes;
+#[path = "study_ranking_verified_unlocks.rs"]
+mod study_ranking_verified_unlocks;
+#[path = "target_constructed_refuters.rs"]
+mod target_constructed_refuters;

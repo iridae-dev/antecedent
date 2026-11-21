@@ -18,14 +18,17 @@ if [[ -z "${VIRTUAL_ENV:-}" && -f .venv/bin/activate ]]; then
   unset CONDA_PREFIX || true
 fi
 
+# Install the locked lint tools without building the Rust extension for a source check.
+uv sync --locked --group dev --no-install-project --inexact
+
 echo "==> ruff check"
-uv run ruff check antecedent tests ../examples/python \
+uv run --no-sync ruff check antecedent tests ../examples/python \
   ../scripts ../benchmarks ../conformance
 
 echo "==> ruff format --check"
-uv run ruff format --check antecedent tests ../examples/python
+uv run --no-sync ruff format --check antecedent tests ../examples/python
 
 echo "==> mypy (package + stubs)"
-uv run mypy
+uv run --no-sync mypy
 
 echo "Python lint/type gate OK"

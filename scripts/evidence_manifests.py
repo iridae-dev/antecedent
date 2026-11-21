@@ -125,7 +125,7 @@ def rust_text_digest(text: str) -> str:
 OTHER_TARGET_TABLES = ("test", "bench", "example")
 
 
-def build_manifest_digest(data: bytes, target: str | None) -> str | None:
+def build_manifest_digest(data: bytes, target: str | None, implicit_file: bool = False) -> str | None:
     """Digest of a Cargo.toml as the build of one executable reads it: every `[[test]]`,
     `[[bench]]` and `[[example]]` declaration removed except the one named `target` (the
     record's own test target; `None` for a library unit-test binary or a dependency's
@@ -134,6 +134,19 @@ def build_manifest_digest(data: bytes, target: str | None) -> str | None:
     import tomllib
     try:
         parsed = tomllib.loads(data.decode("utf-8"))
+        # Autodiscovery only selects executable targets. Compare the effective
+        # declaration of the recorded target and retain every build option.
+        auto = parsed["package"].pop("autotests", True)
+        if target is not None:
+            tests = parsed.get("test", [])
+            own_test = next((entry for entry in tests if entry.get("name") == target), None)
+            if own_test is None and auto and implicit_file:
+                parsed.setdefault("test", []).append({"name": target, "path": f"tests/{target}.rs"})
+            elif own_test is not None and implicit_file:
+                own_test.setdefault("path", f"tests/{target}.rs")
+            elif own_test is None:
+                # Preserve the distinction when a source path cannot be established.
+                parsed["package"]["autotests"] = auto
         for table in OTHER_TARGET_TABLES:
             entries = parsed.pop(table, None)
             if entries is None:
@@ -144,7 +157,7 @@ def build_manifest_digest(data: bytes, target: str | None) -> str | None:
             if own:
                 parsed[table] = own
         return digest(b"cargo-build-manifest\0" + canonical(parsed))
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError):
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, KeyError, AttributeError, TypeError, ValueError):
         return None
 
 
@@ -550,17 +563,33 @@ class Checker:
         target = artifact.get("target_name") if artifact["target_kind"] == "test" else None
         if target is not None and not isinstance(target, str):
             return False
+        path = self.path(key)
+        if not path.is_file():
+            return False
+        if artifact.get("crate") and path.parent.name != artifact["crate"] and key.startswith("crates/"):
+            target = None
+        source = f"tests/{target}.rs" if target else None
+        old_files = self.__dict__.setdefault("_bound_cargo_files", {})
+        if (commit, key) not in old_files:
+            shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
+            old_files[commit, key] = shown.stdout if shown.returncode == 0 else None
+        data = old_files[commit, key]
+        if data is None or digest(data) != bound:
+            return False
         cache = self.__dict__.setdefault("_bound_build_manifest", {})
         if (commit, key, target) not in cache:
-            shown = subprocess.run(["git", "show", f"{commit}:{key}"], cwd=self.root, capture_output=True)
-            data = shown.stdout if shown.returncode == 0 else None
-            cache[(commit, key, target)] = (data is not None and digest(data) == bound
-                                            and build_manifest_digest(data, target))
-        bound_build = cache[(commit, key, target)]
-        path = self.path(key)
-        if not bound_build or not path.is_file():
-            return False
-        return bound_build == build_manifest_digest(path.read_bytes(), target)
+            old_source = bool(source and subprocess.run(
+                ["git", "cat-file", "-e", f"{commit}:{PurePosixPath(key).parent}/{source}"],
+                cwd=self.root, capture_output=True,
+            ).returncode == 0)
+            cache[commit, key, target] = build_manifest_digest(data, target, old_source)
+        signature = _stat_signature(path)
+        current = self.__dict__.setdefault("_current_build_manifest", {})
+        exists = bool(source and (path.parent / source).is_file())
+        entry = key, signature, target, exists
+        if entry not in current or signature is None:
+            current[entry] = build_manifest_digest(path.read_bytes(), target, exists)
+        return bool(cache[commit, key, target]) and cache[commit, key, target] == current[entry]
 
     def input_digest(self, kind: str, key: str) -> str:
         cache_key = kind, key

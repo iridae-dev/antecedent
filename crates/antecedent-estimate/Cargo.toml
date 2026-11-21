@@ -83,7 +83,13 @@ name = "propensity_bootstrap_measured"
 harness = false
 
 [[test]]
+name = "adaptive_inference"
+
+[[test]]
 name = "adaptive_inference_calibration"
+
+[[test]]
+name = "adaptive_interval_exact"
 
 [[test]]
 name = "adaptive_procedure_prior_predictive_calibration"
@@ -101,13 +107,40 @@ name = "admg_conditional_transport_scm"
 name = "aipw_reference"
 
 [[test]]
+name = "ancova_reference"
+
+[[test]]
+name = "augmented_did_reference"
+
+[[test]]
 name = "bayesian_dose_grid_calibration"
+
+[[test]]
+name = "bayesian_local_ratio_reference"
+
+[[test]]
+name = "bayesian_panel_did_reference"
 
 [[test]]
 name = "bayesian_robust_ate_reference"
 
 [[test]]
+name = "bayesian_route_exact"
+
+[[test]]
+name = "bayesian_score_route_exact"
+
+[[test]]
+name = "bayesian_synthetic_control_reference"
+
+[[test]]
+name = "bayesian_temporal_regime_survival_reference"
+
+[[test]]
 name = "bootstrap_effect_precision"
+
+[[test]]
+name = "cancellation_expansion_cells"
 
 [[test]]
 name = "categorical_treatment"
@@ -119,7 +152,22 @@ name = "categorical_treatment_posterior"
 name = "choice_interval_calibration"
 
 [[test]]
+name = "choice_interval_construction"
+
+[[test]]
+name = "cluster_dml_aipw"
+
+[[test]]
+name = "clustered_score_posterior_exact"
+
+[[test]]
+name = "cohort_linear_effect"
+
+[[test]]
 name = "cohort_linear_effect_calibration"
+
+[[test]]
+name = "complier_posterior_reference"
 
 [[test]]
 name = "conjugate_prior_calibration"
@@ -146,6 +194,9 @@ name = "counterfactual_transport_sampled_replicate"
 name = "coverage_determinism"
 
 [[test]]
+name = "dependence_aware_interval_reference"
+
+[[test]]
 name = "descriptive_comparison"
 
 [[test]]
@@ -161,16 +212,34 @@ name = "dml_outcome_prior_reference"
 name = "dml_reference"
 
 [[test]]
+name = "dose_grid_functional"
+
+[[test]]
+name = "dose_grid_functional_bayesian_reference"
+
+[[test]]
+name = "dose_posterior_reference"
+
+[[test]]
 name = "dr_learner_reference"
 
 [[test]]
 name = "effect_constancy"
 
 [[test]]
+name = "effect_constancy_calibration"
+
+[[test]]
 name = "estimate_association_reference"
 
 [[test]]
 name = "estimate_causal_forest_reference"
+
+[[test]]
+name = "estimate_policy_continuous_dose_reference"
+
+[[test]]
+name = "estimate_response_gam_derivative_reference"
 
 [[test]]
 name = "frontdoor_functional_reference"
@@ -185,10 +254,34 @@ name = "functional_distribution_reference"
 name = "generalized_propensity_aipw_reference"
 
 [[test]]
+name = "graphless_interference_saturation_known_truth"
+
+[[test]]
+name = "graphless_local_polynomial_ratio_known_truth"
+
+[[test]]
+name = "graphless_published_intervals_known_truth"
+
+[[test]]
+name = "graphless_randomized_cuped_known_truth"
+
+[[test]]
+name = "graphless_survival_bootstrap_known_truth"
+
+[[test]]
+name = "history_outcome_model_reference"
+
+[[test]]
 name = "ipw_weighting_reference"
 
 [[test]]
+name = "iv_bounds_interval_reference"
+
+[[test]]
 name = "iv_reference"
+
+[[test]]
+name = "joint_bayesian_transport"
 
 [[test]]
 name = "joint_bayesian_transport_calibration"
@@ -203,10 +296,22 @@ name = "knn_distance_matching_reference"
 name = "knn_matching_calibration"
 
 [[test]]
+name = "latent_class_effects"
+
+[[test]]
+name = "latent_class_posterior_exact"
+
+[[test]]
 name = "learned_continuous_interval_construction"
 
 [[test]]
 name = "learned_joint_calibration"
+
+[[test]]
+name = "learned_joint_transport"
+
+[[test]]
+name = "marginal_structural_model_reference"
 
 [[test]]
 name = "matched_case_control"
@@ -218,19 +323,49 @@ name = "matched_odds_ratio_interval_calibration"
 name = "matching_construction_identity"
 
 [[test]]
+name = "measurement_models"
+
+[[test]]
 name = "mechanism_discrepancy"
 
 [[test]]
 name = "mechanism_discrepancy_calibration"
 
 [[test]]
+name = "mechanism_ridge_exact"
+
+[[test]]
+name = "mediation_posterior_exact"
+
+[[test]]
 name = "mixed_source_execution"
+
+[[test]]
+name = "multi_source_posterior_exact"
+
+[[test]]
+name = "mz_transport_execution"
+
+[[test]]
+name = "nested_markov_binary_reference"
 
 [[test]]
 name = "nested_markov_fisher_calibration"
 
 [[test]]
+name = "nested_markov_uncertainty"
+
+[[test]]
+name = "neyman_randomization_enumeration"
+
+[[test]]
+name = "nonlinear_mediation"
+
+[[test]]
 name = "nonlinear_mediation_interval_calibration"
+
+[[test]]
+name = "observation_recovery_execution"
 
 [[test]]
 name = "observational_effects_calibration"
@@ -248,16 +383,43 @@ name = "observational_survival_effects"
 name = "observational_survival_replicated"
 
 [[test]]
+name = "ordered_response_recovery_chain_truth"
+
+[[test]]
+name = "penalized_aipw"
+
+[[test]]
+name = "policy_value_reference"
+
+[[test]]
 name = "propensity_matching_reference"
 
 [[test]]
 name = "randomized_posterior"
 
 [[test]]
+name = "randomized_posterior_reference"
+
+[[test]]
+name = "randomized_quantile_reference"
+
+[[test]]
+name = "randomized_scores_enumeration"
+
+[[test]]
 name = "rd_reference"
 
 [[test]]
+name = "recovery_binary_posterior_exact"
+
+[[test]]
+name = "recovery_chain_posterior_exact"
+
+[[test]]
 name = "recovery_held_out_regimes"
+
+[[test]]
+name = "recovery_sampled"
 
 [[test]]
 name = "recovery_sampled_observation_reference"
@@ -266,19 +428,73 @@ name = "recovery_sampled_observation_reference"
 name = "recovery_whole_method_calibration"
 
 [[test]]
+name = "sampling_weights"
+
+[[test]]
+name = "sampling_weights_reference"
+
+[[test]]
+name = "scenario_covariance"
+
+[[test]]
 name = "scenario_covariance_calibration"
+
+[[test]]
+name = "scenario_covariance_posterior_exact"
+
+[[test]]
+name = "score_posterior_interval_known_truth"
+
+[[test]]
+name = "sequential_contrast_reference"
+
+[[test]]
+name = "shared_scenario_covariance_reference"
 
 [[test]]
 name = "stratification_reference"
 
 [[test]]
+name = "support_coordinate_ess_exact"
+
+[[test]]
+name = "survival_posterior_reference"
+
+[[test]]
 name = "switchback_posterior"
+
+[[test]]
+name = "switchback_posterior_reference"
+
+[[test]]
+name = "temporal_dependent_interval"
 
 [[test]]
 name = "temporal_dependent_interval_reference"
 
 [[test]]
+name = "temporal_design_dose_quantile_known_truth"
+
+[[test]]
+name = "temporal_design_excursion_bayesian_bootstrap_reference"
+
+[[test]]
+name = "temporal_design_excursion_reference"
+
+[[test]]
+name = "temporal_initial_state"
+
+[[test]]
+name = "temporal_initial_state_bayesian_exact"
+
+[[test]]
+name = "temporal_regime_survival_reference"
+
+[[test]]
 name = "temporal_sequential_reference"
+
+[[test]]
+name = "temporal_transport_execution"
 
 [[test]]
 name = "temporal_unit_calibration"
@@ -290,7 +506,13 @@ name = "treatment_inference_calibration"
 name = "treatment_levels"
 
 [[test]]
+name = "two_step_posterior_exact"
+
+[[test]]
 name = "vector_treatment"
+
+[[test]]
+name = "z_transport_cited_evidence"
 
 [[test]]
 name = "suite_01"
@@ -307,11 +529,3 @@ path = "tests/suite_03.rs"
 [[test]]
 name = "suite_04"
 path = "tests/suite_04.rs"
-
-[[test]]
-name = "suite_05"
-path = "tests/suite_05.rs"
-
-[[test]]
-name = "suite_06"
-path = "tests/suite_06.rs"

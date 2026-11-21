@@ -359,6 +359,17 @@ class ManifestTests(unittest.TestCase):
             "crates/c/Cargo.toml", em.digest(b"other"), test))
         self.assertFalse(same({}))
 
+    def test_effective_integration_target_survives_explicit_discovery(self):
+        base = b'[package]\nname = "c"\n'
+        explicit = base + b'autotests = false\n[[test]]\nname = "mine"\n'
+        bound = em.build_manifest_digest(base, "mine", True)
+        self.assertEqual(bound, em.build_manifest_digest(explicit, "mine", True))
+        self.assertEqual(em.build_manifest_digest(base, None), em.build_manifest_digest(explicit, None))
+        for changed in (base + b'autotests = false\n', explicit + b'path = "tests/other.rs"\n',
+                        explicit + b'required-features = ["slow"]\n', explicit + b'harness = false\n'):
+            self.assertNotEqual(bound, em.build_manifest_digest(changed, "mine", True))
+        self.assertNotEqual(bound, em.build_manifest_digest(base, "mine", False))
+
     def test_membership_in_a_git_work_tree_skips_ignored_files_only(self):
         git = lambda *args: subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True)  # noqa: E731
         self.write(".gitignore", ".DS_Store\n*.so\n")

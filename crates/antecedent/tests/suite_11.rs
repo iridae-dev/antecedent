@@ -3,44 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
-#[path = "claims_03_dbn_posterior_truth.rs"]
-mod claims_03_dbn_posterior_truth;
-#[path = "class_and_design_validation_suites.rs"]
-mod class_and_design_validation_suites;
-#[path = "class_attribution_known_truth.rs"]
-mod class_attribution_known_truth;
-#[path = "class_derivative_known_truth.rs"]
-mod class_derivative_known_truth;
-#[path = "class_derivative_response.rs"]
-mod class_derivative_response;
-#[path = "class_explicit_known_truth.rs"]
-mod class_explicit_known_truth;
-#[path = "class_graph_posterior_derivative_known_truth.rs"]
-mod class_graph_posterior_derivative_known_truth;
-#[path = "class_posterior_known_truth.rs"]
-mod class_posterior_known_truth;
-#[path = "class_route_artifacts.rs"]
-mod class_route_artifacts;
-#[path = "codetermined_bayesian_response_truth.rs"]
-mod codetermined_bayesian_response_truth;
-#[path = "compile_from_decision.rs"]
-mod compile_from_decision;
-#[path = "compiled_robust_decisions.rs"]
-mod compiled_robust_decisions;
-#[path = "composition_chain.rs"]
-mod composition_chain;
-#[path = "composition_posterior_decision_bundle.rs"]
-mod composition_posterior_decision_bundle;
-#[path = "conditional_effect_admg_bayesian_interval.rs"]
-mod conditional_effect_admg_bayesian_interval;
-#[path = "conditional_effect_admg_validation_truth.rs"]
-mod conditional_effect_admg_validation_truth;
-#[path = "conditional_ipcw.rs"]
-mod conditional_ipcw;
 #[path = "continuous_measurement_facade.rs"]
 mod continuous_measurement_facade;
-#[path = "counterfactual_accepted_known_truth.rs"]
-mod counterfactual_accepted_known_truth;
 #[path = "counterfactual_contrasts.rs"]
 mod counterfactual_contrasts;
 #[path = "counterfactual_noise_posterior.rs"]
@@ -55,11 +19,47 @@ mod cross_surface_previous_release;
 mod cross_surface_refresh_withdrawal;
 #[path = "cross_surface_retention_refresh.rs"]
 mod cross_surface_retention_refresh;
-#[path = "cross_world_class_truth.rs"]
-mod cross_world_class_truth;
-#[path = "cross_world_counterfactual_posterior_truth.rs"]
-mod cross_world_counterfactual_posterior_truth;
-#[path = "cross_world_dag_validation_truth.rs"]
-mod cross_world_dag_validation_truth;
-#[path = "cross_world_posterior_truth.rs"]
-mod cross_world_posterior_truth;
+#[path = "cyclic_dag_regression.rs"]
+mod cyclic_dag_regression;
+#[path = "cyclic_independent_consumer.rs"]
+mod cyclic_independent_consumer;
+#[path = "data_diagnostics.rs"]
+mod data_diagnostics;
+#[path = "dependence_aware_estimators.rs"]
+mod dependence_aware_estimators;
+#[path = "derivative_validation_on_classes.rs"]
+mod derivative_validation_on_classes;
+#[path = "descriptive_fallback.rs"]
+mod descriptive_fallback;
+#[path = "estimate_response_kennedy_dr_declarations.rs"]
+mod estimate_response_kennedy_dr_declarations;
+#[path = "estimator_validity_snapshot.rs"]
+mod estimator_validity_snapshot;
+#[path = "evidence_plan_study.rs"]
+mod evidence_plan_study;
+#[path = "experiment_planning.rs"]
+mod experiment_planning;
+#[path = "facade_route_replay.rs"]
+mod facade_route_replay;
+#[path = "fitted_model_support_routes.rs"]
+mod fitted_model_support_routes;
+#[path = "flagship_shared_parameter.rs"]
+mod flagship_shared_parameter;
+#[path = "functional_effect_average_dag_known_truth.rs"]
+mod functional_effect_average_dag_known_truth;
+#[path = "gcm_bayesian_refit_reference.rs"]
+mod gcm_bayesian_refit_reference;
+#[path = "graph_posterior_attribution_routes.rs"]
+mod graph_posterior_attribution_routes;
+#[path = "graph_posterior_cross_world_routes.rs"]
+mod graph_posterior_cross_world_routes;
+#[path = "graph_posterior_exposure_routes.rs"]
+mod graph_posterior_exposure_routes;
+#[path = "graph_posterior_temporal_pag_mediation.rs"]
+mod graph_posterior_temporal_pag_mediation;
+#[path = "horizon_one_static.rs"]
+mod horizon_one_static;
+#[path = "host_contract.rs"]
+mod host_contract;
+#[path = "joint_horizon_block_weight_construction.rs"]
+mod joint_horizon_block_weight_construction;
