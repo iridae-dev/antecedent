@@ -29,6 +29,7 @@ RECHECK_TARGET_SECONDS runs on more worker threads (`recheck_threads`).
 from __future__ import annotations
 
 import collections
+import json
 import math
 import os
 import re
