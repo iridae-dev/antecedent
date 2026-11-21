@@ -1,3 +1,6 @@
+# Follow-up review: the two panel matchers moved intact and existing interval method ordinals were restored.
+# The ordinary tally again has its original behavior. These gates never called the panel-specific count assertions.
+# Every stored decision was replayed against the refreshed family with the same verdict.
 # The independent 400-row overlap-bound script runs separately from the 67 Rust gate
 # footprints in its crate. All 115 receipt sets and 267 release decisions were rechecked.
 # The follow-up review checked that all three regrouped seed literals encode exactly
@@ -49,7 +52,7 @@ inputs = []
 "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "83a4b031e6a8d9cc2d81a7664f14d50047386a3a799e81faebf2629bb793c739"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The beta routines gained public visibility and must_use. The formulas, input samples, p-values and assertions are identical. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -69,7 +72,7 @@ inputs = []
 "antecedent-stats: weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate" = "5bfa587ac4abd781d9bff487b2fb3885490731079b78ed8c15e21901ce93c18f"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The matching change documents a deprecated limit. Nearest-neighbor selection and the null, power and replacement checks use the same code. Where used, the beta functions only changed visibility. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -89,7 +92,7 @@ inputs = ["parity/polars_decision/decision.toml"]
 "antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/response/conditional_ipcw/expected.json"]
 [review.receipts]
@@ -116,7 +119,7 @@ inputs = ["conformance/response/conditional_ipcw/expected.json"]
 "bootstrap_effect_precision: latent_class_whole_method_bootstrap_se" = "3fafbca22fad4f2a104d6320dce726b54f335e0b4d82bae4c188a8109baa1f7b"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The policy harness constructs ObservationalPolicyValue with policy_features=None. The new feature-subset regression is skipped and action selection uses the original arm predictions. The new cache-key field distinguishes configurations without changing the fit or folds. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -127,7 +130,7 @@ inputs = []
 "observational_effects_calibration: policy_cross_fitted_learning_n3000_l95" = "1b4f6f7b367f464dc23b46289d70ba9129c7b51017000b1f4a3b106e2e9b1cb4"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -136,14 +139,14 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The design module adds lookup of a selected-program value interval. This gate still scores the original winner selection, held-out value and bias bound. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
 "decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased" = "cecf8c085fc52749f8f74a3a78e6fb11d151108d97e3a6dd34aa850766d1f4d7"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "inference_metrics::assess gains a Clippy annotation. The full-fit errors, metrics, seeds and decision limits are unchanged for these vector and categorical treatment designs. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -155,7 +158,7 @@ inputs = []
 "treatment_inference_calibration: categorical_monotonicity_heteroskedastic" = "ee0bd973b7148f28111720d7881d657bb43194ab947831a2654f9a2db38968e8"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The shared calibration harness module became crate-visible. The unsharded estimator-level IV and RD trials retain the same estimators, seed sequence and coverage rules. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -164,7 +167,7 @@ inputs = ["parity/polars_decision/decision.toml"]
 "antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe" = "e0398292183f304a0a6e42d21f98e6945a01168e2771b0796230b4f4e1919e6c"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "These Gaussian fits leave target_moments unset and use no count prior. The new target-mean uncertainty function returns before drawing; the count-prior guard accepts the existing priors. Harness consolidation and removal of identity u64 conversions preserve the replicate seeds. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -175,14 +178,14 @@ inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "c
 "antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform" = "a209f75d72c88cd0844d174ac78ab749c43110ef8d49d18a01dee2fec6fdb920"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The block-length sensitivity test and all recorded Rust sources are unchanged. Added unrelated Cargo test targets, documentation, the host schema and oracle fixtures do not supply its series or block choices. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
 "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" = "c1da2c975935d05b74b1b5b232ae3c27df0d1e090d129349cf657adcbba153d3"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The changed constraints text describes parent limits. The active PC/PCMCI and split-effect computations and seed schedules are unchanged. The cancellation boundary still measures reported/refused outcomes. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -192,7 +195,7 @@ inputs = []
 "sample_split_effect_calibration: sample_split_cancelling_edge_boundary_95" = "4d2985a28ba1e6e8de04ac67a5bcdea294e5375e2bfbe8a84edd73e658ef177a"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The original design_prior sets neither per-edge priors nor soft tiers. validate_for uses the original validation and the prior table retains its scalar edge_logs arithmetic. The extracted comparison helper receives the same prior, parent caps and sampler seeds; imputation pooling is unused. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -203,7 +206,7 @@ inputs = []
 "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps" = "ee2f9eda63fd5ddf7040d4c9cb423c8ead25d8c8b2acf2e5f0c6b6571c4295c0"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/response/trial_transport/expected.json"]
 [review.receipts]
@@ -211,7 +214,7 @@ inputs = ["conformance/response/trial_transport/expected.json"]
 "smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The facade Cargo manifest added other integration test targets. The manifest as read for this test binary, its features, and all executed source files are unchanged. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -223,7 +226,7 @@ inputs = []
 "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target" = "087c3a68094e694459969c0a47e4fed8842e9ae3bd2fbdf2d456a1c3b81a7d11"
 
 [[review]]
-reviewed_at = "a01399003b4c2d5a93615b79dec2dd8b2eb033de"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The primary run supplied complete passing grid receipts. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
@@ -239,7 +242,7 @@ inputs = []
 "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors" = "5f98e047190a56645329b87f0de9bb0250b8fe6b0ef3aac0ff362adda9e38a0c"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/response/conditional_ipcw/expected.json"]
 [review.receipts]
@@ -249,14 +252,14 @@ inputs = ["conformance/response/conditional_ipcw/expected.json"]
 "bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se" = "beef22c78f158e840f1d51a4976b72d66942372779d1ef097f6ff58ffc298fb3"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "These adapters use Gaussian or normal-inverse-gamma fits, fixed design targets and, for the native source case, explicit artifact hydration. Weighted target-moment draws, count priors and named external-composition reindexing are outside these requests. Gaussian prior hydration, draw budgets, coefficient mapping and precision checks are preserved. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
 "bayesian_recalc_calibration: gaussian_adapter_posterior_summary_precision" = "b34c74e44d092f5119300db5511ded035835fde4c0a31c246d35b20c3a0ad639"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -267,7 +270,7 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "cce75426365b0424a10f532beb331f520b65e60272646dd5910478a153aa1e2a"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The tests use ordinary response, mediation and structural-envelope routes. They do not request a custom population, pooled discovery posterior, count prior or outcome-nuisance prior. The original envelope agreement rule and Gaussian preparations are retained. The new temporal regime-survival declarations concern another query. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/estimate/temporal_mediation_grid/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/identify/path_specific/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -281,7 +284,7 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "static_calibration: mediation_confounded_mediator_probe" = "41de388ee049327aef936fc06f69fb552e4244f3fafc9cb87d21ccf6a01c4529"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = ["conformance/response/trial_transport/expected.json"]
 [review.receipts]
@@ -289,14 +292,14 @@ inputs = ["conformance/response/trial_transport/expected.json"]
 "smoothed_dose_calibration: smoothed_dose_transport_grid_points" = "319ffdf6f7778579e07e344c6610f96a54aacfe8c9aaf2109bd317b28a62da13"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
 "sequential_policy_choice_calibration: sequential_known_law_action_choice" = "09010b51ce2e36c3ab99bff91857be1ac223a6fa73d2b717b938051813abb8f5"
 
 [[review]]
-reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+reviewed_at = "f30cc6d470451469116129dbbd0c6484375c27f2"
 basis = "The primary run supplied complete passing grid receipts. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
 inputs = []
 [review.receipts]
