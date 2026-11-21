@@ -264,6 +264,19 @@ class AttestationTests(unittest.TestCase):
         self.assertEqual(measured, HEAD)
 
 
+    def test_matching_prefix_cannot_attest_another_construction_or_denominator(self):
+        old = {"id": "cov.example", "functional": "", "grid": [{"point": 1}]}
+        line = "calibration-record " + json.dumps({
+            "id": "cov.example", "grid_point": 1, "functional": "posterior_average",
+            "prefix_digests": {"10": "unchanged"},
+        })
+        extra = 'calibration-design-counts {"id":"cov.example","grid_point":1,"counts":{"interval_counts":{"attempted":10,"returned":9,"covered":8}}}'
+        observed, _, problems = probe.probe_output(line + "\n" + extra, [old])
+        self.assertEqual(observed["cov.example", 1], {"10": "unchanged"})
+        self.assertIn("functional", problems["cov.example", 1])
+        self.assertIn("interval_counts", problems["cov.example", 1])
+
+
 class JudgeTests(unittest.TestCase):
     class Group:
         safe = "suite__test"
