@@ -395,7 +395,6 @@ class Checker:
         self.environ = {} if environ is None else environ
         self.cache: dict[tuple[str, str], str] = {}
         self.manifests: dict[str, dict] = {}
-        self.reviewed_policies: set[bytes] = set()
         self.reverse: dict[str, set[str]] = defaultdict(set)
         self.started = time.perf_counter()
         self.parsing_seconds = 0.0
@@ -647,11 +646,7 @@ class Checker:
                 reasons.append("analyzer_policy_changed")
             if "nix_build" in manifest:
                 from evidence_platforms import recheck_selection
-                policy = manifest["nix_build"]["policy"]
-                policy_key = canonical(policy)
-                if policy_key not in self.reviewed_policies:
-                    recheck_selection(self.root, policy)
-                    self.reviewed_policies.add(policy_key)
+                recheck_selection(self.root, manifest["nix_build"]["policy"])
             names = next((e for e in manifest["inputs"] if e["kind"] == "rust_names"), None)
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
