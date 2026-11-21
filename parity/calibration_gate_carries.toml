@@ -28,20 +28,9 @@
 
 [[review]]
 reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
-basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only."
-inputs = ["conformance/response/conditional_ipcw/expected.json"]
-[review.receipts]
-"posterior_summary_calibration: posterior_type7_quantile_precision" = "388defe3000ab841aa177b86251abd9a4baa4c3274e11a61227b6ed6f671e175"
-"evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "62fe36bcc3377a39d8d856ab5bf95d1cdf43b46030ef340b96726839103204c7"
-"evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision" = "572ebb2ad5714d2e504fee3507dd919b4586dad0315acb39700d08a59f9427bc"
-"bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se" = "beef22c78f158e840f1d51a4976b72d66942372779d1ef097f6ff58ffc298fb3"
-
-[[review]]
-reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "These adapters use Gaussian or normal-inverse-gamma fits, fixed design targets and, for the native source case, explicit artifact hydration. Weighted target-moment draws, count priors and named external-composition reindexing are outside these requests. Gaussian prior hydration, draw budgets, coefficient mapping and precision checks are preserved."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
-"bayesian_recalc_calibration: gaussian_adapter_posterior_summary_precision" = "b34c74e44d092f5119300db5511ded035835fde4c0a31c246d35b20c3a0ad639"
 "bayesian_basis_prior_precision: quadratic_basis_nig_adapter_summary_precision" = "b1a176d04f4456e3bc18a72006a966a642b256ff0abb92240da779e50cdfbc40"
 "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision" = "cadf4cd4a3b22e80867c86389267899de9be9759682f205fd82f3a6601c3615a"
 
@@ -54,43 +43,9 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/identi
 
 [[review]]
 reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
-basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
-[review.receipts]
-"generic_aipw_precision: generic_aipw_five_fold_known_target_score_precision" = "0cb0b9cbd68f37697326368b6b59d0d5ed21e7437ffaa0db88213ab00a3e65a9"
-"retained_score_precision: retained_dml_weighted_score_precision" = "29c2bfc3bfea46420d3033d65959727a9f527d20cfa2ec429bb412b6a50ee4b9"
-"retained_score_precision: retained_dr_weighted_score_precision" = "935f89f5e145d2d7f96e6fe325484e70dc4f2555d9ed2bd9039a451351feb56d"
-"retained_score_precision: retained_cell_weighted_score_precision" = "af12847c419a689f8aee7026253df4ee8d45d539f9f0edc0b1618e7762f32339"
-"adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "cce75426365b0424a10f532beb331f520b65e60272646dd5910478a153aa1e2a"
-
-[[review]]
-reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
-basis = "The tests use ordinary response, mediation and structural-envelope routes. They do not request a custom population, pooled discovery posterior, count prior or outcome-nuisance prior. The original envelope agreement rule and Gaussian preparations are retained. The new temporal regime-survival declarations concern another query."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/estimate/temporal_mediation_grid/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/identify/path_specific/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
-[review.receipts]
-"mixture_interval_calibration: bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" = "843a2424619aab1ec51e9edf780911c87ac8c34afed11d019141d702d2c7d3d2"
-"mixture_interval_calibration: bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" = "3c816334559c0508d94629672de3db254b6e2357b3e156ecb4d6bdf5f1342b4b"
-"temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "47e6f800815ffbdd0e016ab9fbdebc0177f3f6494c19f8428244f2b14bae2307"
-"temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "862797c9a20efe46dbbe13c4ed2be5d70ea47e277811a2732375dc974fea5754"
-"derivative_calibration: ade_skewed_heteroskedastic_treatment_probe" = "657a2b842a633accc613603c20ce0882988edc7269c5891bb43c4cbcb3dfae11"
-"static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "45a71fb39b3dd85b22d7bb9ec68ae1cbf2fb9a1989a348b67fd0b8b4beaac447"
-"static_calibration: response_curve_dag_frequentist_weak_overlap_probe" = "ad6dfdd932102bd8a26431c02e224c96cabdd1c6bd519518745c3b8d5842e0b6"
-"static_calibration: mediation_confounded_mediator_probe" = "41de388ee049327aef936fc06f69fb552e4244f3fafc9cb87d21ccf6a01c4529"
-
-[[review]]
-reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
-basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate."
-inputs = ["conformance/response/trial_transport/expected.json"]
-[review.receipts]
-"learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases" = "2eb3398386433d96bfc16d1d5238189094af734bf2572d348ee533dd206e11ab"
-"smoothed_dose_calibration: smoothed_dose_transport_grid_points" = "319ffdf6f7778579e07e344c6610f96a54aacfe8c9aaf2109bd317b28a62da13"
-
-[[review]]
-reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged."
 inputs = []
 [review.receipts]
-"sequential_policy_choice_calibration: sequential_known_law_action_choice" = "09010b51ce2e36c3ab99bff91857be1ac223a6fa73d2b717b938051813abb8f5"
 "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "83a4b031e6a8d9cc2d81a7664f14d50047386a3a799e81faebf2629bb793c739"
 
 [[review]]
@@ -282,3 +237,73 @@ inputs = []
 "conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound" = "681af19ed8381351f8b1488bf9096d24e70fcf3fd4826f6c2ef3dd76dcd64ce6"
 "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors" = "c4f444f90a51124a2a75a6d160699973a57ba3f4543dc10faebe82967c59722d"
 "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors" = "5f98e047190a56645329b87f0de9bb0250b8fe6b0ef3aac0ff362adda9e38a0c"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = ["conformance/response/conditional_ipcw/expected.json"]
+[review.receipts]
+"posterior_summary_calibration: posterior_type7_quantile_precision" = "388defe3000ab841aa177b86251abd9a4baa4c3274e11a61227b6ed6f671e175"
+"evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "62fe36bcc3377a39d8d856ab5bf95d1cdf43b46030ef340b96726839103204c7"
+"evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision" = "572ebb2ad5714d2e504fee3507dd919b4586dad0315acb39700d08a59f9427bc"
+"bootstrap_effect_precision: nonlinear_mediation_whole_method_bootstrap_se" = "beef22c78f158e840f1d51a4976b72d66942372779d1ef097f6ff58ffc298fb3"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "These adapters use Gaussian or normal-inverse-gamma fits, fixed design targets and, for the native source case, explicit artifact hydration. Weighted target-moment draws, count priors and named external-composition reindexing are outside these requests. Gaussian prior hydration, draw budgets, coefficient mapping and precision checks are preserved. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
+[review.receipts]
+"bayesian_recalc_calibration: gaussian_adapter_posterior_summary_precision" = "b34c74e44d092f5119300db5511ded035835fde4c0a31c246d35b20c3a0ad639"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
+[review.receipts]
+"generic_aipw_precision: generic_aipw_five_fold_known_target_score_precision" = "0cb0b9cbd68f37697326368b6b59d0d5ed21e7437ffaa0db88213ab00a3e65a9"
+"retained_score_precision: retained_dml_weighted_score_precision" = "29c2bfc3bfea46420d3033d65959727a9f527d20cfa2ec429bb412b6a50ee4b9"
+"retained_score_precision: retained_dr_weighted_score_precision" = "935f89f5e145d2d7f96e6fe325484e70dc4f2555d9ed2bd9039a451351feb56d"
+"retained_score_precision: retained_cell_weighted_score_precision" = "af12847c419a689f8aee7026253df4ee8d45d539f9f0edc0b1618e7762f32339"
+"adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "cce75426365b0424a10f532beb331f520b65e60272646dd5910478a153aa1e2a"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "The tests use ordinary response, mediation and structural-envelope routes. They do not request a custom population, pooled discovery posterior, count prior or outcome-nuisance prior. The original envelope agreement rule and Gaussian preparations are retained. The new temporal regime-survival declarations concern another query. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/estimate/temporal_mediation_grid/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/identify/path_specific/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
+[review.receipts]
+"mixture_interval_calibration: bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage" = "843a2424619aab1ec51e9edf780911c87ac8c34afed11d019141d702d2c7d3d2"
+"mixture_interval_calibration: bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage" = "3c816334559c0508d94629672de3db254b6e2357b3e156ecb4d6bdf5f1342b4b"
+"temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "47e6f800815ffbdd0e016ab9fbdebc0177f3f6494c19f8428244f2b14bae2307"
+"temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "862797c9a20efe46dbbe13c4ed2be5d70ea47e277811a2732375dc974fea5754"
+"derivative_calibration: ade_skewed_heteroskedastic_treatment_probe" = "657a2b842a633accc613603c20ce0882988edc7269c5891bb43c4cbcb3dfae11"
+"static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "45a71fb39b3dd85b22d7bb9ec68ae1cbf2fb9a1989a348b67fd0b8b4beaac447"
+"static_calibration: response_curve_dag_frequentist_weak_overlap_probe" = "ad6dfdd932102bd8a26431c02e224c96cabdd1c6bd519518745c3b8d5842e0b6"
+"static_calibration: mediation_confounded_mediator_probe" = "41de388ee049327aef936fc06f69fb552e4244f3fafc9cb87d21ccf6a01c4529"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = ["conformance/response/trial_transport/expected.json"]
+[review.receipts]
+"learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases" = "2eb3398386433d96bfc16d1d5238189094af734bf2572d348ee533dd206e11ab"
+"smoothed_dose_calibration: smoothed_dose_transport_grid_points" = "319ffdf6f7778579e07e344c6610f96a54aacfe8c9aaf2109bd317b28a62da13"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = []
+[review.receipts]
+"sequential_policy_choice_calibration: sequential_known_law_action_choice" = "09010b51ce2e36c3ab99bff91857be1ac223a6fa73d2b717b938051813abb8f5"
+
+[[review]]
+reviewed_at = "a1b36d087b69504017a65ff59178c95a846f4314"
+basis = "The primary run supplied complete passing grid receipts. The sole Rust reader of the embedded registry is absent from these captured footprints. The new interval variant and quantile helper apply to the sequential contrast, and the new panel key applies to Bayesian synthetic-control averages. These groups use neither construction. The signed-uniform import list and seed separators preserve their values and computations. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family."
+inputs = []
+[review.receipts]
+"joint_panel_calibration: joint_panel_selection_false_change_frequentist" = "7b77879494bb70a56d9d97e0ac92eecccd4f411da4b0158dde59357ad4f9541a"
+"count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior" = "773ce043222c5dbfc755e4c0c9f787df368e8905f1c7a99fb1a0f5c3f32dfb47"
+"count_conjugate_calibration: count_rate_route_covers_under_the_stated_prior" = "002cb524df4a3185a7462aae358c4018d72bd6a26b220ff4d75906d2aa15436f"
+"cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice" = "3c59a23a235b726e3d6d5cd93d812f35c3be7367bb45c458e40bbb2d14cd8983"
+"antecedent-discovery: signed_uniform_per_edge_edge_probabilities_match_generating_frequencies" = "1109abd015ce47c7d4b181b1c077164d27a3e890f4a5dc5818ce5f90a92f5440"
+"antecedent-discovery: signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies" = "d1c9f662726f2054e35be249f2ae948d0056d36d400e6f4fd810a0ff2fc4b279"
+"antecedent-discovery: signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies" = "c7a8ca8c05b00c5e52ab4f45335c072b82fd0c6f7bc47cfc0368a6d7adcd7c12"
