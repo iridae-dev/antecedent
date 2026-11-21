@@ -847,6 +847,7 @@ pub struct CoverageTally {
     covered: u32,
     scored: u32,
     skipped: u32,
+    overlap_refusals: Option<u64>,
     /// Scored replicates that produced a finite, ordered interval.
     with_interval: u32,
     length_sum: f64,
@@ -875,6 +876,8 @@ struct TallyState {
     covered: u32,
     scored: u32,
     skipped: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    overlap_refusals: Option<u64>,
     with_interval: u32,
     length_sum: f64,
     /// Replicate count of the test thread's last [`map_replicates`] call when
@@ -957,6 +960,7 @@ impl CoverageTally {
             covered: 0,
             scored: 0,
             skipped: 0,
+            overlap_refusals: None,
             with_interval: 0,
             length_sum: 0.0,
             lengths: Vec::new(),
@@ -973,6 +977,13 @@ impl CoverageTally {
     pub fn absorb(&mut self, value: &(impl ReplicateDigest + ?Sized)) {
         self.seed();
         value.write_digest(&mut self.pending);
+    }
+
+    /// Count panels refused for overlap before this returned interval. Include the count
+    /// in the probe digest so a replay also verifies the rejection-sampling path.
+    pub fn track_overlap_refusals(&mut self, refused: u64) {
+        self.absorb(&refused);
+        *self.overlap_refusals.get_or_insert(0) += refused;
     }
 
     /// Close the current replicate: its fingerprint covers the pending bytes,
@@ -1057,6 +1068,7 @@ impl CoverageTally {
         self.covered = prior.covered;
         self.scored = prior.scored;
         self.skipped = prior.skipped;
+        self.overlap_refusals = prior.overlap_refusals;
         self.with_interval = prior.with_interval;
         self.length_sum = prior.length_sum;
         self.events = unhex_digests(&prior.event_digests);
@@ -1092,6 +1104,7 @@ impl CoverageTally {
             covered: self.covered,
             scored: self.scored,
             skipped: self.skipped,
+            overlap_refusals: self.overlap_refusals,
             with_interval: self.with_interval,
             length_sum: self.length_sum,
             map_end: last_map_end(),
@@ -1547,6 +1560,18 @@ impl CoverageTally {
                 "dgp": dgp,
                 "test": format!("{file}::{}", record.key.test),
         });
+        if construction.query == "SyntheticControl"
+            && construction.functional.starts_with("synthetic_control/")
+        {
+            payload["interval_counts"] = serde_json::json!({
+                "attempted": attempts,
+                "returned": self.with_interval,
+                "covered": self.covered,
+            });
+        }
+        if let Some(refused) = self.overlap_refusals {
+            payload["overlap_refusals"] = serde_json::json!(refused);
+        }
         if let Some((side, target)) = one_sided {
             payload["one_sided"] = serde_json::json!({ "side": side.as_str(), "target": target });
         }

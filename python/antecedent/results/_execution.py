@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import struct
 import warnings
 from collections.abc import Mapping
@@ -53,6 +54,13 @@ _CALIBRATION_FIELDS = (
     "observed_coverage",
     "observed",
     "replicates",
+    "interval_counts",
+    "panel_functional",
+    "pre_treatment_periods",
+    "attempted_panels",
+    "returned_intervals",
+    "covered_intervals",
+    "nominal",
 )
 
 
@@ -101,6 +109,12 @@ class CalibrationInfo:
     observed_coverage: float | None = None
     replicates: int | None = None
     extra: tuple[tuple[str, Any], ...] = ()
+    donor_count: int | None = None
+    pre_treatment_periods: int | None = None
+    post_treatment_periods: int | None = None
+    attempted_panels: int | None = None
+    returned_intervals: int | None = None
+    covered_intervals: int | None = None
 
     @classmethod
     def from_contract(cls, contract: Mapping[str, Any] | None) -> CalibrationInfo:
@@ -129,6 +143,24 @@ class CalibrationInfo:
                 and k.removeprefix("calibration_") not in _CALIBRATION_FIELDS
                 and k != "calibration_sha"
             )
+        basis = slot.get("basis") or {}
+        key = basis.get("key", {}) if isinstance(basis, Mapping) else {}
+        scope = basis.get("scope", {}) if isinstance(basis, Mapping) else {}
+        functional = pick("panel_functional") or key.get("functional") or ""
+        panel = re.fullmatch(
+            r"synthetic_control/(?:posterior_average|predictive_path_average)"
+            r"\+donors=(\d+)\+post_periods=(\d+)",
+            functional if isinstance(functional, str) else "",
+        )
+        if panel:
+            extra = tuple((k, v) for k, v in extra if k != "basis")
+        history = pick("pre_treatment_periods")
+        counts = slot.get("interval_counts") or {}
+        level = pick("level")
+        if level is None:
+            level = pick("nominal")
+        if level is None and panel:
+            level = key.get("level")
         return cls(
             status=_calibration_status(pick("status")),
             record_id=pick("record_id"),
@@ -136,7 +168,7 @@ class CalibrationInfo:
             scope_n=_as_optional_int(pick("scope_n")),
             scope_dependence=pick("scope_dependence"),
             calibration_sha=pick("calibration_sha"),
-            level=_as_optional_float(pick("level")),
+            level=_as_optional_float(level),
             observed_coverage=_as_optional_float(
                 pick("observed_coverage")
                 if pick("observed_coverage") is not None
@@ -144,6 +176,16 @@ class CalibrationInfo:
             ),
             replicates=_as_optional_int(pick("replicates")),
             extra=extra,
+            donor_count=int(panel[1]) if panel else None,
+            post_treatment_periods=int(panel[2]) if panel else None,
+            pre_treatment_periods=_as_optional_int(
+                history if history is not None else scope.get("row_count")
+            )
+            if panel
+            else None,
+            attempted_panels=_as_optional_int(counts.get("attempted", pick("attempted_panels"))),
+            returned_intervals=_as_optional_int(counts.get("returned", pick("returned_intervals"))),
+            covered_intervals=_as_optional_int(counts.get("covered", pick("covered_intervals"))),
         )
 
     def describe(self) -> str:
@@ -160,6 +202,16 @@ class CalibrationInfo:
             bits.append(f"level {self.level:g}")
         if self.observed_coverage is not None:
             bits.append(f"observed coverage {self.observed_coverage:g}")
+        if self.donor_count is not None:
+            bits.append(
+                f"{self.donor_count} donors, {self.pre_treatment_periods} pre-treatment "
+                f"and {self.post_treatment_periods} post-treatment periods"
+            )
+        if self.returned_intervals is not None:
+            bits.append(
+                f"{self.covered_intervals}/{self.returned_intervals} returned intervals covered "
+                f"across {self.attempted_panels} simulated panels"
+            )
         if self.replicates is not None:
             bits.append(f"{self.replicates} replicates")
         bits.extend(f"{key} {value}" for key, value in self.extra if value not in (None, ""))

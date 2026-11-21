@@ -208,14 +208,39 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
     {
         return fail("invalid sequential contrast payload or fabricated summary");
     }
-    if result.posterior_artifact.is_some() {
-        if fit.uncertainty != SEQUENTIAL_CONTRAST_POSTERIOR
-            || fit.standard_error.is_some()
-            || fit.interval.is_some()
-        {
+    if let Some(bytes) = &result.posterior_artifact {
+        let label = if fit.posterior_symmetric_interval.is_some() {
+            "modular_bayesian_bootstrap_symmetric_credible_interval"
+        } else {
+            SEQUENTIAL_CONTRAST_POSTERIOR
+        };
+        if fit.uncertainty != label || fit.standard_error.is_some() || fit.interval.is_some() {
             return fail("a sequential contrast posterior reports no frequentist interval");
         }
+        if let Some(bounds) = fit.posterior_symmetric_interval {
+            let (meta, draws) = crate::decode_causal_posterior_bytes(bytes)?;
+            let Some(column) = meta.quantities.iter().position(|q| {
+                matches!(q,
+                crate::PosteriorQuantityWire::Effect { name } if name == "sequential_contrast")
+            }) else {
+                return fail("missing sequential contrast draws");
+            };
+            let n = meta.n_draws as usize;
+            let expected = antecedent_stats::quantile::posterior_radius_interval(
+                &draws[column * n..(column + 1) * n],
+                fit.contrast,
+                fit.coverage,
+            );
+            if fit.coverage != 0.95
+                || !expected.is_some_and(|[lo, hi]| near(bounds[0], lo) && near(bounds[1], hi))
+            {
+                return fail("sequential credible interval differs from its contrast draws");
+            }
+        }
         return Ok(());
+    }
+    if fit.posterior_symmetric_interval.is_some() {
+        return fail("a sequential credible interval requires posterior draws");
     }
     let (Some(se), Some(bounds)) = (fit.standard_error, fit.interval) else {
         return fail("a sequential contrast interval needs its standard error and bounds");

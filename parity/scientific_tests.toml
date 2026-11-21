@@ -2880,3 +2880,38 @@ evidence_assertion = "rejects_leakage_unstable_parameters_and_unverified_externa
 kind = "reference"
 fixtures = []
 why = "Keep the event capability boundary checks with the compiled scientific fixtures."
+
+[[test]]
+evidence_test = "crates/antecedent-state/src/graph_score.rs"
+evidence_assertion = "gaussian_bic_matches_closed_form_regression"
+kind = "reference"
+fixtures = []
+why = "Independent intercept-only and one-parent Gaussian regressions establish that the local BIC score uses the stated likelihood and parameter penalty."
+
+[[test]]
+evidence_test = "crates/antecedent-state/src/graph_score.rs"
+evidence_assertion = "signed_uniform_matches_independent_integrated_coefficient_moments"
+kind = "reference"
+fixtures = ["crates/antecedent-state/tests/oracle_data/gaussian_signed_uniform_reference.py"]
+why = "Exact coefficient moments independently determine the complete-data structural likelihood for three nonorthogonal parents."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/src/observed_marginals_validation.rs"
+evidence_assertion = "observed_score_matches_direct_missing_cell_oracle"
+kind = "reference"
+fixtures = ["crates/antecedent-state/tests/oracle_data/gaussian_signed_uniform_observed.py"]
+why = "Direct integration over a hidden cell and the shared coefficient independently determines the two-node posterior."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/src/observed_marginals_validation.rs"
+evidence_assertion = "six_variable_embedding_matches_direct_missing_cell_oracle"
+kind = "reference"
+fixtures = ["crates/antecedent-state/tests/oracle_data/gaussian_signed_uniform_observed.py"]
+why = "With four isolated variables, the two allowed edge probabilities must equal the two-node observed-data calculation and every forbidden edge must have zero mass."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/src/observed_marginals_validation.rs"
+evidence_assertion = "observed_score_matches_six_variable_forest_quadrature"
+kind = "reference"
+fixtures = ["crates/antecedent-state/tests/oracle_data/gaussian_signed_uniform_six_observed.py"]
+why = "Independent enumeration of 16,807 forests and deterministic integration over two missing cells check all 30 directed probabilities and the graph normalizer."

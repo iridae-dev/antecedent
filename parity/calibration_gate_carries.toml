@@ -1,3 +1,12 @@
+# The independent 400-row overlap-bound script runs separately from the 67 Rust gate
+# footprints in its crate. All 115 receipt sets and 267 release decisions were rechecked.
+# The follow-up review checked that all three regrouped seed literals encode exactly
+# the same integers. Five retained gate footprints include the containing source file.
+# The two observed-data studies extend the family from 1817 to 1819 groups.
+# All 267 stored decisions retained their verdict under the new allocation. The
+# three new independent Python references are outside the recorded gate paths.
+# The only change in the existing discovery test module declares a new sibling
+# study. The 115 original receipt digests, counts and measurement SHAs are retained.
 # Follow-up: the three new graph-score studies extend the family from 1814 to 1817 groups.
 # The previous gate selections and receipts are unchanged. Replaying every original decision
 # at the larger family size returned its original verdict. Gaussian-BIC comparisons retain the
@@ -18,7 +27,7 @@
 # from their recorded counts at the reviewed family size and retained their verdict.
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The beta routines gained public visibility and must_use. The formulas, input samples, p-values and assertions are identical."
 inputs = []
 [review.receipts]
@@ -38,7 +47,7 @@ inputs = []
 "antecedent-stats: weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate" = "5bfa587ac4abd781d9bff487b2fb3885490731079b78ed8c15e21901ce93c18f"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The matching change documents a deprecated limit. Nearest-neighbor selection and the null, power and replacement checks use the same code. Where used, the beta functions only changed visibility."
 inputs = ["parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -58,7 +67,7 @@ inputs = ["parity/polars_decision/decision.toml"]
 "antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only."
 inputs = ["conformance/response/conditional_ipcw/expected.json"]
 [review.receipts]
@@ -89,7 +98,7 @@ inputs = ["conformance/response/conditional_ipcw/expected.json"]
 "bootstrap_effect_precision: latent_class_whole_method_bootstrap_se" = "3fafbca22fad4f2a104d6320dce726b54f335e0b4d82bae4c188a8109baa1f7b"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The policy harness constructs ObservationalPolicyValue with policy_features=None. The new feature-subset regression is skipped and action selection uses the original arm predictions. The new cache-key field distinguishes configurations without changing the fit or folds."
 inputs = []
 [review.receipts]
@@ -100,7 +109,7 @@ inputs = []
 "observational_effects_calibration: policy_cross_fitted_learning_n3000_l95" = "1b4f6f7b367f464dc23b46289d70ba9129c7b51017000b1f4a3b106e2e9b1cb4"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "These adapters use Gaussian or normal-inverse-gamma fits, fixed design targets and, for the native source case, explicit artifact hydration. Weighted target-moment draws, count priors and named external-composition reindexing are outside these requests. Gaussian prior hydration, draw budgets, coefficient mapping and precision checks are preserved."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -109,14 +118,14 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision" = "cadf4cd4a3b22e80867c86389267899de9be9759682f205fd82f3a6601c3615a"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The gate uses IV 2SLS and checks the Anderson-Rubin set, refusals, solve counts and fresh artifact replay. The AR fixture and underlying solver are unchanged. Added artifact checks concern other designs, count priors and serial transport. The registry changes do not replace the IV construction."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/recalculation/design_ar/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
 "design_ar_precision_calibration: checked_design_iv_ar_full_method_error_rate_and_weak_boundaries" = "132d787af0651a9cddf24a46a63ab7dd0b65e1af668c706afae4036c79258569"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The tests use the existing learner, matching, cell or adjusted fit with no outcome-nuisance prior. The new propensity influence term requires the prior-regularized DML branch. The ordinary DML path still disables it. Cross-fit folds, score construction and frozen retargets retain their inputs. Propensity design column names and unrelated cache tests do not change the numerical design."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -130,14 +139,14 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The design module adds lookup of a selected-program value interval. This gate still scores the original winner selection, held-out value and bias bound."
 inputs = []
 [review.receipts]
 "decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased" = "cecf8c085fc52749f8f74a3a78e6fb11d151108d97e3a6dd34aa850766d1f4d7"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "inference_metrics::assess gains a Clippy annotation. The full-fit errors, metrics, seeds and decision limits are unchanged for these vector and categorical treatment designs."
 inputs = []
 [review.receipts]
@@ -149,7 +158,7 @@ inputs = []
 "treatment_inference_calibration: categorical_monotonicity_heteroskedastic" = "ee0bd973b7148f28111720d7881d657bb43194ab947831a2654f9a2db38968e8"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The shared calibration harness module became crate-visible. The unsharded estimator-level IV and RD trials retain the same estimators, seed sequence and coverage rules."
 inputs = ["parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -158,7 +167,7 @@ inputs = ["parity/polars_decision/decision.toml"]
 "antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe" = "e0398292183f304a0a6e42d21f98e6945a01168e2771b0796230b4f4e1919e6c"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "These Gaussian fits leave target_moments unset and use no count prior. The new target-mean uncertainty function returns before drawing; the count-prior guard accepts the existing priors. Harness consolidation and removal of identity u64 conversions preserve the replicate seeds."
 inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -169,7 +178,7 @@ inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "c
 "antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform" = "a209f75d72c88cd0844d174ac78ab749c43110ef8d49d18a01dee2fec6fdb920"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The tests use ordinary response, mediation and structural-envelope routes. They do not request a custom population, pooled discovery posterior, count prior or outcome-nuisance prior. The original envelope agreement rule and Gaussian preparations are retained. The new temporal regime-survival declarations concern another query."
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/estimate/temporal_mediation_grid/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/identify/path_specific/expected.json", "conformance/response/observation_primitives/expected.json", "parity/identity.toml", "parity/polars_decision/decision.toml"]
 [review.receipts]
@@ -183,14 +192,14 @@ inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estima
 "static_calibration: mediation_confounded_mediator_probe" = "41de388ee049327aef936fc06f69fb552e4244f3fafc9cb87d21ccf6a01c4529"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The block-length sensitivity test and all recorded Rust sources are unchanged. Added unrelated Cargo test targets, documentation, the host schema and oracle fixtures do not supply its series or block choices."
 inputs = []
 [review.receipts]
 "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" = "c1da2c975935d05b74b1b5b232ae3c27df0d1e090d129349cf657adcbba153d3"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The changed constraints text describes parent limits. The active PC/PCMCI and split-effect computations and seed schedules are unchanged. The cancellation boundary still measures reported/refused outcomes."
 inputs = []
 [review.receipts]
@@ -200,7 +209,7 @@ inputs = []
 "sample_split_effect_calibration: sample_split_cancelling_edge_boundary_95" = "4d2985a28ba1e6e8de04ac67a5bcdea294e5375e2bfbe8a84edd73e658ef177a"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The original design_prior sets neither per-edge priors nor soft tiers. validate_for uses the original validation and the prior table retains its scalar edge_logs arithmetic. The extracted comparison helper receives the same prior, parent caps and sampler seeds; imputation pooling is unused."
 inputs = []
 [review.receipts]
@@ -211,7 +220,7 @@ inputs = []
 "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps" = "ee2f9eda63fd5ddf7040d4c9cb423c8ead25d8c8b2acf2e5f0c6b6571c4295c0"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "These trial transport gates do not declare the new weighted target. No weighted-target tag is encoded and the original transport estimators remain in use. The added prior-outcome AIPW factory is separate."
 inputs = ["conformance/response/trial_transport/expected.json"]
 [review.receipts]
@@ -221,7 +230,7 @@ inputs = ["conformance/response/trial_transport/expected.json"]
 "smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "The facade Cargo manifest added other integration test targets. The manifest as read for this test binary, its features, and all executed source files are unchanged."
 inputs = []
 [review.receipts]
@@ -233,7 +242,7 @@ inputs = []
 "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target" = "087c3a68094e694459969c0a47e4fed8842e9ae3bd2fbdf2d456a1c3b81a7d11"
 
 [[review]]
-reviewed_at = "266450e4cab0c32635e7ff98cecaced021934bef"
+reviewed_at = "c8fe81b656472c3fba12ac16d4432caf4e552f48"
 basis = "Only the embedded coverage and method-provenance registry snapshots differ. The gate scores the decided policy ID against its known optimum. Its executed-file capture omits both registry readers; model, logging law, bootstrap and decision assertion are unchanged."
 inputs = []
 [review.receipts]

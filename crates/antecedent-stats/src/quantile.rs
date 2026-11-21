@@ -63,6 +63,24 @@ pub fn quantile_sorted(sorted: &[f64], p: f64, rule: QuantileRule) -> f64 {
     }
 }
 
+/// Symmetric credible interval about a specified posterior centre. Its radius is the
+/// requested posterior quantile of absolute distance from that centre. This avoids
+/// shifting the interval midpoint when a few influential scores skew the draws.
+#[must_use]
+pub fn posterior_radius_interval(draws: &[f64], centre: f64, level: f64) -> Option<[f64; 2]> {
+    if draws.len() < 2 || !centre.is_finite() || !(0.0 < level && level < 1.0) {
+        return None;
+    }
+    let mut distances: Vec<_> = draws.iter().map(|draw| (draw - centre).abs()).collect();
+    if distances.iter().any(|r| !r.is_finite()) {
+        return None;
+    }
+    distances.sort_unstable_by(f64::total_cmp);
+    let radius = quantile_sorted(&distances, level, QuantileRule::ExchangeableRank);
+    let bounds = [centre - radius, centre + radius];
+    bounds.iter().all(|x| x.is_finite()).then_some(bounds)
+}
+
 /// Equal-tailed interval `[q((1 − level)/2), q((1 + level)/2)]` of an ascending-sorted sample.
 #[must_use]
 pub fn equal_tail_interval_sorted(sorted: &[f64], level: f64, rule: QuantileRule) -> (f64, f64) {

@@ -1032,3 +1032,10 @@ pub mod selective {
 pub mod temporal_admg_atoms {
     pub use antecedent_discovery::temporal_admg_atoms::with_lagged_edge;
 }
+
+/// Signed-uniform structural graph probabilities for a partially observed table.
+pub mod observed_marginals {
+    pub use antecedent_discovery::observed_marginals::{
+        ObservedMarginals, signed_uniform_observed_marginals,
+    };
+}

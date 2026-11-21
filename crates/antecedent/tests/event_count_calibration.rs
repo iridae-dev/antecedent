@@ -10,7 +10,7 @@ mod calibration;
 mod truth;
 
 use calibration::{
-    Construction, CoverageTally, RecordKey, ScopeFacts, grid_seed, map_replicates, n_sim,
+    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, grid_seed, map_replicates, n_sim,
 };
 
 const TEST: &str = "hawkes_recursive_refit_count_l90";
@@ -18,7 +18,7 @@ const TEST: &str = "hawkes_recursive_refit_count_l90";
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn hawkes_recursive_refit_count_l90() {
-    let cutoff = 256.0;
+    let cutoff = SampleGrid::STANDARD.n(256) as f64;
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: TEST,

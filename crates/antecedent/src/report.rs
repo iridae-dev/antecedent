@@ -687,6 +687,11 @@ fn calibration_facts(calibration: &CalibrationView) -> Vec<(String, String)> {
     fact(&mut facts, "Measured at", opt_str(calibration.calibration_sha.as_deref()));
     fact(&mut facts, "Nominal level", opt_num(calibration.nominal));
     fact(&mut facts, "Observed coverage", opt_num(calibration.observed));
+    if let Some(counts) = calibration.interval_counts {
+        fact(&mut facts, "Simulated panels", counts.attempted.to_string());
+        fact(&mut facts, "Returned intervals", counts.returned.to_string());
+        fact(&mut facts, "Intervals covering the known effect", counts.covered.to_string());
+    }
     if let Some(basis) = &calibration.basis {
         fact(&mut facts, "Basis query", basis.query.to_string());
         fact(&mut facts, "Basis graph class", basis.graph_class.to_string());

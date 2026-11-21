@@ -166,6 +166,19 @@ if [[ -n "$DIRTY" ]]; then
   printf '%s\n' "$DIRTY" | sed 's/^/  /'
   exit 1
 fi
+# The same host environment must be accepted when binding the finished Nix evidence.
+python3 - <<'PREFLIGHT'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "scripts")
+from evidence_earning import require_compile_environment
+
+try:
+    require_compile_environment(Path.cwd())
+except RuntimeError as exc:
+    raise SystemExit(str(exc)) from exc
+PREFLIGHT
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
 # The group driver validates the frozen family and selected allocation before

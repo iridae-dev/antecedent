@@ -472,9 +472,7 @@ impl DiscoverySpec {
             return "discovery.gaussian_mag_bic_marginal";
         }
         match family {
-            Some(antecedent_state::GraphScoreFamily::GaussianSignedUniform) => {
-                SIGNED_UNIFORM_SCORE
-            }
+            Some(antecedent_state::GraphScoreFamily::GaussianSignedUniform) => SIGNED_UNIFORM_SCORE,
             Some(antecedent_state::GraphScoreFamily::LaplaceBic) => {
                 "discovery.laplace_bic_marginal"
             }
@@ -997,7 +995,8 @@ impl DiscoveredStructure {
     }
 }
 
-pub(crate) const SIGNED_UNIFORM_SCORE: &str = "discovery.gaussian_signed_uniform_unit_noise_marginal";
+pub(crate) const SIGNED_UNIFORM_SCORE: &str =
+    "discovery.gaussian_signed_uniform_unit_noise_marginal";
 
 /// The answer of a compiled structure search.
 #[derive(Clone, Debug)]

@@ -174,7 +174,22 @@ fn sequential_contrast_posterior_is_the_modular_dirichlet_posterior() {
     let bytes = prepared.encode_contracted_result(&result, "sequential-bayes", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.sequential_contrast.as_ref().unwrap();
-    assert_eq!(wire.uncertainty, "modular_bayesian_bootstrap_posterior_no_interval");
+    assert_eq!(wire.uncertainty, "modular_bayesian_bootstrap_symmetric_credible_interval");
+    let [lo, hi] = wire.posterior_symmetric_interval.unwrap();
+    close(lo + hi, 2.0 * fit.contrast, 1e-10);
+    let fraction = draws.iter().filter(|&&v| lo <= v && v <= hi).count() as f64 / DRAWS as f64;
+    close(fraction, 0.95, 1.0 / DRAWS as f64);
+    let mut edited = body.clone();
+    edited.sequential_contrast.as_mut().unwrap().posterior_symmetric_interval =
+        Some([lo, hi + 1.0]);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &edited,
+            header.variable_names.clone(),
+            "edited"
+        )
+        .is_err()
+    );
     let mut forged = body.clone();
     forged.sequential_contrast.as_mut().unwrap().interval = Some([0.0, 1.0]);
     assert_eq!(

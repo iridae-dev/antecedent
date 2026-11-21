@@ -998,6 +998,9 @@ pub struct SequentialContrastWire {
     /// Normal interval at `coverage` (normal-interval report).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval: Option<[f64; 2]>,
+    /// Symmetric posterior interval centered on the cross-fit contrast.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_symmetric_interval: Option<[f64; 2]>,
     /// Nominal central coverage of the interval.
     pub coverage: f64,
     /// Cross-fit active score of each subject.

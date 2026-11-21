@@ -151,6 +151,15 @@ def merge(prior: dict[str, dict] | None, shards: list[tuple[int, int, dict[str, 
                 raise ShardError(f"{key}: decision contexts differ between runs")
             for field in ("covered", "scored", "skipped", "with_interval"):
                 mine[field] += state[field]
+            if "overlap_refusals" in state:
+                if start != 0 and "overlap_refusals" not in mine:
+                    raise ShardError(f"{key}: coverage denominator changed between shards")
+                refused = state["overlap_refusals"]
+                if type(refused) is not int or refused < 0:
+                    raise ShardError(f"{key}: invalid overlap refusal count")
+                mine["overlap_refusals"] = mine.get("overlap_refusals", 0) + refused
+            elif "overlap_refusals" in mine:
+                raise ShardError(f"{key}: conditional coverage shard omitted overlap refusals")
             length_sum = mine["length_sum"]
             for length in state.get("lengths", ()):
                 length_sum += length  # replicate order, as a single run adds them

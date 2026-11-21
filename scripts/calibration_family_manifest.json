@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "82eeb43d522a453fca58a7b0cebaa21f4e3a464cf96e1590e5e68bf21cf8fd43",
+  "gate_sha256": "37979330f8f9bf9a06bb429a410c1a9f07baaa48dbd9322107ab572888fee780",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "aea5d93998ca8a80fda0c74858e012d4ea7c2ac90aed363eb0f4bc4919f91af6",
+  "label_audit_sha256": "7a2ddad2a09b973a4cebbe846afa1da497e2c5d923e0a580b6073e7e0b412322",
   "groups": [
     {
       "index": 1,
@@ -8926,7 +8926,7 @@
     {
       "index": 1781,
       "label": "event_count_calibration: hawkes_recursive_refit_count_l90",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1782,
@@ -9106,6 +9106,16 @@
     {
       "index": 1817,
       "label": "antecedent-discovery: signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies",
+      "grid": false
+    },
+    {
+      "index": 1818,
+      "label": "antecedent-discovery: observed_score_six_variable_per_edge_reliability",
+      "grid": false
+    },
+    {
+      "index": 1819,
+      "label": "antecedent-discovery: observed_score_six_variable_soft_tier_reliability",
       "grid": false
     }
   ],

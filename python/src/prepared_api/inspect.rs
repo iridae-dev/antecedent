@@ -285,6 +285,25 @@ impl PyPreparedAnalysis {
         if let Some(sha) = &claim.calibration.calibration_sha {
             report.insert("calibration_sha".into(), sha.to_string());
         }
+        if let Some(level) = claim.calibration.nominal {
+            report.insert("calibration_level".into(), level.to_string());
+        }
+        if let Some(observed) = claim.calibration.observed {
+            report.insert("calibration_observed_coverage".into(), observed.to_string());
+        }
+        if let Some(basis) = &claim.calibration.basis
+            && basis.query.as_ref() == "SyntheticControl"
+            && basis.functional.starts_with("synthetic_control/")
+        {
+            report.insert("calibration_panel_functional".into(), basis.functional.to_string());
+            report.insert("calibration_pre_treatment_periods".into(), basis.row_count.to_string());
+            report.insert("calibration_level".into(), basis.level.to_string());
+        }
+        if let Some(counts) = claim.calibration.interval_counts {
+            report.insert("calibration_attempted_panels".into(), counts.attempted.to_string());
+            report.insert("calibration_returned_intervals".into(), counts.returned.to_string());
+            report.insert("calibration_covered_intervals".into(), counts.covered.to_string());
+        }
         Ok(report)
     }
 

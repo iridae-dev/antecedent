@@ -73,6 +73,7 @@ pub mod lingam;
 pub mod lpcmci;
 pub mod lpcmci_phases;
 pub mod notears;
+pub mod observed_marginals;
 pub mod order_mcmc;
 pub mod orientation;
 pub mod pc;

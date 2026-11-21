@@ -213,9 +213,22 @@ impl StudyResult {
                 None => {}
             }
         }
+        if let Some(fit) = self.sequential_contrast()
+            && fit.interval.is_some()
+            && fit.standard_error.is_some()
+        {
+            return IntervalBinding::new(M::AnalyticSe, fit.coverage, base);
+        }
         if self.posterior.is_some() {
-            let mut binding =
-                IntervalBinding::new(M::PosteriorQuantile, REPORTED_SE_INTERVAL_LEVEL, base);
+            let method = if self
+                .sequential_contrast()
+                .is_some_and(|fit| fit.posterior_symmetric_interval.is_some())
+            {
+                M::PosteriorAbsoluteDeviation
+            } else {
+                M::PosteriorQuantile
+            };
+            let mut binding = IntervalBinding::new(method, REPORTED_SE_INTERVAL_LEVEL, base);
             binding.posterior_draws = self.posterior_draw_count();
             return binding;
         }
@@ -362,6 +375,11 @@ impl StudyResult {
     pub fn reported_interval_bindings(&self, bayesian: bool) -> Vec<IntervalBinding> {
         let primary = self.primary_interval_binding(bayesian);
         let mut out = vec![primary];
+        if primary.method == antecedent_core::IntervalMethod::PosteriorAbsoluteDeviation {
+            let mut quantiles = primary;
+            quantiles.method = antecedent_core::IntervalMethod::PosteriorQuantile;
+            out.push(quantiles);
+        }
         for extra in [
             self.identified_set_interval_binding(),
             self.simultaneous_band_binding(bayesian),

@@ -956,6 +956,7 @@ def _sequential_contrast_from_raw(raw: Any) -> SequentialContrastEstimate | None
     if section is None:
         return None
     return SequentialContrastEstimate(
+        posterior_symmetric_interval=getattr(section, "posterior_symmetric_interval", None),
         active_regime=tuple(section.active_regime),
         control_regime=tuple(section.control_regime),
         contrast=section.contrast,

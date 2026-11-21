@@ -115,6 +115,16 @@ class ShardMergeTest(unittest.TestCase):
             self.assertEqual(struct.pack("<d", extended["length_sum"]),
                              struct.pack("<d", single_run(0, n)["length_sum"]))
 
+    def test_conditional_coverage_retains_refusals_across_shards_and_extension(self):
+        prior = single_run(0, 10)
+        prior["overlap_refusals"] = 12
+        a, b = shard_run(10, 20), shard_run(20, 30)
+        a[KEY]["overlap_refusals"] = 0
+        b[KEY]["overlap_refusals"] = 15
+        merged = shards.merge({KEY: prior}, [(10, 20, a), (20, 30, b)])[KEY]
+        self.assertEqual(merged["overlap_refusals"], 27)
+        self.assertEqual(merged["scored"] + merged["skipped"], 30)
+
     def test_partial_sums_would_not_be_identical(self):
         # Adding each shard's own sum is not the sequential sum: the merge re-folds lengths.
         differing = 0

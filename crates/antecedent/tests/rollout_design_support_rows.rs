@@ -708,6 +708,17 @@ fn supported_predictive_path_round_trips_and_refuses_forgery() {
     assert!(states_posterior_row(&result), "{label}");
     let rollout = result.quasi_rollout().unwrap();
     assert_eq!(rollout.design.as_ref(), "posterior_predictive_synthetic_control");
+    let posterior = result.posterior.as_ref().unwrap();
+    let draws = &posterior.draws;
+    let overall = draws.column(posterior.effect_column().unwrap()).unwrap();
+    let periods: Vec<_> =
+        (1..draws.n_quantities()).map(|column| draws.column(column).unwrap()).collect();
+    assert!(periods.len() > 1);
+    for (index, average) in overall.iter().enumerate() {
+        let reconstructed =
+            periods.iter().map(|period| period[index]).sum::<f64>() / periods.len() as f64;
+        assert_eq!(average.to_bits(), reconstructed.to_bits());
+    }
     // A design posterior states its row in the diagnostic, never on the section.
     assert!(!rollout.supported, "{label}");
     assert!((rollout.overall().unwrap().estimate - 3.0).abs() < 0.8, "{label}");

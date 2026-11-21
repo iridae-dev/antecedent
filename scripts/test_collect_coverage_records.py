@@ -1121,7 +1121,39 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         self.assertEqual(
             [p["decision_protocol"]["covered"] for p in record["grid"]], [1879, 1880, 1881]
         )
-        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
+
+    def test_exact_panel_provenance_keeps_attempted_returned_and_covered(self):
+        points = {i: self.point(i, 1880) for i in range(3)}
+        for point in points.values():
+            point.update(
+                query="SyntheticControl",
+                functional="synthetic_control/posterior_average+donors=20+post_periods=5",
+                bound_replicates=1993,
+                interval_counts={"attempted": 2000, "returned": 1993, "covered": 1880},
+            )
+        record = collector.merge_grid("id", points)
+        self.assertEqual(record["grid"][1]["interval_counts"], points[1]["interval_counts"])
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
+        missing_counts = dict(record["grid"][1])
+        del missing_counts["interval_counts"]
+        self.assertFalse(collector.grid_fields_valid(missing_counts, record))
+        points[1]["interval_counts"]["covered"] += 1
+        with self.assertRaisesRegex(SystemExit, "returned-interval counts"):
+            collector.merge_grid("id", points)
+
+    def test_conditional_coverage_retains_refusals_and_requires_every_return_bound(self):
+        points = {k: {**self.point(k), "bound_replicates": 2000, "overlap_refusals": 100 + k}
+                  for k in range(3)}
+        record = collector.merge_grid("id", points)
+        self.assertEqual([p["overlap_refusals"] for p in record["grid"]], [100, 101, 102])
+        self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
+        points[0]["bound_replicates"] = 1999
+        with self.assertRaisesRegex(SystemExit, "bound interval"):
+            collector.merge_grid("id", points)
+        del points[0]["overlap_refusals"]
+        with self.assertRaisesRegex(SystemExit, "different coverage denominators"):
+            collector.merge_grid("id", points)
 
     def test_named_boundary_grid_point_retains_its_separate_boundary_role(self):
         points = {k: self.point(k) for k in range(3)}

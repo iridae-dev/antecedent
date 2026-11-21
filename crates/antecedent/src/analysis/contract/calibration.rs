@@ -65,6 +65,7 @@ impl StudyResult {
         &self,
         contract: &CausalContract,
         coordinate: Option<crate::support::SupportCell>,
+        synthetic_average: bool,
     ) -> &'static str {
         // The fields shared by every reported interval are built once; the
         // per-binding fields start empty (no allocation) and are filled below.
@@ -92,6 +93,22 @@ impl StudyResult {
             {
                 cell.validation.as_str()
             }
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && self.posterior.is_some()
+                    && self.logical_plan.estimator.as_deref() == Some("bayesian.synthetic_control")
+                    && synthetic_average => "not_applicable",
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && matches!((&self.payload, &contract.body.query),
+                        (ResultPayload::SequentialContrast(_), antecedent_io::CausalQueryWire::SequentialContrast(q))
+                            if q.matches_wide_overlap_study()) => "not_applicable",
             // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
@@ -178,9 +195,22 @@ impl StudyResult {
             self.identification.derivation.steps.iter().map(|step| step.rule.as_ref()),
         );
         let bayesian = contract.inference.eq_ignore_ascii_case("bayesian");
-        let validation = self.calibration_validation_axis(contract, coordinate);
+        let synthetic_average = match &contract.body.query {
+            antecedent_io::CausalQueryWire::SyntheticControl(q)
+                if bayesian
+                    && self.logical_plan.estimator.as_deref()
+                        == Some("bayesian.synthetic_control") =>
+            {
+                q.average_calibration_design()
+            }
+            _ => None,
+        };
+        let validation =
+            self.calibration_validation_axis(contract, coordinate, synthetic_average.is_some());
         let (query, structure) = if validation == "not_applicable" {
             let query = match &self.payload {
+                _ if synthetic_average.is_some() => "SyntheticControl",
+                ResultPayload::SequentialContrast(_) => "SequentialContrast",
                 ResultPayload::PanelDid(_) => "PanelDid",
                 ResultPayload::RandomizedEffect(_) | ResultPayload::PosteriorRow(_) => {
                     "RandomizedEffect"
@@ -213,10 +243,24 @@ impl StudyResult {
             .map(|binding| {
                 let (interval_method, functional, dependence) =
                     cluster_reference_key(self, &binding, contract);
+                let (functional, row_count) = if shared.query == "SyntheticControl"
+                    && binding.method == IntervalMethod::PosteriorQuantile
+                {
+                    synthetic_average.clone().unwrap_or((functional, row_count))
+                } else {
+                    (functional, row_count)
+                };
                 CalibrationBasisWire {
                     key: CalibrationKeyWire {
                         interval_method: interval_method.to_string(),
-                        se_kind: binding.se_kind.map_or("", |kind| kind.as_str()).to_string(),
+                        se_kind: if shared.query == "SequentialContrast"
+                            && binding.method == IntervalMethod::AnalyticSe
+                        {
+                            "crossfit_score"
+                        } else {
+                            binding.se_kind.map_or("", |kind| kind.as_str())
+                        }
+                        .to_string(),
                         dependence: dependence.to_string(),
                         functional,
                         level: if binding.level.is_finite() { binding.level } else { 0.0 },
@@ -435,6 +479,11 @@ pub(super) fn posterior_label(inference: &InferenceMode, rank_interval: bool) ->
 /// Project a computed slot onto the claim envelope's view.
 pub(super) fn calibration_view(slot: &CalibrationSlotWire) -> CalibrationView {
     CalibrationView {
+        interval_counts: slot.interval_counts.map(|c| antecedent_contract::claim::IntervalCounts {
+            attempted: c.attempted,
+            returned: c.returned,
+            covered: c.covered,
+        }),
         status: Arc::from(slot.status.as_str()),
         record_id: slot.record_id.as_deref().map(Arc::from),
         reason: slot.reason.as_deref().map(Arc::from),
@@ -477,6 +526,13 @@ pub(super) fn calibration_view(slot: &CalibrationSlotWire) -> CalibrationView {
 /// claim computed, basis included, so the consumer re-derives it.
 pub(super) fn calibration_wire(view: &CalibrationView) -> CalibrationSlotWire {
     CalibrationSlotWire {
+        interval_counts: view.interval_counts.map(|c| {
+            antecedent_io::coverage_records_data::IntervalCounts {
+                attempted: c.attempted,
+                returned: c.returned,
+                covered: c.covered,
+            }
+        }),
         status: view.status.as_ref().into(),
         record_id: view.record_id.as_ref().map(ToString::to_string),
         reason: view.reason.as_ref().map(ToString::to_string),
