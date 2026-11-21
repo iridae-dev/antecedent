@@ -6,6 +6,7 @@ Pure Python: nothing here builds or runs a replicate.
 
 from __future__ import annotations
 
+import json
 import math
 import sys
 import tempfile
