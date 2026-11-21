@@ -140,26 +140,6 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "sc
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "The matching change documents a deprecated limit. Nearest-neighbor selection and the null, power and replacement checks use the same code. Where used, the beta functions only changed visibility. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-stats: conditional_gpdc_beyond_4k_20000_rows" = "8fb07e8ced5915aeb0bff6dc0377033b700ceee5c8c4fa7c1266172cdcff744b"
-"antecedent-stats: conditional_gpdc_beyond_4k_8000_rows" = "9791cda6e0bab0addd04ae094353eef9d5fd6a12528921fc4d1e7adcbe1904cd"
-"antecedent-stats: gpdc_block_shuffle_autocorrelated_type_i_gate" = "09db9aa5222f05b626893d11a29ea170fbf9b7d00c91fa34c825f9c08b0f57c9"
-"antecedent-stats: gpdc_conditional_null_gate" = "e74387b365af3c839dd0178de4f155017be838b1aca30618988ad581e323c264"
-"antecedent-stats: gpdc_nystrom_conditional_null_gate" = "dfb3b71ed3f6e4115f4a7a9cfd9f29473bfba17b6a482a6325ab5e09a4ae4c05"
-"antecedent-stats: gpdc_nystrom_conditional_null_large_n_gate" = "580fe068bcd5cc326ea9b83fd1416b88ec0d1dfbf760e2a0e7abd7cfa19315e0"
-"antecedent-stats: gpdc_nystrom_conditional_power_gate" = "8caa9a29a860c1723f95866b2c5ce1fb96e1f1c4571835c2e7f6b345edde29d8"
-"antecedent-stats: knn_conditional_null_gate" = "88ea6b291d902d1d75faae01df28da1a06a782bf4a2b928134c957d231d3d17f"
-"antecedent-stats: knn_dependence_calibration_gate" = "269b112b2e7986083b05ad9c1721f49147b1d3554e8ef928c0c2c9baf8afc836"
-"antecedent-stats: knn_perm_pvalue_uniformity_gate" = "765f465d9d629c417d2189570e6e0111a646bc12f3655566bd71d8e49c40ab10"
-"antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate" = "523846bb53ea3be06b60a1fb232263b107f6b4eb6a6a8c318b1302cc093531f7"
-"antecedent-stats: scalable_gpdc_replacement_validated_separately" = "0bb0db24e6367db16a25b6f53fed620e714c1e8734f3802e053ff4aba5a2b497"
-"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
-"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
 basis = "The ordinary replicate loop, seeds, tallies and assertions are unchanged. Added replicate-end handling and per-shard length storage are conditional on sharding. Any beta-function diff is visibility only. At integration the changed runner only selects the build targets. The optional overlap tally and shard merge are inactive for these tests. The new reference scripts are separate studies. Changes in the discovery harness regroup identical seed literals and declare a sibling module. Stored coverage decisions replayed with identical verdicts under the integrated family. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
 inputs = ["conformance/response/conditional_ipcw/expected.json", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
@@ -202,7 +182,6 @@ basis = "The tests use the existing learner, matching, cell or adjusted fit with
 inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_ols_retained_covariance_precision" = "efdeea5b6df9edd1894506a9bd988bc19bb4c2a98d8937f4220db7c1b720bd37"
-"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
 "learner_ate_known_truth: coverage" = "0705c57bc44c8e75cf145a0dfa43fcafbfdf7c071f253e0f28f51604bf0a1b03"
 
 [[review]]
@@ -371,3 +350,30 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "babac7c06153172608ce7bf2e445059d305b3dd4ce6b737373db375f59336a94"
 "temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "e1c067bb4c07c2f0a8102feb71930fbeab90424aef28564880d10837fafb8297"
 "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "3ce31cd51ffe7d8c7be2b355b3697d075ff51c6a2cbe7f2594a92849cd452798"
+
+[[review]]
+reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
+basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
+inputs = ["crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-stats: conditional_gpdc_beyond_4k_20000_rows" = "8fb07e8ced5915aeb0bff6dc0377033b700ceee5c8c4fa7c1266172cdcff744b"
+"antecedent-stats: conditional_gpdc_beyond_4k_8000_rows" = "9791cda6e0bab0addd04ae094353eef9d5fd6a12528921fc4d1e7adcbe1904cd"
+"antecedent-stats: gpdc_block_shuffle_autocorrelated_type_i_gate" = "09db9aa5222f05b626893d11a29ea170fbf9b7d00c91fa34c825f9c08b0f57c9"
+"antecedent-stats: gpdc_conditional_null_gate" = "e74387b365af3c839dd0178de4f155017be838b1aca30618988ad581e323c264"
+"antecedent-stats: gpdc_nystrom_conditional_null_gate" = "dfb3b71ed3f6e4115f4a7a9cfd9f29473bfba17b6a482a6325ab5e09a4ae4c05"
+"antecedent-stats: gpdc_nystrom_conditional_null_large_n_gate" = "580fe068bcd5cc326ea9b83fd1416b88ec0d1dfbf760e2a0e7abd7cfa19315e0"
+"antecedent-stats: gpdc_nystrom_conditional_power_gate" = "8caa9a29a860c1723f95866b2c5ce1fb96e1f1c4571835c2e7f6b345edde29d8"
+"antecedent-stats: knn_conditional_null_gate" = "88ea6b291d902d1d75faae01df28da1a06a782bf4a2b928134c957d231d3d17f"
+"antecedent-stats: knn_dependence_calibration_gate" = "269b112b2e7986083b05ad9c1721f49147b1d3554e8ef928c0c2c9baf8afc836"
+"antecedent-stats: knn_perm_pvalue_uniformity_gate" = "765f465d9d629c417d2189570e6e0111a646bc12f3655566bd71d8e49c40ab10"
+"antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate" = "523846bb53ea3be06b60a1fb232263b107f6b4eb6a6a8c318b1302cc093531f7"
+"antecedent-stats: scalable_gpdc_replacement_validated_separately" = "0bb0db24e6367db16a25b6f53fed620e714c1e8734f3802e053ff4aba5a2b497"
+"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
+"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
+
+[[review]]
+reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
+basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
