@@ -161,3 +161,14 @@ For the four failures at 40 donors and 30 or 40 pre-treatment periods, the predi
 The acceptable prediction error is 2.5 percentage points, half the distance between a reported frequency of 90% and one of 95%. The holdout must place its underlying coverage within that margin on both sides of the frozen prediction. Both exact one-sided binomial tests must pass at 0.05/4 for each of the four predictions. This bounds the probability of certifying any inaccurate prediction in this four-claim family by 5%. The held-out Monte Carlo standard error must also be at most one percentage point. The historical counts and their simulation uncertainty remain visible. They define the prediction and contribute zero validation trials. The test estimates agreement with that published prediction. The earlier selection of the four cells prevents treating their historical frequencies as four unbiased, fixed-sample estimates.
 
 At 80 pre-treatment periods the nominal gate still applies. A record for a shorter history carries the actual held-out frequency and its below-nominal status. The historical table alone cannot earn a record.
+
+The independent validation at `7fd32b4b69` used 40 donors, five post-treatment periods and 2,000 attempted panels per cell. Coverage counts only the intervals returned. Each refusal is included in the attempted count.
+
+| Interval | Pre-treatment periods | Frozen prediction | Held-out covered / returned | Refused | Equivalence gate |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Posterior average effect | 30 | 1821/1994 (91.32%) | 1797/1999 (89.89%) | 1 | Failed |
+| Posterior average effect | 40 | 1828/1993 (91.72%) | 1832/1995 (91.83%) | 5 | Passed |
+| Predictive path average | 30 | 1807/1993 (90.67%) | 1811/1995 (90.78%) | 5 | Passed |
+| Predictive path average | 40 | 1806/1993 (90.62%) | 1840/1999 (92.05%) | 1 | Failed |
+
+All four observed frequencies fell within 2.5 percentage points of their predictions. At 30 periods the posterior interval's lower equivalence test gave (p = 0.06733). At 40 periods the predictive interval's upper equivalence test gave (p = 0.03445). Both exceed the registered cutoff of 0.0125. Each three-point study therefore still owes its calibration record.
