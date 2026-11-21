@@ -176,3 +176,9 @@ All four observed frequencies fell within 2.5 percentage points of their predict
 The interval correction for single-unit Bayesian panels caps total Dirichlet prior concentration at ten, the concentration of the original ten-donor design. With forty donors the old prior contributed four times that concentration and pulled the synthetic outcome toward the donor pool average. The revised prior gives each donor concentration 0.25. The data still determine the fit through the pre-treatment likelihood. Both average-effect routes use the same prior and report it with their draws.
 
 The corrected constructions require fresh nominal coverage on an independent stream. At thirty and forty pre-periods, both forty-donor averages also require 2,000 attempts, the existing refusal limit, and simultaneous equivalence to 95% within 2.5 percentage points. The previous measurements above describe the original intervals.
+
+## Discovery graph weights and edge probabilities
+
+Gaussian BIC reports normalized graph weights. Its scientific conformance test compares those weights with independent BIC enumeration. The five original frequency studies failed on complete and imputed data. Their measured bins, verdicts and source commit are preserved in the [BIC study logs](calibration-history/discovery-bic/).
+
+For the signed-uniform structural model, the five active calibration gates test directed-edge probabilities against generating frequencies under their declared priors and data designs. The two missing-data gates evaluate the observed-data score. The release obligation registry maps each historical BIC study to the active study for the corresponding prior and data design.

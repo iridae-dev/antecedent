@@ -126,11 +126,6 @@ gate = [
   "conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound",
   "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors",
   "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors",
-  "antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior",
-  "antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior",
-  "antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior",
-  "antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column",
-  "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors",
   "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior",
   "count_conjugate_calibration: count_rate_route_covers_under_the_stated_prior",
   "sequential_policy_choice_calibration: sequential_known_law_action_choice",
@@ -148,6 +143,15 @@ gate = [
 prospective = [
   "graphless_wider_range_calibration: cluster_bayesian_bootstrap_dirichlet_law_from_fifty_arms_credible_interval",
 ]
+
+# Original studies and family slots remain available for historical replay.
+# Each active replacement validates its own model and missing-data procedure.
+[superseded]
+"antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior" = "antecedent-discovery: signed_uniform_per_edge_edge_probabilities_match_generating_frequencies"
+"antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior" = "antecedent-discovery: signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies"
+"antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior" = "antecedent-discovery: signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies"
+"antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column" = "antecedent-discovery: observed_score_six_variable_per_edge_reliability"
+"antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors" = "antecedent-discovery: observed_score_six_variable_soft_tier_reliability"
 
 [claims]
 "association / cross_section_linear_slope / bootstrap_row" = [
