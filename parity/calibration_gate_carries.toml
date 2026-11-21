@@ -320,9 +320,36 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py"]
 "antecedent-discovery: observed_score_six_variable_soft_tier_reliability" = "4b7f254e8ed75600af21589ab933e7e0e2370bc1a92bc563ab7110eea93dc08e"
 
 [[review]]
-reviewed_at = "c48527fa7765666667ce3502687d1f1df157954f"
-basis = "Replayed every stored grid decision. The only changed executed dependency since the prior receipt review was the embedded calibration registry. Eight measured rows changed or were added, all for the single-unit Bayesian synthetic-control estimator at twenty or forty donors. These precision, decision, envelope and design gates exercise different constructions. Registry lookup partitions by query and estimator; the edited rows cannot govern their returned intervals or numerical verdicts. Aliases and interval-method reasons are unchanged."
-inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/src/analysis/contract/calibration.rs", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
+basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
+inputs = ["crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-stats: conditional_gpdc_beyond_4k_20000_rows" = "8fb07e8ced5915aeb0bff6dc0377033b700ceee5c8c4fa7c1266172cdcff744b"
+"antecedent-stats: conditional_gpdc_beyond_4k_8000_rows" = "9791cda6e0bab0addd04ae094353eef9d5fd6a12528921fc4d1e7adcbe1904cd"
+"antecedent-stats: gpdc_block_shuffle_autocorrelated_type_i_gate" = "09db9aa5222f05b626893d11a29ea170fbf9b7d00c91fa34c825f9c08b0f57c9"
+"antecedent-stats: gpdc_conditional_null_gate" = "e74387b365af3c839dd0178de4f155017be838b1aca30618988ad581e323c264"
+"antecedent-stats: gpdc_nystrom_conditional_null_gate" = "dfb3b71ed3f6e4115f4a7a9cfd9f29473bfba17b6a482a6325ab5e09a4ae4c05"
+"antecedent-stats: gpdc_nystrom_conditional_null_large_n_gate" = "580fe068bcd5cc326ea9b83fd1416b88ec0d1dfbf760e2a0e7abd7cfa19315e0"
+"antecedent-stats: gpdc_nystrom_conditional_power_gate" = "8caa9a29a860c1723f95866b2c5ce1fb96e1f1c4571835c2e7f6b345edde29d8"
+"antecedent-stats: knn_conditional_null_gate" = "88ea6b291d902d1d75faae01df28da1a06a782bf4a2b928134c957d231d3d17f"
+"antecedent-stats: knn_dependence_calibration_gate" = "269b112b2e7986083b05ad9c1721f49147b1d3554e8ef928c0c2c9baf8afc836"
+"antecedent-stats: knn_perm_pvalue_uniformity_gate" = "765f465d9d629c417d2189570e6e0111a646bc12f3655566bd71d8e49c40ab10"
+"antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate" = "523846bb53ea3be06b60a1fb232263b107f6b4eb6a6a8c318b1302cc093531f7"
+"antecedent-stats: scalable_gpdc_replacement_validated_separately" = "0bb0db24e6367db16a25b6f53fed620e714c1e8734f3802e053ff4aba5a2b497"
+"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
+"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
+
+[[review]]
+reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
+basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
+
+[[review]]
+reviewed_at = "fbeb101345fca9a8758393cddbb64f5c91218842"
+basis = "Replayed every grid decision against the stored receipt. Only the method provenance table changed. Two record digests and the synthetic-control coverage description changed inside that table. Its entries supply citations and descriptions and do not govern the interval, target, acceptance rule or simulated data."
+inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/src/analysis/contract/calibration.rs", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "71b6b5cff4a1e62899a725f46067a35b7cb12557babbb286def3d9897664c1ab"
 "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision" = "a8321587dc1296b6d74333afdc79341df596929a754153ccf5cedfd813104b26"
@@ -350,30 +377,3 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "babac7c06153172608ce7bf2e445059d305b3dd4ce6b737373db375f59336a94"
 "temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "e1c067bb4c07c2f0a8102feb71930fbeab90424aef28564880d10837fafb8297"
 "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "3ce31cd51ffe7d8c7be2b355b3697d075ff51c6a2cbe7f2594a92849cd452798"
-
-[[review]]
-reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
-basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
-inputs = ["crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-stats: conditional_gpdc_beyond_4k_20000_rows" = "8fb07e8ced5915aeb0bff6dc0377033b700ceee5c8c4fa7c1266172cdcff744b"
-"antecedent-stats: conditional_gpdc_beyond_4k_8000_rows" = "9791cda6e0bab0addd04ae094353eef9d5fd6a12528921fc4d1e7adcbe1904cd"
-"antecedent-stats: gpdc_block_shuffle_autocorrelated_type_i_gate" = "09db9aa5222f05b626893d11a29ea170fbf9b7d00c91fa34c825f9c08b0f57c9"
-"antecedent-stats: gpdc_conditional_null_gate" = "e74387b365af3c839dd0178de4f155017be838b1aca30618988ad581e323c264"
-"antecedent-stats: gpdc_nystrom_conditional_null_gate" = "dfb3b71ed3f6e4115f4a7a9cfd9f29473bfba17b6a482a6325ab5e09a4ae4c05"
-"antecedent-stats: gpdc_nystrom_conditional_null_large_n_gate" = "580fe068bcd5cc326ea9b83fd1416b88ec0d1dfbf760e2a0e7abd7cfa19315e0"
-"antecedent-stats: gpdc_nystrom_conditional_power_gate" = "8caa9a29a860c1723f95866b2c5ce1fb96e1f1c4571835c2e7f6b345edde29d8"
-"antecedent-stats: knn_conditional_null_gate" = "88ea6b291d902d1d75faae01df28da1a06a782bf4a2b928134c957d231d3d17f"
-"antecedent-stats: knn_dependence_calibration_gate" = "269b112b2e7986083b05ad9c1721f49147b1d3554e8ef928c0c2c9baf8afc836"
-"antecedent-stats: knn_perm_pvalue_uniformity_gate" = "765f465d9d629c417d2189570e6e0111a646bc12f3655566bd71d8e49c40ab10"
-"antecedent-stats: knn_unconditional_block_shuffle_autocorrelated_type_i_gate" = "523846bb53ea3be06b60a1fb232263b107f6b4eb6a6a8c318b1302cc093531f7"
-"antecedent-stats: scalable_gpdc_replacement_validated_separately" = "0bb0db24e6367db16a25b6f53fed620e714c1e8734f3802e053ff4aba5a2b497"
-"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
-"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
-
-[[review]]
-reviewed_at = "ac2002e8d4831dfb4e751664de0f724705b97345"
-basis = "Replayed the recorded decisions at every grid point. The sole changed gate dependency was matching.rs, where the unused deprecated EXACT_MATCHING_ROW_LIMIT declaration and its documentation were deleted. The matching computation, inputs and acceptance rules are unchanged."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
