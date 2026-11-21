@@ -392,11 +392,11 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
     let reported = constructions(&contract, &result);
     let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let interval = if let Bayesian::Posterior = scored {
-        let fit = result.posterior.as_ref()?;
-        let column = fit.effect_column()?;
+        let fit = result.posterior.as_ref().expect("accepted posterior study returns draws");
+        let column = fit.effect_column().expect("posterior draws contain the average effect");
         [fit.summaries.q025[column], fit.summaries.q975[column]]
     } else {
-        let rollout = result.quasi_rollout()?;
+        let rollout = result.quasi_rollout().expect("accepted path study returns a rollout");
         assert_eq!(rollout.design.as_ref(), "posterior_predictive_synthetic_control");
         let period = |k: usize| {
             let period = intervention + i64::try_from(k).expect("the index fits in i64");
@@ -406,17 +406,24 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
         };
         let effect = match scored {
             Bayesian::Posterior => unreachable!("the posterior case is handled above"),
-            Bayesian::Average => {
-                rollout.effects.iter().find(|effect| effect.kind == DesignEffectKind::Overall)?
-            }
-            Bayesian::First => period(0)?,
-            Bayesian::Last => period(panel.post - 1)?,
+            Bayesian::Average => rollout
+                .effects
+                .iter()
+                .find(|effect| effect.kind == DesignEffectKind::Overall)
+                .expect("path reports the average effect"),
+            Bayesian::First => period(0).expect("path reports the first period"),
+            Bayesian::Last => period(panel.post - 1).expect("path reports the last period"),
         };
-        effect.interval?
+        effect.interval.expect("accepted path effect has a reported interval")
     };
+    assert!(
+        interval[0].is_finite() && interval[1].is_finite() && interval[0] <= interval[1],
+        "invalid returned synthetic-control interval"
+    );
     let (mut construction, scope, validation) = reported
         .into_iter()
-        .find(|(construction, _, _)| construction.interval_method == POSTERIOR_QUANTILE)?;
+        .find(|(construction, _, _)| construction.interval_method == POSTERIOR_QUANTILE)
+        .expect("returned interval has a posterior calibration basis");
     assert_eq!(construction.query, SC_QUERY);
     assert_eq!(scope.row_count, pre as u64);
     assert_eq!(validation, NO_VALIDATION);

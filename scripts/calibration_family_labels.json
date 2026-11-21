@@ -1743,7 +1743,7 @@
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
-      "sha256": "db658cb36e3050e2a48529d258d90834677ec20c7b8235481295f6e2bb1be901",
+      "sha256": "66bc9eff53964e2c766db6771c55ce035965c5f55bd519bebc93454d89f6a7a1",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1757,17 +1757,17 @@
           "argument": "RecordKey { test, dgp: SC_DGP, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 963,
+          "line": 970,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 1471,
+          "line": 1478,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_type_mixture_population_law\", interval },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1683,
+          "line": 1690,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
         }

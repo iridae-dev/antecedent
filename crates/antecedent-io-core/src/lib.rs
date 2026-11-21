@@ -83,6 +83,7 @@ pub mod migrate;
 )]
 pub mod mmap_file;
 pub mod observation_query_artifact;
+mod panel_calibration_design;
 pub mod plan_wire;
 pub mod policy_program_artifact;
 pub mod posterior;
@@ -94,7 +95,6 @@ pub mod provider_replay;
 pub mod provider_verification_artifact;
 pub mod quantity_wire;
 pub mod query_wire;
-mod panel_calibration_design;
 pub mod randomized_ipow_wire;
 pub mod reader;
 pub mod recalc_receipt_artifact;
