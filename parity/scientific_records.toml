@@ -1890,11 +1890,11 @@ dependency_manifest = "c249a10590c3b171af544d1a6ef9b6f04df7a58eed315fb38644ee868
 test = "antecedent-estimate::bayesian_synthetic_control_reference::weights_effect_and_pre_fit_match_the_simplex_quadrature"
 roles = ["scientific"]
 passed = true
-commit = "d756a41e4379190ec8b1cbf980e0c08c33ed12b1"
+commit = "63e3206f1ff676835ff5aba485b254d12f5fd5f4"
 dirty = false
-fingerprint = "f1ca67c6efdc610fb84bacfaa47481408504a9327909a5564b7b100532c4f472"
-recorded_at = "2026-11-21T11:31:30Z"
-dependency_manifest = "02227d98da8f98e936a6a508f8a430f6cdc1380d48e846b403329a1bbc531c0c"
+fingerprint = "16675d06b31dd7c0558673af3d134ddcc05b9db460299a510687791ae001591c"
+recorded_at = "2026-11-21T12:05:31Z"
+dependency_manifest = "2ea97dd6808aa81d843bb7b9a340013c5c201c8ac35dd6ede9f22661d2ca49e4"
 
 [[record]]
 test = "antecedent-estimate::bayesian_temporal_regime_survival_reference::bayesian_regime_survival_matches_the_independent_g_formula"
