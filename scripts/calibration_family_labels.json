@@ -546,14 +546,14 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "36c297dacc38e01c10f2311fa5a064383d0d67d10d28cdf4598bc1fc345a5906",
+      "sha256": "889f994b07047a7312173c29dd1c9b0a017dc2c28f9c07ad7dbe84a9c2187698",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
     },
     {
       "path": "crates/antecedent-io-core/src/coverage_records_data.rs",
-      "sha256": "1412943695c89c6163784d40f4313e88f6fea917649304dd1da3615b65defc7b",
+      "sha256": "a891a454c4cdc56a309134d052cea8d259ded5e5d862255e6a6336487ed2876d",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Embedded registry consumer/tests only; no calibration hypothesis constructor."
@@ -1153,7 +1153,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "9da222474f2a1dc5475735473aac4d37eca2ebb935d1c393f842b1275397f931",
+      "sha256": "0c3c9c44c70b778f98855890357108e238196046d9984545c4176be8dafcb5d9",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -1736,7 +1736,7 @@
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
-      "sha256": "3d9a0f4916571b2efad6c780d81c772223de6fc47bd7984e6d372983d68e3726",
+      "sha256": "878e98a68b6cd7fd47875ee4e68f2cba018bbc6b6ac61ec76a71dba92f8ca9b4",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1750,22 +1750,22 @@
           "argument": "RecordKey { test, dgp: SC_DGP, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 948,
+          "line": 963,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         },
         {
-          "line": 1456,
+          "line": 1471,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_type_mixture_population_law\", interval },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 1668,
+          "line": 1683,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Source-fixed designs that repeat base designs of the cluster Bayesian bootstrap, synthetic control, panel difference-in-differences, binary-instrument bounds and association routes at support ranges the base grids do not reach (more clusters per arm, more donors, other post-period counts, pre-period counts that are not multiples of twenty, and sizes four times the base grid's largest); each scores the route's published 0.95 interval against the generated truth with static record keys, and no label, size or level is chosen from outcomes."
+      "review": "Source-fixed designs that repeat base designs of the cluster Bayesian bootstrap, synthetic control, panel difference-in-differences, binary-instrument bounds and association routes at support ranges the base grids do not reach (more clusters per arm, more donors, other post-period counts, pre-period counts that are not multiples of twenty, and sizes four times the base grid's largest); each scores the route's published 0.95 interval against the generated truth with static record keys, and no label, size or level is chosen from outcomes. For the Bayesian predictive average reserve a second construction slot for the within-path average on the independent fixed stream xor 0x5041544800000000. The original marginal-average slot and observations are retained. Donors and post horizon are fixed inside each group, pre-treatment periods index its three planned grid looks, and returned-interval counts add no hypothesis."
     },
     {
       "path": "crates/antecedent/tests/grid_functional_effect_calibration.rs",
@@ -2949,21 +2949,21 @@
     },
     {
       "path": "crates/antecedent/tests/synthetic_control_calibration.rs",
-      "sha256": "e44765fadf3f01428750abac192f017a6cfad1676a53a5628df601b22bf3daa6",
+      "sha256": "2131ab3d3037e8c4caf1e7264bbfbe5c9a1040e390b4db85436e0dbfc2c65441",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 211,
+          "line": 217,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 382,
+          "line": 396,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         }
       ],
-      "review": "Eight source-fixed synthetic-control designs (the donor-weight posterior's average effect; the predictive path's average, first and last post period; the conformal set of the first and last post period and of a constant effect at permutation counts that are multiples of twenty; the placebo-variance interval of three staggered adoptions among exchangeable units), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, period or level is chosen from outcomes."
+      "review": "Eight source-fixed synthetic-control designs (the donor-weight posterior's average effect; the predictive path's average, first and last post period; the conformal set of the first and last post period and of a constant effect at permutation counts that are multiples of twenty; the placebo-variance interval of three staggered adoptions among exchangeable units), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, period or level is chosen from outcomes. For the Bayesian predictive average reserve a second construction slot for the within-path average on the independent fixed stream xor 0x5041544800000000. The original marginal-average slot and observations are retained. Donors and post horizon are fixed inside each group, pre-treatment periods index its three planned grid looks, and returned-interval counts add no hypothesis."
     },
     {
       "path": "crates/antecedent/tests/synthetic_control_range_calibration.rs",

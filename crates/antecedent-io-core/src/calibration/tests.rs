@@ -435,6 +435,7 @@ fn row_count_outside_the_measured_range_is_not_assessed() {
 
 const GRID: [CoverageGridPoint; 3] = [
     CoverageGridPoint {
+        interval_counts: None,
         overlap_refusals: None,
         point: 0,
         n_min: 250,
@@ -445,6 +446,7 @@ const GRID: [CoverageGridPoint; 3] = [
         boundary: false,
     },
     CoverageGridPoint {
+        interval_counts: None,
         overlap_refusals: None,
         point: 1,
         n_min: 500,
@@ -455,6 +457,7 @@ const GRID: [CoverageGridPoint; 3] = [
         boundary: false,
     },
     CoverageGridPoint {
+        interval_counts: None,
         overlap_refusals: None,
         point: 2,
         n_min: 1000,
@@ -478,6 +481,50 @@ fn gridded(id: &'static str, grid: &'static [CoverageGridPoint]) -> CoverageReco
     out.n_max = 1000;
     out.grid = grid;
     out
+}
+
+#[test]
+fn synthetic_control_average_matches_only_the_measured_panel_and_grid_point() {
+    static POINTS: [CoverageGridPoint; 3] = [
+        grid_point(0, 30, 0.91, true),
+        grid_point(1, 40, 0.92, true),
+        grid_point(2, 80, 0.95, false),
+    ];
+    let record = CoverageRecord {
+        query: "SyntheticControl",
+        estimator: "bayesian.synthetic_control",
+        functional: "synthetic_control/posterior_average+donors=40+post_periods=5",
+        boundary: true,
+        ..gridded("cov.panel", &POINTS)
+    };
+    let mut b = basis();
+    b.key = key_from(&record);
+    for point in &POINTS {
+        b.scope.row_count = point.n_min;
+        let slot = calibration_slot_in(&b, &[record]);
+        assert_eq!(slot.scope_n, Some(point.n_min));
+        assert_eq!(slot.scope_n_max, Some(point.n_min));
+        assert_eq!(slot.observed.map(f64::to_bits), Some(point.observed.to_bits()));
+        assert_eq!(
+            slot.status,
+            if point.boundary {
+                CalibrationStatus::MeasuredBelowNominal
+            } else {
+                CalibrationStatus::Calibrated
+            }
+        );
+    }
+    b.scope.row_count = 60;
+    assert_eq!(calibration_slot_in(&b, &[record]).status, CalibrationStatus::NotMeasured);
+    b.scope.row_count = 40;
+    for other in [
+        "synthetic_control/predictive_path_average+donors=40+post_periods=5",
+        "synthetic_control/posterior_average+donors=20+post_periods=5",
+        "synthetic_control/posterior_average+donors=40+post_periods=3",
+    ] {
+        b.key.functional = other.to_string();
+        assert_eq!(calibration_slot_in(&b, &[record]).status, CalibrationStatus::NotMeasured);
+    }
 }
 
 #[test]
@@ -715,6 +762,7 @@ fn attested_external_estimate_stays_uncalibrated_without_a_basis() {
 
 const fn grid_point(point: u8, n: u64, observed: f64, boundary: bool) -> CoverageGridPoint {
     CoverageGridPoint {
+        interval_counts: None,
         overlap_refusals: None,
         point,
         n_min: n,

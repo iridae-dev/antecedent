@@ -649,6 +649,7 @@ def _coverage_grid(points: list[dict]) -> list[dict]:
             "observed": _f64(point["observed"]),
             "mcse": _f64(point["mcse"]),
             "replicates": int(point["replicates"]),
+            **({"interval_counts": point["interval_counts"]} if "interval_counts" in point else {}),
             **({"overlap_refusals": point["overlap_refusals"]} if "overlap_refusals" in point else {}),
             "boundary": bool(point["boundary"]),
         }

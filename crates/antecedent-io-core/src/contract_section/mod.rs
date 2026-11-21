@@ -218,6 +218,9 @@ impl From<&str> for CalibrationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationSlotWire {
+    /// Simulations, returns and covered intervals at an exact design point.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_counts: Option<crate::coverage_records_data::IntervalCounts>,
     /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: CalibrationStatus,
     /// Governing coverage record id.
@@ -293,6 +296,7 @@ impl CalibrationSlotWire {
             status: CalibrationStatus::NotMeasured,
             record_id: None,
             reason: Some(reason.into()),
+            interval_counts: None,
             scope_n: None,
             scope_dependence: None,
             calibration_sha: None,
@@ -315,6 +319,10 @@ impl CalibrationSlotWire {
             status,
             record_id: Some(record.id.into()),
             reason: None,
+            interval_counts: match record.grid {
+                [point] if n_min == n_max => point.interval_counts,
+                _ => None,
+            },
             scope_n: Some(n_min),
             scope_dependence: Some(record.dependence.into()),
             calibration_sha: Some(record.calibration_sha.into()),

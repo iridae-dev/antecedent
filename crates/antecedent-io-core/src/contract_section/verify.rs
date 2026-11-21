@@ -1530,6 +1530,19 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                     || (validation == Some(key.validation.as_str())
                         && matches!(key.validation.as_str(), "none" | "cheap" | "full")))
         })
+        || (graphless_validation_ok
+            && key.validation == "not_applicable"
+            && key.query == "SyntheticControl"
+            && key.estimator == "bayesian.synthetic_control"
+            && key.interval_method == "posterior_quantile"
+            && key.structure == "design"
+            && key.graph_class == "RandomizedTrial"
+            && contract.graph_class == key.graph_class
+            && contract.structure_source == "randomized_trial"
+            && key.inference.eq_ignore_ascii_case("bayesian")
+            && matches!(&contract.target.query, crate::CausalQueryWire::SyntheticControl(q)
+                if q.average_calibration_design().is_some_and(|(functional, pre)|
+                    functional == key.functional && pre == basis.scope.row_count)))
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             matches!(&contract.target.query, crate::CausalQueryWire::SequentialContrast(q) if q.matches_wide_overlap_study())
                 && graphless_validation_ok && key.validation == "not_applicable"

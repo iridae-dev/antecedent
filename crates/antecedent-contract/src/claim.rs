@@ -168,9 +168,22 @@ pub struct ClaimEnvelope {
     pub attested: Arc<[AttestedEvidence]>,
 }
 
+/// Simulations behind the returned-interval coverage of a matched design.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IntervalCounts {
+    /// All simulated panels, including refusals.
+    pub attempted: u32,
+    /// Simulations producing a finite interval.
+    pub returned: u32,
+    /// Returned intervals that contain the known effect.
+    pub covered: u32,
+}
+
 /// Calibration slot projected onto a claim.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalibrationView {
+    /// Counts for the exact design when published by its measurement.
+    pub interval_counts: Option<IntervalCounts>,
     /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: Arc<str>,
     /// Governing coverage record id.
@@ -198,6 +211,7 @@ pub struct CalibrationView {
 impl Default for CalibrationView {
     fn default() -> Self {
         Self {
+            interval_counts: None,
             status: Arc::from("not_measured"),
             record_id: None,
             reason: Some(Arc::from(antecedent_core::reason_code!("not_executed"))),

@@ -1560,6 +1560,15 @@ impl CoverageTally {
                 "dgp": dgp,
                 "test": format!("{file}::{}", record.key.test),
         });
+        if construction.query == "SyntheticControl"
+            && construction.functional.starts_with("synthetic_control/")
+        {
+            payload["interval_counts"] = serde_json::json!({
+                "attempted": attempts,
+                "returned": self.with_interval,
+                "covered": self.covered,
+            });
+        }
         if let Some(refused) = self.overlap_refusals {
             payload["overlap_refusals"] = serde_json::json!(refused);
         }

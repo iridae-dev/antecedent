@@ -715,8 +715,8 @@ fn supported_predictive_path_round_trips_and_refuses_forgery() {
         (1..draws.n_quantities()).map(|column| draws.column(column).unwrap()).collect();
     assert!(periods.len() > 1);
     for (index, average) in overall.iter().enumerate() {
-        let reconstructed = periods.iter().map(|period| period[index]).sum::<f64>()
-            / periods.len() as f64;
+        let reconstructed =
+            periods.iter().map(|period| period[index]).sum::<f64>() / periods.len() as f64;
         assert_eq!(average.to_bits(), reconstructed.to_bits());
     }
     // A design posterior states its row in the diagnostic, never on the section.

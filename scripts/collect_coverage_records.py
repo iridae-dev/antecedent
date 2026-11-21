@@ -257,6 +257,7 @@ GRID_POINTS = 3
 # Fields measured per grid point; every other emitted field is the construction
 # and provenance, which must be the same at every point.
 POINT_FIELDS = (
+    "interval_counts",
     "overlap_refusals",
     "decision_protocol",
     "n_min",
@@ -394,10 +395,32 @@ def validate_point_decision(
         raise SystemExit(f"invalid coverage decision: {error}") from error
 
 
+def valid_interval_counts(counts: object, point: dict) -> bool:
+    if not isinstance(counts, dict) or set(counts) != {"attempted", "returned", "covered"}:
+        return False
+    if any(type(n) is not int for n in counts.values()):
+        return False
+    attempted, returned, covered = counts["attempted"], counts["returned"], counts["covered"]
+    decision = point.get("decision_protocol", {})
+    observed = point.get("observed")
+    return (
+        0 <= covered <= returned <= attempted
+        and returned > 0
+        and attempted == point.get("replicates")
+        and returned == point.get("bound_replicates", returned)
+        and isinstance(decision, dict)
+        and covered == decision.get("covered", covered)
+        and type(observed) in (int, float)
+        and abs(covered / attempted - observed) < 1e-9
+    )
+
+
 def grid_fields_valid(point: dict) -> bool:
+    if "interval_counts" in point and not valid_interval_counts(point["interval_counts"], point):
+        return False
     if "overlap_refusals" in point and (type(point["overlap_refusals"]) is not int or point["overlap_refusals"] < 0):
         return False
-    return set(point) - {"decision_protocol", "overlap_refusals"} == set(GRID_ENTRY_FIELDS)
+    return set(point) - {"decision_protocol", "overlap_refusals", "interval_counts"} == set(GRID_ENTRY_FIELDS)
 
 
 def grid_entry(payload: dict) -> dict:
@@ -408,6 +431,7 @@ def grid_entry(payload: dict) -> dict:
             if "decision_protocol" in payload
             else {}
         ),
+        **({"interval_counts": payload["interval_counts"]} if "interval_counts" in payload else {}),
         **({"overlap_refusals": payload["overlap_refusals"]} if "overlap_refusals" in payload else {}),
         "point": int(payload["grid_point"]),
         "n_min": int(payload["n_min"]),
@@ -516,6 +540,13 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         )
     for payload in ordered:
         validate_point_decision(payload, final=True)
+    for payload in ordered:
+        panel = (payload.get("query") == "SyntheticControl"
+                 and payload.get("functional", "").startswith("synthetic_control/"))
+        if panel != ("interval_counts" in payload) or (
+            panel and not valid_interval_counts(payload["interval_counts"], payload)
+        ):
+            raise SystemExit(f"record {rid}: inconsistent returned-interval counts")
     conditional = "overlap_refusals" in first
     for payload in ordered:
         if ("overlap_refusals" in payload) != conditional:

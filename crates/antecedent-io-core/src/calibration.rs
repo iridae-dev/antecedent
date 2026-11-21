@@ -481,6 +481,42 @@ pub fn calibration_slot_with(
     if key.interval_method == "none" {
         return not_measured(NO_INTERVAL_REPORTED);
     }
+    // A donor panel's history is an exact experimental design. Project the
+    // matching grid point before applying ordinary level, scope and currency
+    // checks so a neighbouring history cannot attest this user's interval.
+    let exact_points;
+    let records = if key.query == "SyntheticControl"
+        && key.estimator == "bayesian.synthetic_control"
+        && key.functional.starts_with("synthetic_control/")
+    {
+        exact_points = records
+            .iter()
+            .filter_map(|record| {
+                let point = record.grid.iter().find(|point| {
+                    point.n_min == scope.row_count && point.n_max == scope.row_count
+                })?;
+                let observed = point.interval_counts.map_or(point.observed, |counts| {
+                    f64::from(counts.covered) / f64::from(counts.returned)
+                });
+                Some(CoverageRecord {
+                    n_min: point.n_min,
+                    n_max: point.n_max,
+                    observed,
+                    mcse: point.mcse,
+                    replicates: point.replicates,
+                    boundary: point.boundary
+                        || (record.boundary && !record.grid.iter().any(|p| p.boundary)),
+                    grid: std::slice::from_ref(point),
+                    confirmation: &[],
+                    confirmed_passing_range: None,
+                    ..*record
+                })
+            })
+            .collect::<Vec<_>>();
+        exact_points.as_slice()
+    } else {
+        records
+    };
     let construction: Vec<&CoverageRecord> =
         records.iter().filter(|record| key.same_construction(record)).collect();
     if construction.is_empty() {
@@ -526,6 +562,17 @@ pub fn calibration_slot_with(
         .filter(|record| is_boundary(record) && confirmed_passing_region(record, rows).is_none())
         .collect();
     if let Some(boundary) = worst(&boundaries, rows) {
+        if boundary.query == "SyntheticControl"
+            && boundary.functional.starts_with("synthetic_control/")
+            && !attests(boundary)
+        {
+            return CalibrationSlotWire::from_record(
+                boundary,
+                CalibrationStatus::OutsideMeasuredScope,
+            )
+            .with_reason(RECORD_NOT_ATTESTING)
+            .with_basis(basis);
+        }
         let mut slot =
             CalibrationSlotWire::from_record(boundary, CalibrationStatus::MeasuredBelowNominal)
                 .with_reason(BOUNDARY_RECORD)
@@ -537,7 +584,9 @@ pub fn calibration_slot_with(
             .filter(|point| point.boundary)
             .min_by(|a, b| a.observed.total_cmp(&b.observed))
         {
-            slot.observed = Some(point.observed);
+            slot.observed = Some(point.interval_counts.map_or(point.observed, |counts| {
+                f64::from(counts.covered) / f64::from(counts.returned)
+            }));
         }
         return slot;
     }

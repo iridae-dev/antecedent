@@ -133,14 +133,20 @@ fn run(pre: usize, conformal: bool, seed: u64) -> Option<Replicate> {
     if conformal {
         query = query.with_conformal_intervals();
     }
-    let study = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)))
         .build()
-        .expect("the panel declares a valid synthetic control");
+        .expect("valid synthetic-control panel");
     let ctx = ExecutionContext::for_tests(seed);
-    let result = study.run(&ctx).ok()?;
-    let contract = study.inspect().expect("inspect");
+    let prepared = study.prepare(&ctx).expect("prepared synthetic control");
+    let result = match prepared.estimate(&data, &ctx) {
+        Ok(result) => result,
+        Err(error) if error.reason_code() == Some("posterior_draws_not_converged") => return None,
+        Err(error) => panic!("unexpected synthetic-control error: {error}"),
+    };
+    let contract =
+        prepared.contract_for_result(&result).expect("executed synthetic-control contract");
     let reported = constructions(&contract, &result);
 
     let posterior_fit = result.posterior.as_ref()?;
@@ -209,8 +215,11 @@ fn measure(test: &'static str, scored: Scored, seed_base: u64) {
     let pre = grid_n(BASE_PRE_PERIODS);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL);
-    let runs =
-        map_replicates(n_sim(), |rep| run(pre, scored.conformal(), grid_seed(seed_base + rep)));
+    let stream =
+        if matches!(scored, Scored::PredictiveOverall) { 0x5041_5448_0000_0000 } else { 0 };
+    let runs = map_replicates(n_sim(), |rep| {
+        run(pre, scored.conformal(), grid_seed((seed_base + rep) ^ stream))
+    });
     let truth = scored.truth();
     for replicate in runs {
         // A refusal to publish, or a missing interval, is a miss.
@@ -222,15 +231,20 @@ fn measure(test: &'static str, scored: Scored, seed_base: u64) {
             tally.skip();
             continue;
         };
-        let (construction, scope, _) = replicate
+        let (construction, scope, validation) = replicate
             .reported
             .iter()
             .find(|(construction, _, _)| construction.interval_method == INTERVAL)
             .expect("the execution reports its posterior interval");
+        assert_eq!(construction.query, QUERY);
+        assert_eq!(scope.row_count, pre as u64);
         let mut construction = construction.clone();
-        construction.query = QUERY.into();
-        construction.structure = "design".into();
-        tally.bind_validation(&construction, *scope, NO_VALIDATION);
+        if let Scored::PredictivePeriod(k) = scored {
+            // This study reads one period from the rollout, a separate target
+            // from the average which the public primary basis describes.
+            construction.functional.push_str(&format!("+period={}", k + 1));
+        }
+        tally.bind_validation(&construction, *scope, validation);
         tally.record(Some(interval), truth);
     }
     tally.assert();

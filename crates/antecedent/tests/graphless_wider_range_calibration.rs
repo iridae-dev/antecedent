@@ -375,13 +375,21 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
     if scored.conformal() {
         query = query.with_conformal_intervals();
     }
-    let study = Study::tabular(data)
+    let study = Study::tabular(data.clone())
         .query(query)
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(SC_DRAWS)))
         .build()
-        .ok()?;
-    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
-    let reported = constructions(&study.inspect().ok()?, &result);
+        .expect("valid synthetic-control panel");
+    let ctx = ExecutionContext::for_tests(seed);
+    let prepared = study.prepare(&ctx).expect("prepared synthetic control");
+    let result = match prepared.estimate(&data, &ctx) {
+        Ok(result) => result,
+        Err(error) if error.reason_code() == Some("posterior_draws_not_converged") => return None,
+        Err(error) => panic!("unexpected synthetic-control error: {error}"),
+    };
+    let contract =
+        prepared.contract_for_result(&result).expect("executed synthetic-control contract");
+    let reported = constructions(&contract, &result);
     let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let interval = if let Bayesian::Posterior = scored {
         let fit = result.posterior.as_ref()?;
@@ -406,11 +414,17 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
         };
         effect.interval?
     };
-    let (mut construction, scope, _) = reported
+    let (mut construction, scope, validation) = reported
         .into_iter()
         .find(|(construction, _, _)| construction.interval_method == POSTERIOR_QUANTILE)?;
-    construction.query = SC_QUERY.into();
-    construction.structure = "design".into();
+    assert_eq!(construction.query, SC_QUERY);
+    assert_eq!(scope.row_count, pre as u64);
+    assert_eq!(validation, NO_VALIDATION);
+    match scored {
+        Bayesian::First => construction.functional.push_str("+period=1"),
+        Bayesian::Last => construction.functional.push_str(&format!("+period={}", panel.post)),
+        Bayesian::Posterior | Bayesian::Average => {}
+    }
     Some(Published { interval: (interval[0], interval[1]), construction, scope })
 }
 
@@ -422,7 +436,8 @@ fn measure_bayesian(
     seed_base: u64,
 ) {
     measure_sc(test, POSTERIOR_QUANTILE, scored.truth(panel), Assertion::TwoSided, |rep| {
-        bayesian_replicate(panel, pre, scored, grid_seed(seed_base + rep))
+        let stream = if matches!(scored, Bayesian::Average) { 0x5041_5448_0000_0000 } else { 0 };
+        bayesian_replicate(panel, pre, scored, grid_seed((seed_base + rep) ^ stream))
     });
 }
 

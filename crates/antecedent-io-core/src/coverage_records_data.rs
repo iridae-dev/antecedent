@@ -119,10 +119,24 @@ pub struct CoverageRecord {
     pub calibration_sha: &'static str,
 }
 
+/// Empirical calibration of the intervals returned by a simulation study.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntervalCounts {
+    /// Simulations attempted, including runs which returned no interval.
+    pub attempted: u32,
+    /// Finite ordered intervals returned.
+    pub returned: u32,
+    /// Returned intervals containing the known truth.
+    pub covered: u32,
+}
+
 /// One sample-size grid point of a coverage record: the rows it measured and
 /// the coverage it measured there.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoverageGridPoint {
+    /// Conditional coverage counts for an exactly matched panel design.
+    pub interval_counts: Option<IntervalCounts>,
     /// Additional panels refused by the fitted overlap check when coverage conditions on returned intervals.
     pub overlap_refusals: Option<u64>,
     pub point: u8,
@@ -253,6 +267,7 @@ struct RawRecord {
 
 #[derive(Deserialize)]
 struct RawGrid {
+    interval_counts: Option<IntervalCounts>,
     overlap_refusals: Option<u64>,
     point: u8,
     n_min: u64,
@@ -345,6 +360,7 @@ fn leak_grid(points: Vec<RawGrid>, id: &str) -> &'static [CoverageGridPoint] {
         points
             .into_iter()
             .map(|point| CoverageGridPoint {
+                interval_counts: point.interval_counts,
                 overlap_refusals: point.overlap_refusals,
                 point: point.point,
                 n_min: point.n_min,

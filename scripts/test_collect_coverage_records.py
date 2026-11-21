@@ -1123,6 +1123,22 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         )
         self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
 
+    def test_exact_panel_provenance_keeps_attempted_returned_and_covered(self):
+        points = {i: self.point(i, 1880) for i in range(3)}
+        for point in points.values():
+            point.update(
+                query="SyntheticControl",
+                functional="synthetic_control/posterior_average+donors=20+post_periods=5",
+                bound_replicates=1993,
+                interval_counts={"attempted": 2000, "returned": 1993, "covered": 1880},
+            )
+        record = collector.merge_grid("id", points)
+        self.assertEqual(record["grid"][1]["interval_counts"], points[1]["interval_counts"])
+        self.assertTrue(all(collector.grid_fields_valid(p) for p in record["grid"]))
+        points[1]["interval_counts"]["covered"] += 1
+        with self.assertRaisesRegex(SystemExit, "returned-interval counts"):
+            collector.merge_grid("id", points)
+
     def test_conditional_coverage_retains_refusals_and_requires_every_return_bound(self):
         points = {k: {**self.point(k), "bound_replicates": 2000, "overlap_refusals": 100 + k}
                   for k in range(3)}

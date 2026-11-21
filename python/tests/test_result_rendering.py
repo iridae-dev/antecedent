@@ -391,6 +391,39 @@ def test_calibration_describe_renders_every_status(slot, expected):
     assert "None" not in info.describe()
 
 
+def test_synthetic_control_inspection_agrees_for_live_and_saved_panel_evidence():
+    functional = "synthetic_control/posterior_average+donors=40+post_periods=5"
+    slot = {
+        "status": "measured_below_nominal",
+        "nominal": 0.95,
+        "observed": 1828 / 1993,
+        "basis": {"key": {"functional": functional}, "scope": {"row_count": 40}},
+        "interval_counts": {"attempted": 2000, "returned": 1993, "covered": 1828},
+    }
+    live = {
+        "calibration_status": "measured_below_nominal",
+        "calibration_level": "0.95",
+        "calibration_observed_coverage": str(1828 / 1993),
+        "calibration_panel_functional": functional,
+        "calibration_pre_treatment_periods": "40",
+        "calibration_attempted_panels": "2000",
+        "calibration_returned_intervals": "1993",
+        "calibration_covered_intervals": "1828",
+    }
+    for contract in ({"claim": {"calibration": slot}}, live):
+        view = CalibrationInfo.from_contract(contract)
+        assert (view.donor_count, view.pre_treatment_periods, view.post_treatment_periods) == (
+            40,
+            40,
+            5,
+        )
+        assert view.level == 0.95
+        assert view.observed_coverage == 1828 / 1993
+        assert (
+            "1828/1993 returned intervals covered across 2000 simulated panels" in view.describe()
+        )
+
+
 def test_calibration_status_outside_the_four_codes_is_refused():
     for old in ("scope_not_assessed", "unavailable", "boundary"):
         with pytest.raises(ValueError, match="unknown calibration status"):
