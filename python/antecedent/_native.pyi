@@ -8105,7 +8105,7 @@ def evaluate_observational_policy(
     outcome: NDArray[np.float64] | list[float],
     treatment: NDArray[np.float64] | list[float],
     adjustment_names: list[str],
-    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    adjustment_columns: Sequence[NDArray[np.float64] | list[float]],
     declaration_json: str,
     *,
     memory_bytes: int | None = None,

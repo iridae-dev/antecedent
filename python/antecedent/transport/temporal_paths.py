@@ -358,9 +358,7 @@ class TemporalPathResult(ScientificResult):
     _native: Any = field(default=None, repr=False, compare=False)
     _handle: Any = field(default=None, repr=False, compare=False)
 
-    def export(  # type: ignore[override]
-        self, *, execution: Execution | None = None
-    ) -> bytes:
+    def export(self, *, execution: Execution | None = None) -> bytes:
         """The contrast sealed as portable bytes.
 
         The program that produced the result executes again and must reproduce it bit for

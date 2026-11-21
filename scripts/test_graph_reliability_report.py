@@ -1,11 +1,11 @@
 """The graph reliability report distinguishes failed science from incomplete execution."""
-import unittest
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from graph_reliability_report import check_report, required_report
 from collect_coverage_records import log_problems
+from graph_reliability_report import check_report, required_report
 
 
 def two_populated_bins(observed):

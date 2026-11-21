@@ -456,7 +456,7 @@ class TransportDecisionResult(ScientificResult):
         """The propagation chain the decision read; it is a bundle's live terminal."""
         return _chain(self._native.chain())
 
-    def export(  # type: ignore[override]
+    def export(
         self,
         *,
         artifact_id: str = "transport-decision",

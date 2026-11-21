@@ -70,9 +70,9 @@ def check_report(report: dict) -> list[int]:
         if edges != 30:
             raise ValueError("dataset did not report all 30 directed pairs")
     failed = []
-    for i, ((count, prediction, observed, squares), recorded) in enumerate(zip(computed, bins)):
+    for i, ((count, prediction, observed, squares), recorded) in enumerate(zip(computed, bins, strict=True)):
         for field, value in zip(("cells", "predicted_sum", "observed_sum", "cluster_residual_squares"),
-                                (count, prediction, observed, squares)):
+                                (count, prediction, observed, squares), strict=True):
             if not math.isclose(recorded[field], value, rel_tol=1e-12, abs_tol=1e-12):
                 raise ValueError(f"bin {i}: inconsistent {field}")
         if count >= 200 and abs(observed - prediction) > 3.5 * math.sqrt(squares):

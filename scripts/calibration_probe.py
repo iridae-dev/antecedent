@@ -442,9 +442,9 @@ def probe_output(text: str, expected: list[dict]) -> tuple[dict, str | None, dic
                 "identification", "nominal", "test", "dgp")
         changed = [axis for axis in axes if payload.get(axis) != record.get(axis)]
         point = next((entry for entry in record["grid"] if entry["point"] == key[1]), {})
-        for field in ("interval_counts", "overlap_refusals"):
-            if (field in point) != (field in payload):
-                changed.append(field)
+        for count_key in ("interval_counts", "overlap_refusals"):
+            if (count_key in point) != (count_key in payload):
+                changed.append(count_key)
         if changed:
             problems[key] = f"grid point {key[1]}: measurement differs in {', '.join(changed)}"
     return seen, measured, problems
