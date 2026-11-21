@@ -36764,7 +36764,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "18dc56f32cd04959e3ca79dc3bab645222a3e961e1b460088c46f33421eb3fd4"
+dependency_manifest = "4d5025ebc11075898930028ad4b96b94ce39dafd5e6d2595606845d9942dd8be"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
@@ -36820,7 +36820,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "b741443801525f4e3fa7ee4a408b6970667d529568f71e7eb58054c690395992"
+dependency_manifest = "05b7d2ab36e6f0906c0003cd8fb0b28caba75270a219eac6aa41215242b14942"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
@@ -36876,7 +36876,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "4fdbacfbf56885518a1da8d632b226b5567b25b837e2dbe5dd72c500576bb77e"
+dependency_manifest = "144553baa4351507882afe102805edbd06f9c2ba94b6ad5fbb77adcb48a1d411"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_full"
@@ -36932,7 +36932,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "b8486a57df53fa1e3b96ba1e25d04aedec2cadbc5cc5883466ba355a78064560"
+dependency_manifest = "f1f16a5d8ae1ac33d664fa42f347cbea40f5b65c4177cc21815bf98f7ff56022"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
@@ -36988,7 +36988,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "d76ab69ed51dd813ef89d92abc572327cc99f986b0536c9637cf401586f251e5"
+dependency_manifest = "85e2036de076263222ce357b07229a9f54168b447472d03affe6d3e1ac3221c7"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
@@ -37044,7 +37044,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "52dab0ff15e66cac31a7f45f5e8e0d2e2b3a811d4a1703ea3b15dd62daa4401f"
+dependency_manifest = "cda3e6d60b2bead626f3083712bb6f89579fbf129c592c66998fdcd2c041da41"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
@@ -37100,7 +37100,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "57bf148d838c85017237519d75af73769ccd5b6cd01821da846d313f845afbfd"
+dependency_manifest = "fe26d75c7c3f516a179cd474c288437904a3d01c185c60b3f9a746da94b51bd7"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
@@ -37268,7 +37268,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "902c7f4ea1b4f07abd00edce4287dd99d108af9bd6e380dd897aa6e624832659"
+dependency_manifest = "72b08b3f28e311a4e895d911f9de005719a166b9f83c561e2e3cc77bbc71032c"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
@@ -37324,7 +37324,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "2480408de1731ff8191cd942cb8976d232525fc16a7ed65728b61e3c2d22876a"
+dependency_manifest = "ccbaddc78360ab7b14ba313db415eecf8f7edb22f27f456f7617828e40850407"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
@@ -37380,7 +37380,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "1b1a945a5202fc55e7a774f6b5033a49a6e4140d7f17674fae7925d5320e8565"
+dependency_manifest = "710a28435fa3a5195b64f46f4e24bfe4aed66a2a42f3c42ef50828496a1de5cd"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_full"
@@ -37436,7 +37436,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "e217d42e6c112367bcb1d5a6c4db8695e8e4c92145d1def159917882e843c3d9"
+dependency_manifest = "165c0a83508eb7db552fb6b0ccbfb5f0853ea96aed3dac19807c11e1e3f01329"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
@@ -37492,7 +37492,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "0c97a4298d396789bd938c873ac2e9931576aa3010279c3c7666611d2ddbdb0b"
+dependency_manifest = "f4e149ff5f64029b8044e59898eb6f57e48d14ab8cf25b013b317af4723f7087"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
@@ -37548,7 +37548,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "be609215a74bfda230f78090cd5a5441ef9ad13409b11fb79456e5213ad9c7d6"
+dependency_manifest = "6b907f2ed52876ca352b07cd8f4ae2318b3e3268e25cd363c335e50696ed4895"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
@@ -37604,7 +37604,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "ba7c152ac1a1c73ff2cb91a3dbd4e2c91760d6a39494b034af7ecc6dbaa39df7"
+dependency_manifest = "fc37194fe2bcbd773a8b83c67047655af6143502bfba6d0fbaa8d734da59c90b"
 
 [[record]]
 id = "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
@@ -66462,7 +66462,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "9bf72afaf47e7b408bf5c6c1662f36ec3499bf76028b135e65adbc9de62dbff3"
+dependency_manifest = "a0d2754c3a8f6ec0f1bb3a2a589c7443247c8775b3eed1570b3d3b5eecd33a4d"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p125_0p250"
@@ -66518,7 +66518,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "497ec3b1c6e2c211b7036aee62c982a1413601cc40a594ba1b10be35b226b615"
+dependency_manifest = "ed2679ad7dcd75998c7373cd18197dc541c8c44ae3b533e778a97cfea6716bc2"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p250_0p375"
@@ -66574,7 +66574,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "5b88dea903d35430158e94191df08f048204360740bc43c56565ab5dfce96e55"
+dependency_manifest = "5392541a82974dc72ebcc46d89e632ca784ad072b1ce1ca8454a105aea08a59c"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p375_0p500"
@@ -66630,7 +66630,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "5ebb30ff161f31d1ecc4abdd4a257918dfa1f392140c4318314cd2918e94c6cc"
+dependency_manifest = "e098cb2f46bf76cc422ad060c4d112ee643e9ed930b79331879e45b9ebe3f717"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p000_0p125"
@@ -66686,7 +66686,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "907f2f1e8a2d9bf21c3b1cd7caa5b222c26e39f1b51856a5a9495da81218e642"
+dependency_manifest = "3751522dbd290fbf8b0ebb0d9a675653e61f2a28f22581bc7aeb993c036c89e1"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p125_0p250"
@@ -66742,7 +66742,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "de38fea267c900a36f40b7000d09ba6cfae182902299aae29c0e1c49fc6bc782"
+dependency_manifest = "6139f37ead6eb3c665c325983cfa2bc2824181a5d21fad0a47e872eb088c9e03"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p250_0p375"
@@ -66798,7 +66798,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "c7546d5b86b60947f9766236915d5a55cab83e2494a27ae49da8a2c93f1e879a"
+dependency_manifest = "d9d28daba67a5780e5dcabb923445bafd70f759530a39b396f55c48001e35dde"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p375_0p500"
@@ -66854,7 +66854,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "af942544d5c09632f9ae14438c69dda11b0faeaac8bd6e15890aea074f81c6ff"
+dependency_manifest = "d94a08f28cf8165cf8e48bb27e7296e4923e45a8b5225eea83eb8015a018c1de"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p000_0p125"
@@ -66910,7 +66910,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "687d3501a9fd2d8316eb6efb2e21508d7a49086ab593a899a00c2fe01f7a7261"
+dependency_manifest = "481e3f156da0751a45945fe244fa78eebdba4e994133bbe762ac306d1f94efe7"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p125_0p250"
@@ -66966,7 +66966,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "9cd4b8bf8f87c3ba3cbd261de0f90c0532d00a44103419c9ed91ddeddcf978cb"
+dependency_manifest = "6d65d2af412bffe46e3a1efb8460170df96b243b3996f7721e3790b071ed1048"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p250_0p375"
@@ -67022,7 +67022,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "ccee7beb15013b4d601f3418e450b4274ea94755533d3affe4f7e8cba3378657"
+dependency_manifest = "574f69438afa77ae8e8ac1fd4d89bec32b682ef827b9ea57ea2b29fb64144453"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p375_0p500"
@@ -67078,7 +67078,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "9957dbff32a7bf01f8a5b3e1d530257ce650d082781eaccc7aa423828b255425"
+dependency_manifest = "18a229784c846b53bb085613a47a422ac21a4ee9483ea5f0bb83ebc1d36f8c99"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p000_0p125"
@@ -67134,7 +67134,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "6c173aff4714096cb9b69875d84c01fb8c9b3ecbd7207a81a193dbec5ff28e9f"
+dependency_manifest = "e8bae359f3a47b1b1a9c7f401186afa2cba095e1468937bfdc012c52b58a075f"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p125_0p250"
@@ -67190,7 +67190,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "208ac64e173e74f536ce730d14b2bb6d6a58eabcdb5d158e7bf02122c39c2809"
+dependency_manifest = "c003fec0f337db8c21fb64cf784f33fdceb49922f070a9e2c5f88c8cf24b9c5e"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p250_0p375"
@@ -67246,7 +67246,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "f8d7beb9eb2905ce9573d42342d3b7ec3ada57163ac4de81ffd5473f845c786c"
+dependency_manifest = "20e07002dadc0d63a9d84d19fecc72ef74279b2b5117d12d80bfa15832ccd2d6"
 
 [[record]]
 id = "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p375_0p500"
@@ -67302,7 +67302,7 @@ dgp = "crates/antecedent/tests/mnar_interval_calibration.rs::independent_arms_de
 test = "crates/antecedent/tests/mnar_interval_calibration.rs::mnar_compiled_shift_delta_io_interval"
 calibration_sha = "f8ace1a6396250cc0f335a0b366e95ef926b5a80"
 fingerprint = "30dd2251b0973e27515a0d23c2190885da5b5a71f252c18825554b59ac785f36"
-dependency_manifest = "753bcc1a5ae107bd7bd3128ae862cdcc9269669f384285a50a409f18f1a887ee"
+dependency_manifest = "4c2d03d774069454730fac5326b183a8d9be203a59ddd2012753a5d57eb6785b"
 
 [[record]]
 id = "cov.average_effect.pag.bayesian.posterior_quantile.l90.average_effect_pag_bayesian_default_nominal_coverage.v2_validation_none"
@@ -75637,7 +75637,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "16592b20ea28869247a5fec36e2205fd2e0fb14de551416b5ac0ba0cdcfcfae0"
+dependency_manifest = "3e36ed323ca2ce235e507ba337ded9c5b108aafdef0f83c4a6184edecfcc7900"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
@@ -75693,7 +75693,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "c80f524dd01e7d6589fd21869e441e57418544da4fe9dcda46a380b47de33c40"
+dependency_manifest = "6261d478526ddeb26cf2f4e3a67ee4a11be8a7d77598f99afb7de805e820c8ca"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
@@ -75749,7 +75749,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "478b64cb998cd9c85eab949233102a4c498686f31a44f788420bde5996c7bda4"
+dependency_manifest = "9d3a634320fb2ca55850c0e84f6139975d0226fea554b3a3c95537545d7d722c"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full"
@@ -75805,7 +75805,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "1ffe245de54fea8f1973268de63ba13d140ef31f4895b348f38c89fd1cec6223"
+dependency_manifest = "aee3f85ff3532f2b98408a58e770dfb4ca5dad7371e9f4af7333d16cd9bd6583"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
@@ -75861,7 +75861,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "14018344360a656875ecd905f7627a20197c0f820f92c14ecdf2741e273cb927"
+dependency_manifest = "bb3a9a79c593971069546ced6d0e68a2d7b54f2907a6485e1c9f265ca0c018f5"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
@@ -75917,7 +75917,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "ead80435296c4752871079273bde2ee6b2afcb5088ac39e0892228b38851e6d3"
+dependency_manifest = "b7569e9d2ca3cfd89242eeafa146f52cc616b54ff87e8acbb76a9484897cb649"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none"
@@ -75973,7 +75973,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "7bf3dee1b3794ec82fcd7528feeda252be5f7fcd2daaddc8b5b27040d8bec330"
+dependency_manifest = "7b88e2d4bd6e3289117e65223e80e49e794c7e14da0423e5eefd4c65765e0277"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
@@ -76029,7 +76029,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "cdb3b2c98fb6f08b00cde4c637b7308829202498b36d4ddbd2f41b292c0c0e37"
+dependency_manifest = "b294d7d0d2d337d78385381667a15dbb925255fd3e2ac7ef73e4d4d9459d776c"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l90.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior"
@@ -76085,7 +76085,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "401e5ff5a0efd1ad9fd96e77a0185142aaa70b21be6ec99ecf7c908014ad7101"
+dependency_manifest = "7531b19f22b76bbdc13c9f9dfb7f962450cc5a8a7cd505ac62c4f2a9efecffe8"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_cheap"
@@ -76141,7 +76141,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "712e6c1fef413be6acb5f12c115124abf8098ef4d97dd4eb48b54019bbae4e1b"
+dependency_manifest = "a0524a2c42fa10bc31db80d042b8857daa11f2a1e704394f8e5a5b87a5658ff2"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
@@ -76197,7 +76197,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "8af43f3240223a902f65593798098c812158a509c11cb81e1338cd7e3dcd8404"
+dependency_manifest = "a92ba46dc96a432f9cdc2bb8d1ee9aca3695628566fbaf6e16483f4828178e1b"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
@@ -76253,7 +76253,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "b32cf5c1bea13578f53f92be002ad6929bb137ad630566b6fbd9b21077d70651"
+dependency_manifest = "be69e9ad0f1b07151389b338c7bb829c05d55b077a31a32117a1c9a132bc3bd8"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full"
@@ -76309,7 +76309,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "d422a0f95f404568f8e48c1be5083e27220d1166d6c4c35bc9d1aa57a9e9e8bd"
+dependency_manifest = "dd38ead8356fa194e78ccfab9731de6a9ae4b26195d03829cc1ede6fb9059091"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
@@ -76365,7 +76365,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "85be3ced8c9ef8fc61a0ea4e9758ef202cd14c15ceeec378e4235f1abcc05f89"
+dependency_manifest = "a086e4c4ba8801f61aceda358d3ec439f5d8c3ea9b0c5ae2ac25318496e7772a"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
@@ -76421,7 +76421,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "3700e183650331f40f6dbe9471af97e6281e276789fa307fcfa8a2d8259127b8"
+dependency_manifest = "cc2574e08db37f248b83bbdfad9a8858e471ca49efb386634d34d7cbe562e81f"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none"
@@ -76477,7 +76477,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "4780a623739d1533521362a032ef68f15ca79bd5ae7a8873e475d131b6f2c21c"
+dependency_manifest = "20b6f32f379b6c43e3473f025ebca51a2476debd4e6720ff35852b4a0ef07ba0"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
@@ -76533,7 +76533,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "cb0cb031f6c9bee5ceb7e6d68175217a0f28a73ff36f7b58bdb440102774a4bb"
+dependency_manifest = "7dcfde0e65cfddfd34e4cbb4970bd9e628387eb94a9acd820400e204189bfe4f"
 
 [[record]]
 id = "cov.average_effect.temporal_admg.frequentist.circular_block_se.l95.average_effect_temporal_admg_given_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior"
@@ -76589,7 +76589,7 @@ dgp = "crates/antecedent/tests/grid_functional_effect_calibration.rs::admg_front
 test = "crates/antecedent/tests/grid_functional_effect_calibration.rs::average_effect_temporal_admg_given_frequentist_coverage"
 calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
 fingerprint = "4313af9f765695ac10782945bbdaf7704d3bd5f16f335155db86e2fd784e401d"
-dependency_manifest = "30d218c18cdcf6a5f50f48d85bc5e11768c9e2f2569301ac2ae14796928229bc"
+dependency_manifest = "7fe6ea31d91dba3ed9cb708f1d1888c2a033e7b94e9c6f0fb4641f720eea22d9"
 
 [[record]]
 id = "cov.average_effect.temporal_cpdag.bayesian.posterior_quantile.l90.average_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap"
