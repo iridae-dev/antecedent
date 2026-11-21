@@ -472350,7 +472350,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_three_
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_categorical_step_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "241eba75fc55be9c86e70a46bffabf226c9d4d1d35f058688341ea8b5d0c312b"
+dependency_manifest = "a3fb8b557c0f310798bc658692a86705ac1fb49c3ea364599ee0a44be1b08d85"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_categorical_step_lag_three_interval.v2_validation_not_applicable"
@@ -472518,7 +472518,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_continuous_dose_contrast_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "52b19d9b2c278490d82882f87045629e2f5de01d00ce64dd6a12ba0b36d8efb7"
+dependency_manifest = "a0aac191ca9086b69811591d2461f3e09d315148b7462f0d7e218839c73b57d6"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_continuous_dose_contrast_lag_three_interval.v2_validation_not_applicable"
@@ -472686,7 +472686,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_dose_grid_local_quadratic_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "b5c032a5892c92833eeddf965dbede466d545a9e39662c216e35e5ed4b85f336"
+dependency_manifest = "281af14477d4271195931c8a65ab61fdf0de5cf1a908ab319c80db472a500576"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval.v2_validation_not_applicable"
@@ -472910,7 +472910,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_fa
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_factorial_main_effect_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "d0cdd4d6614d9f309d0ebcb0ffd3f094ccd5546c7dbf2fd9f3e79ae7c485c605"
+dependency_manifest = "58993583af8b361876f9e1f713c35a8956fe275a1c541d3f6bfa21d41e4965ef"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_factorial_main_effect_lag_three_interval.v2_validation_not_applicable"
@@ -473134,7 +473134,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_paired
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_interference_direct_effect_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "81efcd2aedbee58d5dcc641ca077cbfe149fe5cfa1da9c13b9767890ad20190b"
+dependency_manifest = "7654b7729b4c78e6102480551c579888e2a40d31e4b12793bfea535712bfa2f2"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_interference_direct_effect_lag_three_interval.v2_validation_not_applicable"
@@ -473358,7 +473358,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_three_
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_multi_arm_contrast_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "fad21d3012d2ffd3f084dd2b88b55646e5acdb3da808450ec0d9d7b56970a213"
+dependency_manifest = "e1e9ed18c30f902527643bf92fe39fc0fe69cf4399a9fd7dd5a313f30926f23e"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_multi_arm_contrast_lag_three_interval.v2_validation_not_applicable"
@@ -473582,7 +473582,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_ar
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_quantile_effect_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "6d53b7b1467ebb095f8eedd63bb6f8ec930c7e3befe89d3fed40ef0546e2b005"
+dependency_manifest = "88f4548ea962f2789a493d044488fc28f43f5959748e793ba641b6549a557c97"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_quantile_effect_lag_three_interval.v2_validation_not_applicable"
@@ -473806,7 +473806,7 @@ dgp = "crates/antecedent/tests/temporal_design_range_calibration.rs::time_varyin
 test = "crates/antecedent/tests/temporal_design_range_calibration.rs::bayesian_temporal_design_regime_survival_horizon_one_interval"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "ffc691aa704010bd6a472f849ffdd1033b1b0c95d8a9891996a45420d32a9500"
-dependency_manifest = "c8c3651057d3a02f3367c49562f6bd1ab0d457410235e28ec1e9b4e7389aca00"
+dependency_manifest = "8f7326547ab3d14967c48cbd90e2820f6d9f780243f5c38cf60636bb6624c02f"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_regime_survival_horizon_two_interval.v2_validation_not_applicable"
@@ -473862,7 +473862,7 @@ dgp = "crates/antecedent/tests/temporal_design_range_calibration.rs::time_varyin
 test = "crates/antecedent/tests/temporal_design_range_calibration.rs::bayesian_temporal_design_regime_survival_horizon_two_interval"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "ffc691aa704010bd6a472f849ffdd1033b1b0c95d8a9891996a45420d32a9500"
-dependency_manifest = "735e8fd70fa2e847d75df00172e640fc9da28a182b05d94ea3f93a0fc91ca9ac"
+dependency_manifest = "e5d8d2b1a0397cfed8d58ebf75545b61e58cd202e6528397a87b87935b6c81c4"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_regime_survival_interval.v2_validation_not_applicable"
@@ -473918,7 +473918,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::time_varying_conf
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_regime_survival_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "8c66ce06590e415b45a07db078edabeda89ed78105a835b45d25b77428c67c99"
+dependency_manifest = "9eaad7b243418ca1c5363d8cbde62079fdd37c51a57e0402d89238271f543f55"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_regime_survival_low_overlap_interval.v2_validation_not_applicable"
@@ -474030,7 +474030,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_smoothed_dose_curve_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "6ee975ac3911eb9dfa019d622b3fadda8e8f54ff13c46b618d670674badd0174"
+dependency_manifest = "bd14c00ae2312d994706d65187d3b9bee62160ae1fedc16b9fad5df502275254"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_smoothed_dose_curve_lag_three_interval.v2_validation_not_applicable"
@@ -474254,7 +474254,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_ar
 test = "crates/antecedent/tests/temporal_design_calibration.rs::bayesian_temporal_design_two_arm_excursion_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "bb99183bf7006339069e31f5e5114759fbac5136b9e76dcfa5b01cf7fbbbbcbf"
-dependency_manifest = "8f7cdff0429084fa044ec8c3c6cf0d88cf8f35d3af513473038a2a5b561ecdbf"
+dependency_manifest = "3f4498d2bb1633c6aaa20955729eeb59093d9fde30f76030548c2f3dda416099"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_two_arm_excursion_lag_three_interval.v2_validation_not_applicable"
@@ -474422,7 +474422,7 @@ dgp = "crates/antecedent/tests/measurement_composition_calibration.rs::randomize
 test = "crates/antecedent/tests/measurement_composition_calibration.rs::temporal_misclassification_bayesian_contrast_l95"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "343175ea232b3608c3574d25c5d591daf50df83f6ff6b7c2d2a9ae8c735fc145"
-dependency_manifest = "fca50786dc92a33d7f31c87ab313b9168c6561210ae2aee9345e63c11901c651"
+dependency_manifest = "ad4f680c08bde7b201a8f62a48e40bff11cef7b1431630ad7e75eee72d335271"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.bayesian.temporal_design_posterior_quantile.l95.temporal_misclassification_bayesian_control_mean_l95.v2_validation_not_applicable"
@@ -474478,7 +474478,7 @@ dgp = "crates/antecedent/tests/measurement_composition_calibration.rs::randomize
 test = "crates/antecedent/tests/measurement_composition_calibration.rs::temporal_misclassification_bayesian_control_mean_l95"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "343175ea232b3608c3574d25c5d591daf50df83f6ff6b7c2d2a9ae8c735fc145"
-dependency_manifest = "3f36e968c79b2514315bda9a874b5b55b88d2b3f86e49c013569d3b037d09846"
+dependency_manifest = "e14dc89faeefedd0a3736ccf564312a0aa73d8fa16c244d4c62e42d5ddbf4610"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_other_coordinate_intervals.v2_validation_not_applicable.contrast_high_low"
@@ -474534,7 +474534,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "7730a6e842afc27909aa0bf6350b20f44b89a90c3ac2fdf6f0e60b4951695525"
+dependency_manifest = "403084ce1a3e432d4cc586e832d46367f64c3629bbb9027fe2ccb5f9c6b961eb"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_other_coordinate_intervals.v2_validation_not_applicable.contrast_mid_low"
@@ -474590,7 +474590,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "71cf044a8d406f1471a5a962c764d2bffd6001b5f7b7e61aa9ba35f34ea486a6"
+dependency_manifest = "6ceb13252fcf721e84c114a6fa3bebd7a31bef40f9de86f47dc5e44f410863d0"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_other_coordinate_intervals.v2_validation_not_applicable.mean_high"
@@ -474646,7 +474646,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "8f18fffaebe221366fa95ab6a0f15ab2a2026541025f28e1b6f0e89b8cbae27c"
+dependency_manifest = "4eb78dc0da234b2051edb092903017e6da59901b6296da776b8e805bb6f670a3"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_other_coordinate_intervals.v2_validation_not_applicable.mean_low"
@@ -474702,7 +474702,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "27e7e9a060249262c56cc537b3021e90568ae38d8adbfae01333852578d48f34"
+dependency_manifest = "627a84f7bed584bff980e57986d1588a26da127ab74571b8a5c0115384d310f3"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_other_coordinate_intervals.v2_validation_not_applicable.mean_mid"
@@ -474758,7 +474758,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "c563a76a0033ab2f10b1d5be067c97149d09308e347c955a3043ecf05fa30bf5"
+dependency_manifest = "b654e74c3cfed6a49740f0e976185b8a7193f50cdf649de63057e0f4511896f8"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_step_floor_probability_interval.v2_validation_not_applicable"
@@ -474870,7 +474870,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_three_
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_categorical_step_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "efb99d7f445e01bb480cc3698e1ad9d425df2336037fa710623f69702983c791"
+dependency_manifest = "0db1c28703b84f51d4f38dcfc337981c115a7c4e87456827a061a8d69b268e27"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_categorical_step_lag_three_interval.v2_validation_not_applicable"
@@ -475038,7 +475038,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_continuous_dose_contrast_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "f1445cb7095eab442300f3b480e9881d3bbb17174403cd11e37126104ca73657"
+dependency_manifest = "e08368fb1a7bd1a2513b4265d7201a8abd8fe428e661f29d6a33b4b19a31b7fc"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_continuous_dose_contrast_lag_three_interval.v2_validation_not_applicable"
@@ -475206,7 +475206,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_continuous_dose_response_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "68fda19fe5adde84d80ee8409e104db2454effc08b7c0377c37b42765bda62f4"
+dependency_manifest = "b8d076c1d6f34d9ca854701d05241e7d8f65ec67ead67aa4c0d97ab93d57a680"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_continuous_dose_response_intervals.v2_validation_not_applicable.smoothed_response_1_2"
@@ -475262,7 +475262,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_continuous_dose_response_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "233b95b83b8b969ae3d57e055576dea7c3a3cd1cd225c0d9eb39086c5d669edb"
+dependency_manifest = "445b26b4a7648b18b9f06b2ef869b530ca384c2e7b6b990138d548606ea7e6d6"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_derivative_intervals.v2_validation_not_applicable.derivative_0_5"
@@ -475319,7 +475319,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "bf1eed3c7a97ae28fabffe2179cf72320ec303fa31e1c2c96a1ad68708f4e198"
+dependency_manifest = "ff25ec23264bcd79493434164642bf98bb8e58a49d9221684c96d2b49573295c"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_derivative_intervals.v2_validation_not_applicable.derivative_1"
@@ -475376,7 +475376,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "4e9f4268c57797929f332210d93ff900e9fa49f1ea4178e1f451263b2f2e75e4"
+dependency_manifest = "3b88a29bf67436ae77e19b6a772d7852153cf857e4b3e397274183a9fa23bf5a"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_derivative_intervals.v2_validation_not_applicable.derivative_1_5"
@@ -475433,7 +475433,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "ae6d6e87e93a25837ddfe218e9f7c47ac543c1b9a28519bf25a199202fd27ffe"
+dependency_manifest = "a61b6ae5169333d812e1176fccb51fa05e9d251286800c4e19e93872e1c2ab44"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_level_intervals.v2_validation_not_applicable.level_0_5"
@@ -475490,7 +475490,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "7e7acad4a10526d86ff126c218691e782ba2c1f002e92f5d571a38dd9c96bb7f"
+dependency_manifest = "995a5ec17d31c31f9a24429a2aed5f8321819cc7627797561b51c024c09a2675"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_level_intervals.v2_validation_not_applicable.level_1"
@@ -475547,7 +475547,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "5a80dc1bf159fb807610e0d81dd7add31e0bc84611b5dcb8dfc9c3e8f4446131"
+dependency_manifest = "614133c7981dd4480c0de877607818e4931fdcd86952485d5e40dde567e65bb0"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_bias_aware_level_intervals.v2_validation_not_applicable.level_1_5"
@@ -475604,7 +475604,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "7754ec2fbf42cfe238bdf173f753dba230fefc6dc4c6d51ccfab9e552da99550"
+dependency_manifest = "b8972a809820fdc145d42f3aff24a98d2b00a561019bde3b85428c55e513a3a5"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_derivative_intervals.v2_validation_not_applicable.derivative_0_5"
@@ -475660,7 +475660,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "3241a9613f75fcf185f53f21b6e7f93bddf14fb7e8a9153fafaa7329f566f2d0"
+dependency_manifest = "ec3c25ad1f5644cdc5e628ff6a2883a578e6edc39b267f735004571a8f85343f"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_derivative_intervals.v2_validation_not_applicable.derivative_1"
@@ -475716,7 +475716,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "661851c37bdcedcc354e598b6210696917965f7a9bd5e596807c8074ea7a0205"
+dependency_manifest = "1e7fd5ecf5919dd40b67cfc98716869c5ba1dd03f6154200309586e539e0a063"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_derivative_intervals.v2_validation_not_applicable.derivative_1_5"
@@ -475772,7 +475772,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "6810005f8be68c87f7eb93b459ed4fbcc4ba57088e40dd281f238d7c56d06de6"
+dependency_manifest = "0e358f6f17a0946a94f2df98100fe3c93a45846e8dcefa12109e35bd5084171b"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_local_quadratic_interval.v2_validation_not_applicable"
@@ -475828,7 +475828,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_dose_grid_local_quadratic_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "c0571ee3ebce791b47284bec87058276869652085c45e5a8990ef6f62886bbe6"
+dependency_manifest = "00b5939dc435cb92845395ef27f25ef6b05dd5b83900b43c40405ecbeb409972"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_local_quadratic_lag_three_interval.v2_validation_not_applicable"
@@ -475996,7 +475996,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_other_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "e0690c4c9b012a35853b9d4ac67944a6027317d5c38bbfceb71d3ff5505c2c47"
+dependency_manifest = "1543d1a133924760bf1d768cb2213a97df98084a9412b56adb28d125fb1b93fc"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_dose_grid_other_level_intervals.v2_validation_not_applicable.level_1_5"
@@ -476052,7 +476052,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_other_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "72ddf62f18742591594d520a11ec2ab2093095b79873edd4cb898b595abd4d7a"
+dependency_manifest = "3b37136b6421b5c7d4668d720db0515c2adfc997f8ee76cd77158503b9a47307"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_main_effect_floor_probability_interval.v2_validation_not_applicable"
@@ -476164,7 +476164,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_fa
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_factorial_main_effect_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "8a1fd0f84488de227eae9151eb87153151f5fbce30b5954f269c538b3539299d"
+dependency_manifest = "7af9725f557d092ab1d277819e5989d27f2d2205199872107c035d16e1d09da6"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_main_effect_lag_three_interval.v2_validation_not_applicable"
@@ -476332,7 +476332,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "72b00c7e7749f495e78b526ef5f211198cfaf6203ddaedc916df2323d291e7c4"
+dependency_manifest = "c66fd35ffa7a38bbbed93714a6129f398e88eda9fbfca19688470bb2fce5fe5c"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_other_coordinate_intervals.v2_validation_not_applicable.main_effect_second"
@@ -476388,7 +476388,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "9d934d961d3b28a38dd0d60de8c99a50db43c33712d411ccb67b74e9be39ddd0"
+dependency_manifest = "a0f41cbae0e2e8f5bf4ecead3c064e8e3ef38c4ab82140fb839ea7b99ceb7671"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_other_coordinate_intervals.v2_validation_not_applicable.mean_cell_00"
@@ -476444,7 +476444,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "a6c2cd5b2b6c9043ca2bdede256759f1b1c2ddb55708516d4de623870c7e8c15"
+dependency_manifest = "961fcbe593bcf8d17f4e466c78e3ddb16a6c929e2e304b2a0fc88b01ad9e840a"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_other_coordinate_intervals.v2_validation_not_applicable.mean_cell_01"
@@ -476500,7 +476500,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "1eb87e4bfc1868d15e5acb04fa2d16ed5f8438089a2aabc12f9133b9f23dc6c1"
+dependency_manifest = "0acba7d558486d5b4776b1cbe1869b9fb654635d3793dd69ba8be5ffd1c42bd6"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_other_coordinate_intervals.v2_validation_not_applicable.mean_cell_10"
@@ -476556,7 +476556,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "92693b235a0b875271b0d0603500e2789409f91a1e3a5f71f64f9aec4dd0928d"
+dependency_manifest = "88105fc50a88598b75c87c088aaacad7694de7ab2b9c7921166c4c91a8c044d4"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_factorial_other_coordinate_intervals.v2_validation_not_applicable.mean_cell_11"
@@ -476612,7 +476612,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "70161e208f189f3b7340f5278477c62be0ffa1f31861ace9e2118cf6282e8aaf"
+dependency_manifest = "7f0aa553a372d6acee4864cc41fc5012718daaa092fdd4ba35aa8bd9c281e922"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_direct_effect_floor_probability_interval.v2_validation_not_applicable"
@@ -476724,7 +476724,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_paired
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_interference_direct_effect_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "b594b68b327e8ec47736188371b8986a4ab6b3a68b3a9b50181b19aa0916ebbf"
+dependency_manifest = "b9186e0d9657598e35f0a9954a026b7195b9fb9a23fd3d4bc246af709fd8b793"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_direct_effect_lag_three_interval.v2_validation_not_applicable"
@@ -476892,7 +476892,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "67a787cf7cabc65d33c18cfe66f90ae49391402ecc4584a559f8b9f7617d03cd"
+dependency_manifest = "5e0034d92a8ab32f899147db4c7a41c20a23dadd105407beb395b442ca0a3dd0"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_other_coordinate_intervals.v2_validation_not_applicable.mean_own0_peers1"
@@ -476948,7 +476948,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "97c0cb567a936f2e164ff31cd242b32147003614a7384df644e34e75627056e9"
+dependency_manifest = "1204ec53497aa5aed60095d1c1d7cbb93b989ee210556a4dce4aa9a6b3e785a3"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_other_coordinate_intervals.v2_validation_not_applicable.mean_own1_peers0"
@@ -477004,7 +477004,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "c3acd5657addc72e5ed28d53a7a45f44a74cf3435a2a05a3d61d4e2890798f69"
+dependency_manifest = "51ff326d60ad84eac9fdcdc2be290ad5f16699cefd06745f99197f03577cf2dd"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_other_coordinate_intervals.v2_validation_not_applicable.mean_own1_peers1"
@@ -477060,7 +477060,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "5e62bc30a4cf5ff2de1dcaccb4d38fbd4083fc2c553ddc727036d367ffc1400d"
+dependency_manifest = "55e122904040f427ac6185755d38a27659a97dd7db1050beddeef07510d0c2bf"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_other_coordinate_intervals.v2_validation_not_applicable.spillover_effect"
@@ -477116,7 +477116,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "e1a2869e43c4a8ab111cb3097fc04cba0ba48e77e84f83bb1eab1313572309f3"
+dependency_manifest = "c994ca7f3f2afa1afa81b25771d24c496e3ff25c15de0ccead9af34a27d525c0"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_interference_other_coordinate_intervals.v2_validation_not_applicable.total_effect"
@@ -477172,7 +477172,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "43db7a1dcbca2fd25587e74c240ab88d3f7fc150c5768edb6900b91701c39fbd"
+dependency_manifest = "1cbbaa92d8537359691d5c320d647399d16ba37622fdd13c35e092fd234a486a"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_multi_arm_contrast_floor_probability_interval.v2_validation_not_applicable"
@@ -477284,7 +477284,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_three_
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_multi_arm_contrast_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "5c7a6d6cf037d56e42508408f80420d80b5dc495462993c10e7fbd0ee423a8c1"
+dependency_manifest = "6a34fa2bc1ca7695a1c00493d92351ccb2380d16c7f2441b9108ae4418e7f403"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_multi_arm_contrast_lag_three_interval.v2_validation_not_applicable"
@@ -477452,7 +477452,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "d0dddf130e719bec59e3132ef2a7a35bc3b56b2d7e2771f01bfc75fff4d16a1e"
+dependency_manifest = "54d6fe80612c5d0381132f3e9ecba940283ffd66fe525e7e41ea871cec83548e"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_multi_arm_other_coordinate_intervals.v2_validation_not_applicable.mean_high"
@@ -477508,7 +477508,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "1d6045b8f2211b06b79c630aa21a945ec800625f954425172cf2cea0c84bb0b6"
+dependency_manifest = "8da8144556ce8a8df45204897ea7959e2e201f21ba32951efbad66380a1380e7"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_multi_arm_other_coordinate_intervals.v2_validation_not_applicable.mean_low"
@@ -477564,7 +477564,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "37c5f03213856d5572b4700c356c2a92848a56b6f5d0558387ea55e8dbd0a0fc"
+dependency_manifest = "04be1ae48f7c03eb1099004c8f0bddd0491ff269485ba511348725aeae44e448"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_multi_arm_other_coordinate_intervals.v2_validation_not_applicable.mean_mid"
@@ -477620,7 +477620,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_other_coordinate_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "09e03bdef1932dfec7b35e453fe89ce71b08617c62cbd0230e3a87f95944031c"
+dependency_manifest = "8c7480a87d481f765bfe5099f25c43a1059174eecc72d3bddd09597c908ff868"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_smoothed_dose_curve_interval.v2_validation_not_applicable"
@@ -477676,7 +477676,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::uniform_dose_quad
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_smoothed_dose_curve_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "ae7720963f040072a23ff4b967c7fe60bf96018a39165f3fdaad196cff3036ea"
+dependency_manifest = "88050d8b20d14505d280019fef486e67597b900a0e3b4b3f2f5bba1a8f722b58"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_smoothed_dose_curve_lag_three_interval.v2_validation_not_applicable"
@@ -477844,7 +477844,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_smoothed_dose_other_grid_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "d1eebccd6273b4594156f273ee548f3d7d7c08dd8a23acbb7a364d95ea5f0d64"
+dependency_manifest = "a450d4184c2b334254d0b47df2d26b309b71f8f0eb7bebbeed75b63ae660cec0"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_smoothed_dose_other_grid_intervals.v2_validation_not_applicable.smoothed_response_1_5"
@@ -477900,7 +477900,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_smoothed_dose_other_grid_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "6aa40388f82df1f6d86f440af2be66648553bffb1b87c7e33f79115aa7a40440"
+dependency_manifest = "02092010bd08a9f33617bd0e7e3f3d9fa519520d10aa4476fb576c73c6937ec5"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_two_arm_arm_mean_intervals.v2_validation_not_applicable.control_mean"
@@ -477956,7 +477956,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_two_arm_arm_mean_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "63c9d7f41002f0d8c92a17f009616fc28f48cd236e6e63e6cfc3013bdefa6bc4"
+dependency_manifest = "599a752937dc0dd0f0d08e4c7270c684b8d668191ac529c7b15d20f7bd9cda1a"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_two_arm_arm_mean_intervals.v2_validation_not_applicable.treated_mean"
@@ -478012,7 +478012,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_two_arm_arm_mean_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "a824d20e558dbdd0887b1631223326bb14181d2df853cebd360ffcab612a5b91"
+dependency_manifest = "8d962fe3224fe84f186b282ee09d2927f05a5bc8bc9583c1833c3a5501d15ccf"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_two_arm_excursion_floor_probability_interval.v2_validation_not_applicable"
@@ -478124,7 +478124,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_ar
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_two_arm_excursion_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "bb99183bf7006339069e31f5e5114759fbac5136b9e76dcfa5b01cf7fbbbbcbf"
-dependency_manifest = "efacd68ef1c2d917d849b0743800a4897ec7d944e233af83c4e3314a722121f9"
+dependency_manifest = "5ab8c701124ff0a61df13f041b64927adcf2b2f3821fe8e3b388a7c7cd6af6d8"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_two_arm_excursion_lag_three_interval.v2_validation_not_applicable"
@@ -478293,7 +478293,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_holm_family_error"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "b0d0309888f5198603765b2cdd3c3afdc841cf0325494bf30a9afa70454bc401"
+dependency_manifest = "360fc864623debc198c7156d7d08dbbbd03b29bb4b45a011f416d83e0f0eb97e"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.holm_adjusted_p.l95.temporal_design_factorial_holm_family_error.v2_validation_not_applicable"
@@ -478350,7 +478350,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_holm_family_error"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "939a842cfa8536d7b2b094fd464b6c788b872c5f6207756d1d64fecd593d1d6d"
+dependency_manifest = "ed9bddfae4703f6ab5fcfca71202cf089258b8f50b7f180fde4357fb38883600"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.holm_adjusted_p.l95.temporal_design_interference_holm_family_error.v2_validation_not_applicable"
@@ -478407,7 +478407,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_holm_family_error"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "7cf5f73d9de5d18f14d5bfa7f04b2601525b87a0826867076ef790721decac45"
+dependency_manifest = "7b3d4a7343dddc232f80993ce3dbd1ae38d381d1ad1641675b4c0da9b3355fac"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.holm_adjusted_p.l95.temporal_design_multi_arm_holm_family_error.v2_validation_not_applicable"
@@ -478464,7 +478464,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_holm_family_error"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "bab1dbb0d4a4f3b9b881858e4acaeec3a96767338fdb630ef793a949e8ce311f"
+dependency_manifest = "af34d415f37cfe5a4e974121980e3215267898ca9e9521aa65e502d50d9decdf"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_lower_quartile_effect_bootstrap_intervals.v2_validation_not_applicable.control_quantile"
@@ -478520,7 +478520,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_lower_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "3c245281086437558e82d2c152f713d06ad4ecf73d00a2bf12ade491662fe679"
+dependency_manifest = "6b092026a48b2611c920d2f74d0dfba31f7deae6f207690d9bde86484d6496af"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_lower_quartile_effect_bootstrap_intervals.v2_validation_not_applicable.quantile_effect"
@@ -478576,7 +478576,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_lower_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "5921975bd1e6bd015080d00c116a25c3264fde7004386c67a38eea81a3b29ceb"
+dependency_manifest = "222e6a50b02bb808a8d47285a960249251aa9fe56df7eba1180cdd30b16fad65"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_lower_quartile_effect_bootstrap_intervals.v2_validation_not_applicable.treated_quantile"
@@ -478632,7 +478632,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_lower_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "9f714a03f6dedc4956f76be5994c924a28b30862b6ecdb8866005ebffdb5ea24"
+dependency_manifest = "20e496165de4f3529bbdbb24a20c3658f27711c4b3dd87c434639375c1770927"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.control_quantile"
@@ -478688,7 +478688,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_quantile_arm_median_bootstrap_intervals"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "bd3b01a568ed65f37f34661830b2deab1f3f703a42fb02157f0743dbfa2c7ba0"
-dependency_manifest = "d247bc80c2c096835f6be55e273ae139f9abf4adaf8b4b39e8eb4398ca2f5aa3"
+dependency_manifest = "c5b0b5ec6033c548fa68a9352231756699ef783174f02fa682f1fbd92eb81af4"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.treated_quantile"
@@ -478744,7 +478744,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_quantile_arm_median_bootstrap_intervals"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "bd3b01a568ed65f37f34661830b2deab1f3f703a42fb02157f0743dbfa2c7ba0"
-dependency_manifest = "8c89df95d0639b704268d7870568be13e4097b8f358666bfe97edfe218dec95b"
+dependency_manifest = "ebdf2610e6c31907b1e1547ca358854f344f6a2e6a5aa15cf0d4f7d2b062bc45"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_effect_bootstrap_floor_probability_interval.v2_validation_not_applicable"
@@ -478856,7 +478856,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::sequential_two_ar
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_quantile_effect_bootstrap_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
-dependency_manifest = "c90e3102ecc7b69e4595d4226cfa82f99d8c175fb3befd4da1cbc77305ee5880"
+dependency_manifest = "a00547ddc4aafce3c0f125c4aefb5471eb48fd61f6aa3e2072f1b4fe60af8c4d"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_effect_bootstrap_lag_three_interval.v2_validation_not_applicable"
@@ -479024,7 +479024,7 @@ dgp = "crates/antecedent/tests/temporal_design_calibration.rs::time_varying_conf
 test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_regime_survival_bootstrap_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "bb99183bf7006339069e31f5e5114759fbac5136b9e76dcfa5b01cf7fbbbbcbf"
-dependency_manifest = "41ac7193bda33244b749417d5d0fa977829ea62bec6ba0bc27766c8fde8b7da7"
+dependency_manifest = "bbf5909b2aec09f01353d74b4cc338258b6b99c99a56112a57277fac9e319896"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_heavy_censoring_bootstrap_interval.v2_validation_not_applicable"
@@ -479136,7 +479136,7 @@ dgp = "crates/antecedent/tests/temporal_design_range_calibration.rs::time_varyin
 test = "crates/antecedent/tests/temporal_design_range_calibration.rs::temporal_design_regime_survival_horizon_one_bootstrap_interval"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "ffc691aa704010bd6a472f849ffdd1033b1b0c95d8a9891996a45420d32a9500"
-dependency_manifest = "94ef727d66e34d9500ec7f2878fe13733f9b70f1f755f665d4d555aa2d174193"
+dependency_manifest = "eaddb1ab230f9f5b7008fb2f695a2665b075af0af9894e2d26baec69a2923397"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_horizon_two_bootstrap_interval.v2_validation_not_applicable"
@@ -479192,7 +479192,7 @@ dgp = "crates/antecedent/tests/temporal_design_range_calibration.rs::time_varyin
 test = "crates/antecedent/tests/temporal_design_range_calibration.rs::temporal_design_regime_survival_horizon_two_bootstrap_interval"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "ffc691aa704010bd6a472f849ffdd1033b1b0c95d8a9891996a45420d32a9500"
-dependency_manifest = "f3e76849510bf805ad3030e78adcfd2ddce0f2fb4a8c8693617b64bfe1559b5e"
+dependency_manifest = "1bb2f0c364ebfd41fbc548fb9c385876c5b752fe36e7802b35a3eea77bcf78fa"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_longer_horizon_bootstrap_interval.v2_validation_not_applicable.survival_difference"
@@ -479248,7 +479248,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::time_v
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_regime_survival_longer_horizon_bootstrap_interval"
 calibration_sha = "5aedfdd715ee96e311212435fe8ba0ff2cba0467"
 fingerprint = "f56217fff96f79033bafddb8b4456653305a9a4e0a8dd36eef3267fd46925abb"
-dependency_manifest = "19944265117a988c16e6a97da5262c4230127755745d1f9c33ac9f69a7426137"
+dependency_manifest = "ea4537308bd192a8284a40eee5409ca872d622bd714a85d9f970abceda92f030"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_low_overlap_bootstrap_interval.v2_validation_not_applicable"
@@ -479360,7 +479360,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_upper_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "5753ceaeedb43e22a4dc27ff52fa878906c7e420097e241e7851a5bb35522154"
+dependency_manifest = "b19e5bb48b19ccdc603aaf39f6c12e95873064ebe5846c2e15cd533e00e76175"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_upper_quartile_effect_bootstrap_intervals.v2_validation_not_applicable.quantile_effect"
@@ -479416,7 +479416,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_upper_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "0d44ebf124a60f05324cce0b092dd5d7308c772ba2dfadd4757e596ac6703cdd"
+dependency_manifest = "f045e4f12f6b7642bf7d1cb9c9d6af9f7c8aba461ebda8a7074be5db3fe29994"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_upper_quartile_effect_bootstrap_intervals.v2_validation_not_applicable.treated_quantile"
@@ -479472,7 +479472,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_upper_quartile_effect_bootstrap_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "9f9258d8ef25be74cb969174233f47ed114fd2350d88bb47c438130658aa2258"
+dependency_manifest = "2e8fbbe08441dd0e2de2a04277e8b5bb4cdf2a9b412c06b972a630ea857c8955"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_categorical_contrast_band.v2_validation_not_applicable.band"
@@ -479528,7 +479528,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_categorical_contrast_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "3092068bd0553f26fae9978a601b7299efd6a9388db8be1d21c3e941744b95c5"
+dependency_manifest = "fbf96a355545fa99f8c9b819220873dc30533f8559f1ca760747f8b2bda62a74"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_dose_grid_bias_aware_derivative_intervals.v2_validation_not_applicable.band"
@@ -479585,7 +479585,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "3d7ecfb06a8848182a957027d4f47155cb5ae76ddb185a95260d709e709fc6b5"
+dependency_manifest = "c7a903796ec0fe280ae618fbb92a2316e7f0bdd73cbed744f503c383fb6a5842"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_dose_grid_bias_aware_level_intervals.v2_validation_not_applicable.band"
@@ -479642,7 +479642,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_bias_aware_level_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "7eb6462d1eaced33d5a605f1a2a91376e5fec95f1d1e3b0d53c4ec54dab52fff"
+dependency_manifest = "f8387ff397db03cdf74fda50792fe8ba36705c4de79126929b0069837f20d3db"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_dose_grid_derivative_intervals.v2_validation_not_applicable.band"
@@ -479698,7 +479698,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_derivative_intervals"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "66b0656f10e0959846e85f92f551cc39971b59ad5cea3c704d7816f2f0c5b4df"
+dependency_manifest = "f5f7d99bf7839ec7c656cbe8384c1b63fb2433f11b0c87c0ad9dee04d33c53a2"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_dose_grid_level_band.v2_validation_not_applicable.band"
@@ -479754,7 +479754,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_dose_grid_level_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "615b67644595a7e1656ce93d99f2af1757f9d51d81c506e7c475e08ce33d59b5"
+dependency_manifest = "57e84bbf584d516e7bbd464176cda09e41188c9fb8cf14cb1fa4384bb8e5e387"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_factorial_effect_band.v2_validation_not_applicable.band"
@@ -479810,7 +479810,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_factorial_effect_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "8f5b692085071e01c3fc0333123ca519ab4f6b700392295361701309f26ef983"
+dependency_manifest = "bf1003f43547aa9caf00fc252eca3e011727876a7544a3b57cb1f3954a8dc922"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_interference_effect_band.v2_validation_not_applicable.band"
@@ -479866,7 +479866,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_interference_effect_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "86674fd8f6bf80d6bdaf38d4d8fc51ae7dcfcac72b62c7e8595016433f2ae13b"
+dependency_manifest = "fefc479c18aae845a9a8b736e1c53c242247df6db055a21907ccdf0f857d56fe"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_multi_arm_contrast_band.v2_validation_not_applicable.band"
@@ -479922,7 +479922,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::sequen
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_multi_arm_contrast_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "b5c13e0322f83aac3a3c1b069a88cc31f4cfe06be008c4ac7bef4f37c3f92db5"
+dependency_manifest = "8eceaa6547fe8a2d1dbcef2161c153ede9295847dcd1fe22f938b298adfacd42"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.simultaneous_band.l95.temporal_design_smoothed_dose_curve_band.v2_validation_not_applicable.band"
@@ -479978,7 +479978,7 @@ dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::unifor
 test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_smoothed_dose_curve_band"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "4f797210df2a73cadc338ab5b2408846aa1418b0828761ba131cc0ee4d2c1603"
-dependency_manifest = "cd0e61f0a5588a8247273d2f8719f9a62f2f85a6293e0ff547649da223214634"
+dependency_manifest = "3cc891f5413086b9315872ac1a29c9fae7f674a9e458e6b349f34ba190bf88e6"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_factorial_interaction_l95.v2_validation_not_applicable"
@@ -480034,7 +480034,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_factorial_interaction_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "60a428b14fd77cf962d354d3847dfeccebdfc09b6eea699e84adf621d100a7b0"
+dependency_manifest = "db07ca747595476584ab0f8e881554d294f3ab4fb465fb49fd2c677808df5c0d"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_factorial_main_effect_l95.v2_validation_not_applicable"
@@ -480090,7 +480090,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_factorial_main_effect_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "81ec72cdfb7b7bbb8a59b35c47380caff27a91c8fec001a2b641de40f94ae870"
+dependency_manifest = "8178413769a91be3229ff884eb88390bdf1c85cdd820ceec1ccf8cde212387c1"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_frequentist_contrast_l95.v2_validation_not_applicable"
@@ -480146,7 +480146,7 @@ dgp = "crates/antecedent/tests/measurement_composition_calibration.rs::randomize
 test = "crates/antecedent/tests/measurement_composition_calibration.rs::temporal_misclassification_frequentist_contrast_l95"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "343175ea232b3608c3574d25c5d591daf50df83f6ff6b7c2d2a9ae8c735fc145"
-dependency_manifest = "8a45aeb9de09a6407d8622ee3ceac3649b2bbba33a35ecc9517592bd1664b697"
+dependency_manifest = "b093d81b6c2ec6bf174341c8816059b58fda89137fd4b53986321ad26b127998"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_frequentist_control_mean_l95.v2_validation_not_applicable"
@@ -480202,7 +480202,7 @@ dgp = "crates/antecedent/tests/measurement_composition_calibration.rs::randomize
 test = "crates/antecedent/tests/measurement_composition_calibration.rs::temporal_misclassification_frequentist_control_mean_l95"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "343175ea232b3608c3574d25c5d591daf50df83f6ff6b7c2d2a9ae8c735fc145"
-dependency_manifest = "6f490518fd7594ca24f3fbd8167d270ec35f811b0d7ae3f603e4c4012b94f5eb"
+dependency_manifest = "5b4ae67fb15101d61edd7fda541f93a950bfc15c778c458f7d060bec62db0440"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_interference_direct_effect_l95.v2_validation_not_applicable"
@@ -480258,7 +480258,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_interference_direct_effect_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "c58b4a799f61448b74e1593b4eca46d3c942764db9fc4af34471176e9e4e237e"
+dependency_manifest = "cf7bb60884f9fd259c1d73c339f34ba9ed0a3c3bf0324093a7b64f905bf807af"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_interference_spillover_effect_l95.v2_validation_not_applicable"
@@ -480314,7 +480314,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_interference_spillover_effect_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "59bcb83b7b3373ce5047311675511dce528c7b107b24d0b5bee046e41f8acaa2"
+dependency_manifest = "2acbf9157b4ed5667e6862d329cdec773c73c30f81f437602acffa5246e8d176"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_ordered_levels_step_l95.v2_validation_not_applicable"
@@ -480370,7 +480370,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_ordered_levels_step_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "f5670eb3464529c66122d3bf0f2b0bafe0f012144a4caa6ce8bc72be21a7ac5b"
+dependency_manifest = "8ed437578dd09f3e27e3e9a221e8d97bfba1c8293de05af57cd1e5e9fba04ceb"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_three_arm_contrast_l95.v2_validation_not_applicable"
@@ -480426,7 +480426,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_three_arm_contrast_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "dd9b09267051710f08edbd591e0f0b8ac30d230a5144d75383d6f5a53063c6bd"
+dependency_manifest = "9dcee7079df7990aa06c615078f31c7cadb1036541693b5c9d88d8777f44906c"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_three_arm_reference_mean_l95.v2_validation_not_applicable"
@@ -480482,7 +480482,7 @@ dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs
 test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::temporal_misclassification_three_arm_reference_mean_l95"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "16526d122e29c797dee3b41efc8400b714246ca3c912a1cabea2a0ac7285ae36"
-dependency_manifest = "d158ff0e5f07956323c8603ee57b62e48c373b7e24ec9c842e7a692b9bebea59"
+dependency_manifest = "c3b9ca84d6335384cf7e1a5e1292f8368fbf91df54d609a8986dbd7b7de8ecb4"
 
 [[record]]
 id = "cov.temporal_mediation_effect.temporal_admg.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_admg_given_bayesian_coverage.v2_validation_cheap"
