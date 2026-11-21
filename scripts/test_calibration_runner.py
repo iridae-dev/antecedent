@@ -26,6 +26,8 @@ class TableTests(unittest.TestCase):
             self.assertEqual(cr.build_target_selection(groups, tasks, planned), [a.build_target, b.build_target])
         self.assertEqual(cr.build_target_selection(groups, first, None), [a.build_target])
         self.assertEqual(cr.build_target_selection(groups, first + second, None), [g.build_target for g in groups])
+        with patch.dict(cr.os.environ, {"ANTECEDENT_CALIBRATION_BUILD_GROUPS": planned}):
+            self.assertEqual(cr.build_target_selection(groups, first, None), [a.build_target, b.build_target])
         for invalid in ('["a"]', '["absent"]', '"a"', '[2]'):
             with self.assertRaises(ValueError):
                 cr.build_target_selection(groups, first + second, invalid)

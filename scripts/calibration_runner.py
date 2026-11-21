@@ -382,6 +382,10 @@ def build_target_selection(
     """Select canonical binaries. A fixed group list lets probes and full runs share one build."""
     requested = {t.group.build_target for t in tasks}
     by_label = {g.label: g.build_target for g in groups}
+    # Formal and probe launchers strip calibration variables from the child
+    # environment. This setting belongs to the scheduler, before any test starts.
+    if shared_groups is None:
+        shared_groups = os.environ.get("ANTECEDENT_CALIBRATION_BUILD_GROUPS")
     if shared_groups is None:
         return sorted(requested if len(requested) == 1 else set(by_label.values()) | requested)
     labels = json.loads(shared_groups)
