@@ -13706,6 +13706,7 @@ pub field antecedent::SequentialContrastEstimate::fits_reused: u64
 pub field antecedent::SequentialContrastEstimate::interval: core::option::Option<[f64; 2]>
 pub field antecedent::SequentialContrastEstimate::min_probability: f64
 pub field antecedent::SequentialContrastEstimate::minimum_action_probability: f64
+pub field antecedent::SequentialContrastEstimate::posterior_symmetric_interval: core::option::Option<[f64; 2]>
 pub field antecedent::SequentialContrastEstimate::standard_error: core::option::Option<f64>
 pub field antecedent::SequentialContrastEstimate::uncertainty: alloc::sync::Arc<str>
 pub field antecedent::SharedBatchDesign::covariate: core::option::Option<antecedent::SharedCovariateDesign>
@@ -17581,6 +17582,7 @@ pub fn <antecedent::StatisticalStudyResult>::fn contrast(&self, reference: &Self
 pub fn <antecedent::StructuralAggregationPolicy>::const fn as_str(self) -> &'static str
 pub fn <antecedent::StructuralWeightBasis>::const fn as_str(self) -> &'static str
 pub fn <antecedent::StructureProvenance>::fn digest(&self) -> [u8; 32]
+pub fn <antecedent::StructureProvenance>::fn graph_score(&self) -> core::option::Option<&str>
 pub fn <antecedent::StructureProvenance>::fn statement(&self) -> alloc::string::String
 pub fn <antecedent::StructureSource>::const fn as_str(self) -> &'static str
 pub fn <antecedent::Study>::const fn structure_source(&self) -> antecedent::StructureSource
@@ -20604,6 +20606,7 @@ pub mod antecedent::design_posterior_model
 pub mod antecedent::discovery
 pub mod antecedent::discovery::adjacency_mask
 pub mod antecedent::discovery::constraints
+pub mod antecedent::discovery::observed_marginals
 pub mod antecedent::discovery::selective
 pub mod antecedent::discovery::temporal_admg_atoms
 pub mod antecedent::discovery_defaults
@@ -25225,6 +25228,8 @@ pub use antecedent::discovery::adjacency_masks_from_pag = antecedent_discovery::
 pub use antecedent::discovery::constraints::CiMaskType = antecedent_discovery::constraints::CiMaskType
 pub use antecedent::discovery::constraints::DiscoveryConstraints = antecedent_discovery::constraints::DiscoveryConstraints
 pub use antecedent::discovery::n_directed_edges = antecedent_discovery::n_directed_edges
+pub use antecedent::discovery::observed_marginals::ObservedMarginals = antecedent_discovery::observed_marginals::ObservedMarginals
+pub use antecedent::discovery::observed_marginals::signed_uniform_observed_marginals = antecedent_discovery::observed_marginals::signed_uniform_observed_marginals
 pub use antecedent::discovery::selective::Mark = antecedent_discovery::selective::Mark
 pub use antecedent::discovery::selective::StructureEdge = antecedent_discovery::selective::StructureEdge
 pub use antecedent::discovery::selective::StructureNode = antecedent_discovery::selective::StructureNode

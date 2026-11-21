@@ -407,6 +407,7 @@ impl core::clone::Clone for antecedent_contract::callback_protocol::RetryContrac
 impl core::clone::Clone for antecedent_contract::callback_protocol::StoredCallback
 impl core::clone::Clone for antecedent_contract::callback_protocol::UpdateDeclaration
 impl core::clone::Clone for antecedent_contract::callback_protocol::ValidatedOutput
+impl core::clone::Clone for antecedent_contract::claim::IntervalCounts
 impl core::clone::Clone for antecedent_contract::composition_verification::BoundaryAssumption
 impl core::clone::Clone for antecedent_contract::composition_verification::BoundaryTransformation
 impl core::clone::Clone for antecedent_contract::composition_verification::CalibrationDeclaration
@@ -733,6 +734,7 @@ impl core::cmp::Eq for antecedent_contract::callback_protocol::RecomputeReason
 impl core::cmp::Eq for antecedent_contract::callback_protocol::ReplayContract
 impl core::cmp::Eq for antecedent_contract::callback_protocol::ResultStanding
 impl core::cmp::Eq for antecedent_contract::callback_protocol::RetryContract
+impl core::cmp::Eq for antecedent_contract::claim::IntervalCounts
 impl core::cmp::Eq for antecedent_contract::composition_verification::BoundaryAssumption
 impl core::cmp::Eq for antecedent_contract::composition_verification::BoundaryTransformation
 impl core::cmp::Eq for antecedent_contract::composition_verification::CalibrationDeclaration
@@ -1198,6 +1200,7 @@ impl core::cmp::PartialEq for antecedent_contract::callback_protocol::RetryContr
 impl core::cmp::PartialEq for antecedent_contract::callback_protocol::StoredCallback
 impl core::cmp::PartialEq for antecedent_contract::callback_protocol::UpdateDeclaration
 impl core::cmp::PartialEq for antecedent_contract::callback_protocol::ValidatedOutput
+impl core::cmp::PartialEq for antecedent_contract::claim::IntervalCounts
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::BoundaryAssumption
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::BoundaryTransformation
 impl core::cmp::PartialEq for antecedent_contract::composition_verification::CalibrationDeclaration
@@ -1714,6 +1717,7 @@ impl core::fmt::Debug for antecedent_contract::callback_protocol::RetryContract
 impl core::fmt::Debug for antecedent_contract::callback_protocol::StoredCallback
 impl core::fmt::Debug for antecedent_contract::callback_protocol::UpdateDeclaration
 impl core::fmt::Debug for antecedent_contract::callback_protocol::ValidatedOutput
+impl core::fmt::Debug for antecedent_contract::claim::IntervalCounts
 impl core::fmt::Debug for antecedent_contract::composition_verification::BoundaryAssumption
 impl core::fmt::Debug for antecedent_contract::composition_verification::BoundaryTransformation
 impl core::fmt::Debug for antecedent_contract::composition_verification::CalibrationDeclaration
@@ -2130,6 +2134,7 @@ impl core::marker::Copy for antecedent_contract::callback_protocol::CallbackPhas
 impl core::marker::Copy for antecedent_contract::callback_protocol::DependencyKind
 impl core::marker::Copy for antecedent_contract::callback_protocol::ResultStanding
 impl core::marker::Copy for antecedent_contract::callback_protocol::RetryContract
+impl core::marker::Copy for antecedent_contract::claim::IntervalCounts
 impl core::marker::Copy for antecedent_contract::composition_verification::CalibrationState
 impl core::marker::Copy for antecedent_contract::composition_verification::DependencyKind
 impl core::marker::Copy for antecedent_contract::composition_verification::NodeKind
@@ -2469,6 +2474,7 @@ impl core::marker::Freeze for antecedent_contract::callback_protocol::RetryContr
 impl core::marker::Freeze for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::marker::Freeze for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::marker::Freeze for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::marker::Freeze for antecedent_contract::claim::IntervalCounts [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::marker::Freeze for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -2893,6 +2899,7 @@ impl core::marker::Send for antecedent_contract::callback_protocol::RetryContrac
 impl core::marker::Send for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::marker::Send for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::marker::Send for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::marker::Send for antecedent_contract::claim::IntervalCounts [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::marker::Send for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -3312,6 +3319,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::callback_protoco
 impl core::marker::StructuralPartialEq for antecedent_contract::callback_protocol::StoredCallback
 impl core::marker::StructuralPartialEq for antecedent_contract::callback_protocol::UpdateDeclaration
 impl core::marker::StructuralPartialEq for antecedent_contract::callback_protocol::ValidatedOutput
+impl core::marker::StructuralPartialEq for antecedent_contract::claim::IntervalCounts
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::BoundaryAssumption
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::BoundaryTransformation
 impl core::marker::StructuralPartialEq for antecedent_contract::composition_verification::CalibrationDeclaration
@@ -3733,6 +3741,7 @@ impl core::marker::Sync for antecedent_contract::callback_protocol::RetryContrac
 impl core::marker::Sync for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::marker::Sync for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::marker::Sync for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::marker::Sync for antecedent_contract::claim::IntervalCounts [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::marker::Sync for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -4157,6 +4166,7 @@ impl core::marker::Unpin for antecedent_contract::callback_protocol::RetryContra
 impl core::marker::Unpin for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::marker::Unpin for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::marker::Unpin for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::marker::Unpin for antecedent_contract::claim::IntervalCounts [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::marker::Unpin for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -4581,6 +4591,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_p
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::claim::IntervalCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -5005,6 +5016,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_prot
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_protocol::StoredCallback [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_protocol::UpdateDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::callback_protocol::ValidatedOutput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::claim::IntervalCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::BoundaryAssumption [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::BoundaryTransformation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::composition_verification::CalibrationDeclaration [auto]
@@ -5545,6 +5557,7 @@ pub field antecedent_contract::BlockedOperation::reason: alloc::sync::Arc<str>
 pub field antecedent_contract::BlockedOperation::scientific: bool
 pub field antecedent_contract::CalibrationView::basis: core::option::Option<antecedent_core::calibration_basis::CalibrationBasis>
 pub field antecedent_contract::CalibrationView::calibration_sha: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_contract::CalibrationView::interval_counts: core::option::Option<antecedent_contract::claim::IntervalCounts>
 pub field antecedent_contract::CalibrationView::nominal: core::option::Option<f64>
 pub field antecedent_contract::CalibrationView::observed: core::option::Option<f64>
 pub field antecedent_contract::CalibrationView::reason: core::option::Option<alloc::sync::Arc<str>>
@@ -6294,6 +6307,9 @@ pub field antecedent_contract::callback_protocol::StoredCallback::state_identity
 pub field antecedent_contract::callback_protocol::UpdateDeclaration::candidate_id: alloc::string::String
 pub field antecedent_contract::callback_protocol::UpdateDeclaration::observation: antecedent_contract::ScientificQuantity
 pub field antecedent_contract::callback_protocol::UpdateDeclaration::prior_id: alloc::string::String
+pub field antecedent_contract::claim::IntervalCounts::attempted: u32
+pub field antecedent_contract::claim::IntervalCounts::covered: u32
+pub field antecedent_contract::claim::IntervalCounts::returned: u32
 pub field antecedent_contract::composition_verification::BoundaryAssumption::node: alloc::string::String
 pub field antecedent_contract::composition_verification::BoundaryAssumption::statement: alloc::string::String
 pub field antecedent_contract::composition_verification::BoundaryTransformation::kind: antecedent_contract::composition_verification::NodeKind
@@ -7804,6 +7820,7 @@ pub struct antecedent_contract::callback_protocol::StoredCallback
 pub struct antecedent_contract::callback_protocol::UpdateDeclaration
 pub struct antecedent_contract::callback_protocol::ValidatedOutput
 pub struct antecedent_contract::callback_protocol::ValidatedOutput has private fields
+pub struct antecedent_contract::claim::IntervalCounts
 pub struct antecedent_contract::composition_verification::BoundaryAssumption
 pub struct antecedent_contract::composition_verification::BoundaryTransformation
 pub struct antecedent_contract::composition_verification::CalibrationLineage

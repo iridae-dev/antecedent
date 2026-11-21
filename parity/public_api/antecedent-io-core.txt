@@ -631,6 +631,7 @@ impl core::clone::Clone for antecedent_io_core::counterfactual_transport_wire::C
 impl core::clone::Clone for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
 impl core::clone::Clone for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::clone::Clone for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::clone::Clone for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::clone::Clone for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::clone::Clone for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire
 impl core::clone::Clone for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
@@ -1263,6 +1264,7 @@ impl core::cmp::Eq for antecedent_io_core::counterfactual_transport_wire::Counte
 impl core::cmp::Eq for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire
 impl core::cmp::Eq for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire
 impl core::cmp::Eq for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
+impl core::cmp::Eq for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::cmp::Eq for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::cmp::Eq for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
 impl core::cmp::Eq for antecedent_io_core::cross_world_artifact::CrossWorldQueryWire
@@ -1927,6 +1929,7 @@ impl core::cmp::PartialEq for antecedent_io_core::counterfactual_transport_wire:
 impl core::cmp::PartialEq for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
 impl core::cmp::PartialEq for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::cmp::PartialEq for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::cmp::PartialEq for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
 impl core::cmp::PartialEq for antecedent_io_core::cross_world_artifact::CrossWorldQueryWire
@@ -2936,6 +2939,7 @@ impl core::fmt::Debug for antecedent_io_core::counterfactual_transport_wire::Cou
 impl core::fmt::Debug for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
 impl core::fmt::Debug for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::fmt::Debug for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::fmt::Debug for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::fmt::Debug for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::fmt::Debug for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire
 impl core::fmt::Debug for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
@@ -3417,6 +3421,7 @@ impl core::marker::Copy for antecedent_io_core::counterfactual_transport_wire::C
 impl core::marker::Copy for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
 impl core::marker::Copy for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::marker::Copy for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::marker::Copy for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::marker::Copy for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
 impl core::marker::Copy for antecedent_io_core::dependency_key::DependencyClass
 impl core::marker::Copy for antecedent_io_core::dependency_key::ReusableProduct
@@ -3984,6 +3989,7 @@ impl core::marker::Freeze for antecedent_io_core::counterfactual_transport_wire:
 impl core::marker::Freeze for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::marker::Freeze for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::marker::Freeze for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::marker::Freeze for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::marker::Freeze for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::marker::Freeze for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -4848,6 +4854,7 @@ impl core::marker::Send for antecedent_io_core::counterfactual_transport_wire::C
 impl core::marker::Send for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::marker::Send for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::marker::Send for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::marker::Send for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::marker::Send for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::marker::Send for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::marker::Send for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -5678,6 +5685,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::counterfactual_tr
 impl core::marker::StructuralPartialEq for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
 impl core::marker::StructuralPartialEq for antecedent_io_core::coverage_records_data::CoverageGridPoint
 impl core::marker::StructuralPartialEq for antecedent_io_core::coverage_records_data::CoverageRecord
+impl core::marker::StructuralPartialEq for antecedent_io_core::coverage_records_data::IntervalCounts
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits
 impl core::marker::StructuralPartialEq for antecedent_io_core::cross_world_artifact::CrossWorldQueryWire
@@ -6517,6 +6525,7 @@ impl core::marker::Sync for antecedent_io_core::counterfactual_transport_wire::C
 impl core::marker::Sync for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::marker::Sync for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::marker::Sync for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::marker::Sync for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::marker::Sync for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::marker::Sync for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::marker::Sync for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -7382,6 +7391,7 @@ impl core::marker::Unpin for antecedent_io_core::counterfactual_transport_wire::
 impl core::marker::Unpin for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::marker::Unpin for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::marker::Unpin for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::marker::Unpin for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::marker::Unpin for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::marker::Unpin for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -8247,6 +8257,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::counterfact
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -9111,6 +9122,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::counterfactual
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::counterfactual_transport_wire::DecisionInputFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::coverage_records_data::CoverageGridPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::coverage_records_data::CoverageRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::coverage_records_data::IntervalCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldArtifactError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cross_world_artifact::CrossWorldIntakeLimits [auto]
@@ -9853,6 +9865,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::counterfactual_transport
 impl serde_core::ser::Serialize for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire
 impl serde_core::ser::Serialize for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire
 impl serde_core::ser::Serialize for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire
+impl serde_core::ser::Serialize for antecedent_io_core::coverage_records_data::IntervalCounts
 impl serde_core::ser::Serialize for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire
 impl serde_core::ser::Serialize for antecedent_io_core::cross_world_artifact::CrossWorldQueryWire
 impl serde_core::ser::Serialize for antecedent_io_core::cross_world_artifact::CrossWorldWorldWire
@@ -10624,6 +10637,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::counterfactua
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportResultWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::coverage_records_data::IntervalCounts
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::cross_world_artifact::CrossWorldQueryWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::cross_world_artifact::CrossWorldWorldWire
@@ -11583,6 +11597,7 @@ pub field antecedent_io_core::BoundsWire::lower: u64
 pub field antecedent_io_core::BoundsWire::upper: u64
 pub field antecedent_io_core::CalibrationSlotWire::basis: core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
 pub field antecedent_io_core::CalibrationSlotWire::calibration_sha: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::CalibrationSlotWire::interval_counts: core::option::Option<antecedent_io_core::coverage_records_data::IntervalCounts>
 pub field antecedent_io_core::CalibrationSlotWire::nominal: core::option::Option<f64>
 pub field antecedent_io_core::CalibrationSlotWire::observed: core::option::Option<f64>
 pub field antecedent_io_core::CalibrationSlotWire::reason: core::option::Option<alloc::string::String>
@@ -12691,6 +12706,7 @@ pub field antecedent_io_core::SequentialContrastWire::evaluated_rows: u64
 pub field antecedent_io_core::SequentialContrastWire::interval: core::option::Option<[f64; 2]>
 pub field antecedent_io_core::SequentialContrastWire::min_probability: f64
 pub field antecedent_io_core::SequentialContrastWire::minimum_action_probability: f64
+pub field antecedent_io_core::SequentialContrastWire::posterior_symmetric_interval: core::option::Option<[f64; 2]>
 pub field antecedent_io_core::SequentialContrastWire::standard_error: core::option::Option<f64>
 pub field antecedent_io_core::SequentialContrastWire::supported: bool
 pub field antecedent_io_core::SequentialContrastWire::uncertainty: alloc::string::String
@@ -13694,10 +13710,12 @@ pub field antecedent_io_core::counterfactual_transport_wire::CounterfactualTrans
 pub field antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire::population: alloc::string::String
 pub field antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire::selection_targets: alloc::vec::Vec<u32>
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::boundary: bool
+pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::interval_counts: core::option::Option<antecedent_io_core::coverage_records_data::IntervalCounts>
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::mcse: f64
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::n_max: u64
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::n_min: u64
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::observed: f64
+pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::overlap_refusals: core::option::Option<u64>
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::point: u8
 pub field antecedent_io_core::coverage_records_data::CoverageGridPoint::replicates: u32
 pub field antecedent_io_core::coverage_records_data::CoverageRecord::boundary: bool
@@ -13731,6 +13749,9 @@ pub field antecedent_io_core::coverage_records_data::CoverageRecord::test: &'sta
 pub field antecedent_io_core::coverage_records_data::CoverageRecord::unidentified_mass_max: f64
 pub field antecedent_io_core::coverage_records_data::CoverageRecord::validation: &'static str
 pub field antecedent_io_core::coverage_records_data::CoverageRecord::validation_schema: u8
+pub field antecedent_io_core::coverage_records_data::IntervalCounts::attempted: u32
+pub field antecedent_io_core::coverage_records_data::IntervalCounts::covered: u32
+pub field antecedent_io_core::coverage_records_data::IntervalCounts::returned: u32
 pub field antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire::columns: alloc::sync::Arc<[alloc::vec::Vec<f64>]>
 pub field antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire::data_digest: alloc::string::String
 pub field antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire::estimand: alloc::string::String
@@ -15821,6 +15842,8 @@ pub fn <antecedent_io_core::query_wire::CallbackRecordWire>::fn to_record(&self)
 pub fn <antecedent_io_core::query_wire::OutcomeFunctionalWire>::const fn is_mean(&self) -> bool
 pub fn <antecedent_io_core::query_wire::OutcomeFunctionalWire>::fn from_domain(f: &antecedent_core::query::functional::OutcomeFunctional) -> Self
 pub fn <antecedent_io_core::query_wire::OutcomeFunctionalWire>::fn to_domain(&self) -> antecedent_core::query::functional::OutcomeFunctional
+pub fn <antecedent_io_core::query_wire::SequentialContrastQueryWire>::fn matches_wide_overlap_study(&self) -> bool
+pub fn <antecedent_io_core::query_wire::SyntheticControlQueryWire>::fn average_calibration_design(&self) -> core::option::Option<(alloc::string::String, u64)>
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn from_domain(expr: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn from_domain_recoverable(expr: &antecedent_core::value_expr::ValueExpr) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::query_wire::ValueExprWire>::fn to_domain(&self) -> antecedent_core::value_expr::ValueExpr
@@ -16933,6 +16956,7 @@ pub struct antecedent_io_core::counterfactual_transport_wire::CounterfactualTran
 pub struct antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSourceWire
 pub struct antecedent_io_core::coverage_records_data::CoverageGridPoint
 pub struct antecedent_io_core::coverage_records_data::CoverageRecord
+pub struct antecedent_io_core::coverage_records_data::IntervalCounts
 pub struct antecedent_io_core::coverage_records_data::StaticTable has private fields
 pub struct antecedent_io_core::coverage_records_data::StaticTable<T: 'static>
 pub struct antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire

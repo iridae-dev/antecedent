@@ -5205,6 +5205,7 @@ pub fn antecedent_stats::propagation_chain::shared_row_correlation(rows_a: usize
 pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::weights_from_log(log_weights: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::ChainError>
+pub fn antecedent_stats::quantile::posterior_radius_interval(draws: &[f64], centre: f64, level: f64) -> core::option::Option<[f64; 2]>
 pub fn antecedent_stats::quantile::quantile_sorted(sorted: &[f64], p: f64, rule: antecedent_stats::QuantileRule) -> f64
 pub fn antecedent_stats::random_effects_dersimonian_laird(estimates: &[f64], variances: &[f64]) -> core::result::Result<antecedent_stats::RandomEffectsEstimate, antecedent_stats::SynthesisError>
 pub fn antecedent_stats::random_effects_reml(estimates: &[f64], variances: &[f64]) -> core::result::Result<antecedent_stats::RandomEffectsEstimate, antecedent_stats::SynthesisError>

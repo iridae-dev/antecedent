@@ -1370,6 +1370,7 @@ pub use antecedent_state::weighted_refresh::WeightedOlsRefresh = antecedent_stat
 pub use antecedent_state::weighted_refresh::WeightedRow = antecedent_state::WeightedRow
 pub use antecedent_state::weighted_refresh::WeightedSnapshot = antecedent_state::WeightedSnapshot
 pub variant antecedent_state::GraphScoreFamily::GaussianBic
+pub variant antecedent_state::GraphScoreFamily::GaussianSignedUniform
 pub variant antecedent_state::GraphScoreFamily::LaplaceBic
 pub variant antecedent_state::InvalidationReason::AddConstraint
 pub variant antecedent_state::InvalidationReason::AddGraphEvidence

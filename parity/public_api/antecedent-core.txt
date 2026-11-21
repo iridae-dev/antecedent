@@ -7496,7 +7496,7 @@ pub const <antecedent_core::ExecutionContext>::DEFAULT_ID_WORK_LIMIT: u64
 pub const <antecedent_core::ExecutionContext>::DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64
 pub const <antecedent_core::IdentificationStatus>::ALL: [Self; 6]
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 15]
-pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 9]
+pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 10]
 pub const <antecedent_core::KernelPolicy>::SCALAR_BASELINE_ENV: &'static str
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
 pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
@@ -14411,6 +14411,7 @@ pub variant antecedent_core::DiscoverFault::NoVariables
 pub variant antecedent_core::DiscoverFault::NotearsPenalty
 pub variant antecedent_core::DiscoverFault::PosteriorNeedsSchedule
 pub variant antecedent_core::DiscoverFault::RepeatedVariable
+pub variant antecedent_core::DiscoverFault::SignedUniformScope
 pub variant antecedent_core::DiscoverFault::SignificanceLevel
 pub variant antecedent_core::DiscoverFault::StabilityBase
 pub variant antecedent_core::DiscoverFault::StabilityResamples
@@ -14565,6 +14566,7 @@ pub variant antecedent_core::IntervalMethod::BootstrapSe
 pub variant antecedent_core::IntervalMethod::CircularBlockSe
 pub variant antecedent_core::IntervalMethod::IdentifiedSet
 pub variant antecedent_core::IntervalMethod::None
+pub variant antecedent_core::IntervalMethod::PosteriorAbsoluteDeviation
 pub variant antecedent_core::IntervalMethod::PosteriorQuantile
 pub variant antecedent_core::IntervalMethod::SimultaneousBand
 pub variant antecedent_core::IntervalMethod::UnitPosteriorQuantile
