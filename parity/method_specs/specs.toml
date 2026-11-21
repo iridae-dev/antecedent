@@ -2297,7 +2297,7 @@ provenance = [
 ]
 api_review = "parity/public_api/antecedent-validate.txt: 8 of 8 public items reviewed"
 identifying_result = "No temporal target-native refuter route"
-assumptions = "X03 mechanism-change explanations are a later-release candidate, not this row."
+assumptions = "This method does not identify which mechanism changed."
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
 estimator = "target-native refuters with circular-shift placebos, contiguous-window stability and pre-trend and anticipation entries: Execution of a TargetRefutationPlan against a route's whole-procedure refit."
 diagnostics = "The engine owns the replicate loop, the random streams, admission of the replicate buffer, cancellation and the joint statistic, so every route's refuters share one definition of what each check means."
@@ -2712,7 +2712,7 @@ provenance = [
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 4 of 4 public items reviewed"
 identifying_result = "Then E[Y* | a] = (se + sp - 1) E[Y | a] + (1 - sp), so with J = se + sp - 1 > 0: an arm mean of the true outcome is (mu* - (1 - sp)) / J; a contrast (coefficients summing to zero) is theta* / J."
-assumptions = "X05 experimental bridges are a separate later-release candidate."
+assumptions = "Experimental evidence requires a separately specified bridge to the target."
 sampling_units = "sequentially randomized unit-period panel (two-arm, multi-arm, categorical, factorial or interference design) with a misclassified binary outcome and an independent validation sample of sensitivity and specificity"
 estimator = "misclassification-corrected excursion with validation delta method: Excursion contrasts of a misclassified binary outcome."
 diagnostics = "A Youden index J near zero leaves the true outcome unidentified, and the correction refuses it."

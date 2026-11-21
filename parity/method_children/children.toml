@@ -1598,7 +1598,7 @@ inference = "target-native refuters with circular-shift placebos, contiguous-win
 owner = "crates/antecedent-validate"
 fixtures = "crates/antecedent-validate/tests/target_native.rs::a_procedure_that_invents_a_dose_trend_fails_the_placebo_on_the_whole_vector;parity/fixtures/target_native_refuters.toml"
 consumer = "crates/antecedent/src/analysis/target_validation.rs::certify_result_refutations"
-notes = "X03 mechanism-change explanations are a later-release candidate, not this row."
+notes = "This method does not identify which mechanism changed."
 
 [[child]]
 id = "P13.refuter.temporal.bayesian"
@@ -1881,7 +1881,7 @@ inference = "misclassification-corrected excursion with validation delta method"
 owner = "crates/antecedent-estimate"
 fixtures = "crates/antecedent/tests/temporal_design_routes.rs::supported_misclassified_two_arm_interval_round_trips_and_refuses_forgery;crates/antecedent/tests/temporal_design_routes.rs"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"
-notes = "X05 experimental bridges are a separate later-release candidate. Temporal composition executes over the joint block-bootstrap replicates the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.frequentist, a horizon-indexed composed coordinate, linear and nonlinear)."
+notes = "Experimental evidence requires a separately specified bridge to the target. Temporal composition executes over the joint block-bootstrap replicates the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.frequentist, a horizon-indexed composed coordinate, linear and nonlinear)."
 
 [[child]]
 id = "P16.temporal.bayesian"
@@ -1937,7 +1937,7 @@ inference = "EVSI"
 owner = "crates/antecedent-design"
 fixtures = "crates/antecedent-design/tests/evsi.rs::candidates_rank_by_net_value_and_larger_samples_are_worth_more;crates/antecedent-design/tests/sequential_evaluation.rs::belief_updates_record_each_observation_and_action_once"
 consumer = "crates/antecedent-design/src/sequential_evaluation_artifact.rs"
-notes = "Comprehensive next-study ranking is X05, a later-release candidate."
+notes = "This method does not rank candidate follow-up studies."
 
 [[child]]
 id = "P18.static.frequentist"
@@ -2041,7 +2041,7 @@ inference = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)]"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal; crates/antecedent/tests/numeric_pins.rs::three_factor_interaction_batch_publishes_the_three_way_contrast"
 consumer = "crates/antecedent/src/analysis/batch.rs::prepare_cells"
-notes = "Core. Not a later-release candidate. Single-world InterventionResponse is not the assembled contrast. Mediation keeps its own cross-world premises."
+notes = "The contrast is assembled from multiple single-world intervention responses. Mediation keeps its own cross-world premises."
 
 [[child]]
 id = "X01.static.bayesian"
@@ -2053,7 +2053,7 @@ inference = "Bayesian bootstrap of the frozen cross-fit cell scores (shared Diri
 owner = "crates/antecedent-core"
 fixtures = "crates/antecedent/tests/numeric_pins.rs::batch_family_posterior_draws_the_whole_interaction_on_shared_row_weights; python/tests/test_functionals_retarget_tiered_background.py::test_prepared_batch_family_posterior_is_one_joint_interaction_draw_set; crates/antecedent/src/analysis/prepared/joint_response.rs::joint_gaussian_posterior_keeps_whole_contrast_draws_aligned_and_changed_data_refits"
 consumer = "crates/antecedent/src/analysis/batch.rs::family_posterior;crates/antecedent/src/analysis/prepared/joint_response.rs"
-notes = "Core. Not a later-release candidate. Single-world InterventionResponse is not the assembled contrast. Mediation keeps its own cross-world premises."
+notes = "The contrast is assembled from multiple single-world intervention responses. Mediation keeps its own cross-world premises."
 
 [[child]]
 id = "X01.temporal.frequentist"
@@ -2065,7 +2065,7 @@ inference = "scheduled-program contrast evaluated on every shared sandwich param
 owner = "crates/antecedent-core"
 fixtures = "crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; python/tests/test_joint_panel.py::test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds"
 consumer = "python/src/joint_panel_api.rs::scheduled_contrast"
-notes = "Core. Not a later-release candidate. Single-world InterventionResponse is not the assembled contrast. Mediation keeps its own cross-world premises."
+notes = "The contrast is assembled from multiple single-world intervention responses. Mediation keeps its own cross-world premises."
 
 [[child]]
 id = "X01.temporal.bayesian"
@@ -2077,7 +2077,7 @@ inference = "scheduled-program contrast evaluated on every aligned posterior par
 owner = "crates/antecedent-core"
 fixtures = "crates/antecedent/tests/joint_panel_workflow.rs::scheduled_contrast_is_assembled_on_every_shared_draw_for_both_inferences; python/tests/test_joint_panel.py::test_scheduled_contrast_assembles_on_the_shared_draws_and_refuses_separate_worlds"
 consumer = "python/src/joint_panel_api.rs::scheduled_contrast"
-notes = "Core. Not a later-release candidate. Single-world InterventionResponse is not the assembled contrast. Mediation keeps its own cross-world premises."
+notes = "The contrast is assembled from multiple single-world intervention responses. Mediation keeps its own cross-world premises."
 
 [[child]]
 id = "X02.static.frequentist"
@@ -2176,7 +2176,7 @@ inference = "none"
 owner = "crates/antecedent-estimate"
 fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::unsupported_specifications_and_unique_explanations_remain_separate_attempts"
 consumer = "crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"
-notes = "Later-release candidate. Not release scope."
+notes = "No static route is specified for time-varying effectiveness."
 
 [[child]]
 id = "X03.static.bayesian"
@@ -2187,7 +2187,7 @@ inference = "none"
 owner = "crates/antecedent-estimate"
 fixtures = "crates/antecedent-estimate/src/joint_panel/time_varying.rs::unsupported_specifications_and_unique_explanations_remain_separate_attempts"
 consumer = "crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/src/analysis/joint_panel.rs;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer"
-notes = "Later-release candidate. Not release scope."
+notes = "No static route is specified for time-varying effectiveness."
 
 [[child]]
 id = "X03.temporal.frequentist"
@@ -2312,7 +2312,7 @@ inference = "none"
 owner = "crates/antecedent-design"
 fixtures = "crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer"
 consumer = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs"
-notes = "Later-release candidate. Static experiments remain P09."
+notes = "See the randomized-effect methods for static experimental contrasts."
 
 [[child]]
 id = "X05.temporal.frequentist"
@@ -2323,7 +2323,7 @@ inference = "none"
 owner = "crates/antecedent-design"
 fixtures = "crates/antecedent/tests/joint_panel_workflow.rs::temporal_frequentist_frame_decomposes_on_reference_worlds_and_translates_experiments;crates/antecedent/tests/joint_panel_experiment_chain.rs::fresh_process_experiment_artifact_consumer"
 consumer = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs"
-notes = "Later-release candidate. Experimental priors alone do not close it. Executed next design: the Bayesian temporal counterpart carries the update, response, decision and net study value."
+notes = "The frequentist bridge translates experimental evidence. The Bayesian temporal route carries the update through the response, decision and net study value."
 
 [[child]]
 id = "X05.static.bayesian"
@@ -2334,7 +2334,7 @@ inference = "none"
 owner = "crates/antecedent-design"
 fixtures = "python/tests/test_joint_panel_experiment.py::test_native_target_experiment_update_decision_next_study_and_current_replay"
 consumer = "crates/antecedent-io/src/joint_panel_experiment_artifact.rs"
-notes = "Later-release candidate. Static experiments remain P09."
+notes = "See the randomized-effect methods for static experimental contrasts."
 
 [[child]]
 id = "X05.temporal.bayesian"

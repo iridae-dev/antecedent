@@ -1353,7 +1353,7 @@ class CalibrationBoundary(unittest.TestCase):
                     "learner_ate_known_truth_point_conformance",
                 )
                 self.assertEqual(
-                    row["calibration_evidence"]["status"], "registered_not_measured"
+                    row["calibration_evidence"]["group"], "learner_ate_known_truth: coverage"
                 )
         import calibration_runner
 

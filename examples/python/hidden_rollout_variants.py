@@ -47,7 +47,7 @@ def main() -> None:
         plan = program.inspect()
         assert plan["route"] == "LatentSoftIntervention"
         if not plan["support"]["supported"] and ant.build_flavor() == "release":
-            print("Rollout plan prepared. Use a development build to fit the example.")
+            print("Rollout plan prepared. This release build lacks support for the requested fit.")
             continue
         fitted = program.execute()
         discovery = fitted.discovery
