@@ -12475,7 +12475,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::homoskedast
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_association_static_slope_credible_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "526d2e590862eaedeaba07c2d9fd61a6a9601aa68f96c3f75b914e007d399b6c"
+dependency_manifest = "0acf6bb48b429bf7bb7ab950b19644ca075336d5d5f46abc85c64e8570b8d19f"
 
 [[record]]
 id = "cov.association.randomized_trial.bayesian.posterior_equal_tailed.l95.bayesian_association_temporal_slope_credible_interval.v2_validation_not_applicable"
@@ -12587,7 +12587,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::autoregress
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_association_temporal_slope_credible_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "8b836cd863db65c98c2c252bfdfd48348b01a0cb2e32ff68c1b356317add1781"
+dependency_manifest = "e64107db0f327510d361b7683dc226f309485b85df6b96ad97dd9856c88e5776"
 
 [[record]]
 id = "cov.association.randomized_trial.frequentist.analytic_se.l95.association_static_logistic_slope_interval.v2_validation_not_applicable"
@@ -12867,7 +12867,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::heteroskeda
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::association_static_sandwich_slope_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "e97b1bccee914229213fd64765f956770533292cbb8f30c2386b4b726b80cb43"
+dependency_manifest = "15bf0217cfcaea0f8d4dd83fa773c4b8a2870dda0b04e83f2c99551f0081b221"
 
 [[record]]
 id = "cov.association.randomized_trial.frequentist.analytic_se.l95.association_static_stratum_mean_interval.v2_validation_not_applicable"
@@ -13091,7 +13091,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::autoregress
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::association_temporal_newey_west_slope_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "cd116c02ac0bce26c1faf5432b0870502165a8099cdf8c95d33b2507143d3d1a"
+dependency_manifest = "f4db791c00f2c8e52bfe22015ab61cb4d3dc5cf2b8c3e54f24099ad91e33edce"
 
 [[record]]
 id = "cov.association.randomized_trial.frequentist.analytic_se.l95.association_temporal_stratum_mean_newey_west_interval.v2_validation_not_applicable"
@@ -13259,7 +13259,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::autoregress
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::association_temporal_block_bootstrap_spread_slope_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "1aa20da763a5cd77759fd3c7dab8851170418fb7ae017f64110dbc6bbb11ef11"
+dependency_manifest = "049b103bcfb67188e5e63d62dd0a75bb35937183ffa890f0e5d91d594d622720"
 
 [[record]]
 id = "cov.association.randomized_trial.frequentist.fixed_b_percentile_spread.l95.association_temporal_stratum_mean_block_bootstrap_spread_interval.v2_validation_not_applicable"
@@ -13595,7 +13595,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::heteroskeda
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::association_static_bootstrap_spread_slope_interval_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "7a4d13f063ed51582551a23047380972354f57566c2a5336a8cfaa9e3fcdf8d1"
+dependency_manifest = "4de79b76a4634229b0623ec22973ec9a1cca7a2e588a58501adba1d509ad973e"
 
 [[record]]
 id = "cov.association.randomized_trial.frequentist.studentized_spread.l95.association_static_logistic_bootstrap_spread_slope_interval.v2_validation_not_applicable"
@@ -99101,7 +99101,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_calibration.rs::randomized_do
 test = "crates/antecedent/tests/bayesian_randomized_calibration.rs::dose_policy_incremental_value_credible_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "112bebe9623a102d33585cad3e812c8bda5b9790c8dd48aeaa4564319230343c"
-dependency_manifest = "f3e4ec773246575e750cde259eeb40a65a2ba9dc37bb283c2de5b5abe7a7b292"
+dependency_manifest = "7c7d5ec35d9235056fd19e177e88eaab77ba69cd6e3210f4286881fa60629a08"
 
 [[record]]
 id = "cov.continuous_dose_response.randomized_trial.bayesian.posterior_quantile.l95.dose_policy_value_credible_interval.v2_validation_not_applicable"
@@ -99157,7 +99157,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_calibration.rs::randomized_do
 test = "crates/antecedent/tests/bayesian_randomized_calibration.rs::dose_policy_value_credible_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "112bebe9623a102d33585cad3e812c8bda5b9790c8dd48aeaa4564319230343c"
-dependency_manifest = "c76424c5d635d632562aac2376f6369b3ec87e90c588d383366f5f197b7abb77"
+dependency_manifest = "f73075525fdd68b9ebc106f9ea27542bd15ccc26633ce7cff99790cc6f64b411"
 
 [[record]]
 id = "cov.counterfactual.admg.bayesian.posterior_quantile.l90.counterfactual_admg_graph_posterior_bayesian_coverage.v2_validation_cheap"
@@ -189958,7 +189958,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::paired_clus
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "3a12148078d5faf006c7b58fb87d7b07f64a8160a52d8bb43b9213a97b606071"
+dependency_manifest = "186d421036f7d3d5d488767d059ffb9ab50ad9865aebfd5e5b2470093e800f0c"
 
 [[record]]
 id = "cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_dag_given_bayesian_gaussian_coverage.v2_validation_cheap"
@@ -239976,7 +239976,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::response_ty
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_iv_bounds_endpoint_interval_covers_the_lower_bound_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "1b321a9ccbfaf8f2a00bea9f8df771212f07c0d96224e6fe121db42c39b3e152"
+dependency_manifest = "3bca384bb28dfb9459cd8ab557fcfdb5f96e377636c02f284a533a2da8152f10"
 
 [[record]]
 id = "cov.iv_bounds.randomized_trial.bayesian.posterior_endpoint_quantiles.l95.bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound.v2_validation_not_applicable"
@@ -240090,7 +240090,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::response_ty
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "44f2c7c49703d618a0d0a4ee6089e28dbe3d24267dc22f916a361c62c4095e03"
+dependency_manifest = "1fe61ab42f26bd8b12caa5f2538fc1076fd0b74c275b8e98bb77ec0e04c0a74a"
 
 [[record]]
 id = "cov.iv_bounds.randomized_trial.frequentist.imbens_manski_row_bootstrap.l95.iv_bounds_imbens_manski_interval_covers_the_lower_bound.v2_validation_not_applicable"
@@ -240204,7 +240204,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::response_ty
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::iv_bounds_imbens_manski_interval_covers_the_lower_bound_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "fc8188a682fc792e41b1f117156c2d7793035a3d1af4d04b40a4ba93c2235a8c"
+dependency_manifest = "da2a4705fd97af799bc8c515a26b5afb149d184c5a94ca37789db09a2bbc3ce2"
 
 [[record]]
 id = "cov.iv_bounds.randomized_trial.frequentist.imbens_manski_row_bootstrap.l95.iv_bounds_imbens_manski_interval_covers_the_upper_bound.v2_validation_not_applicable"
@@ -240318,7 +240318,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::response_ty
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::iv_bounds_imbens_manski_interval_covers_the_upper_bound_upper_rows"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "3400887b115aa314ea63bf621d6462b588903823a9025742c7c878ea8cda5900"
+dependency_manifest = "91bc66bb57152289bbbfda76e97ae13e5454506ec4ccd69a573d8d2c48b045b5"
 
 [[record]]
 id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_broader_lagged_l95.v2_validation_not_applicable"
@@ -267524,7 +267524,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_t
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_rollout_bootstrap_credible_interval_upper_units"
 calibration_sha = "5aedfdd715ee96e311212435fe8ba0ff2cba0467"
 fingerprint = "09e7788563c0523413f9c7e53d4b82cebe5c5b18c830282f1c3ca4af52e07996"
-dependency_manifest = "ea1063b40959d07ccedda36928ecb45ffdd51eaf1067360d99e96822f5267913"
+dependency_manifest = "af97ca8f286eed1d299d091fc44dc9e3bc11611f75edc0b8bc9fcde66d369593"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval.v2_validation_not_applicable"
@@ -267636,7 +267636,7 @@ dgp = "crates/antecedent/tests/panel_did_range_calibration.rs::two_period_indepe
 test = "crates/antecedent/tests/panel_did_range_calibration.rs::bayesian_two_period_posterior_interval_from_the_row_floor"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "fd117132846fca3124eea73790eba8c08a1c9042eff834b08add478fdecc515a"
-dependency_manifest = "12b0fde2ce33ee91bced0735fdfeb519a4736d4bd4f73daa510bb66b5b094092"
+dependency_manifest = "34f19cdd9b3493e6984692373274d0e7db367e45398fe52cb5ddb3d5253d3f8d"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval_upper_group_sizes.v2_validation_not_applicable"
@@ -267692,7 +267692,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::two_period_
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_two_period_posterior_interval_upper_group_sizes"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "f6e9fc04ea302f46785b04eea704170464d1c7026b9203793645bb68a3bf9e79"
+dependency_manifest = "1cbc288cbf398d3819465c24e0fdcff05e5133fa435205999b5fef49eef85be9"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.analytic_se.l95.weighted_panel_did_interval.v2_validation_not_applicable"
@@ -267860,7 +267860,7 @@ dgp = "crates/antecedent/tests/panel_did_range_calibration.rs::two_period_panel_
 test = "crates/antecedent/tests/panel_did_range_calibration.rs::augmented_panel_in_sample_nuisance_bootstrap_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "30769cac418bef550e57b229a7ff6f5f26cadd1a97137afcd74a3f1fcd9a8808"
-dependency_manifest = "dc06a07ed175e4a1a7bbda380fbdb12b5deb46b4b6cf080b41fc860cb20bf989"
+dependency_manifest = "800a46c3341a1df741e9d1be6e7848d4f21b9d53d536114932c143d607a52991"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.augmented_panel_true_nuisance_bootstrap_interval.v2_validation_not_applicable"
@@ -267972,7 +267972,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::two_period_
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::augmented_panel_true_nuisance_bootstrap_interval_upper_subjects"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "eb6ba9369d666c06fa35a7d37c2b6f45963ea95f1ecddc241198eb620340e68b"
+dependency_manifest = "3a2ae5d9ce05153f1fa69d9fbe3b99acdfb95f38dd1c57cdec3c0ec8e73b6d01"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.covariate_adjusted_doubly_robust_multiplier_interval.v2_validation_not_applicable"
@@ -268532,7 +268532,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_t
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::rollout_callaway_santanna_never_treated_bootstrap_interval_upper_units"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "f17effd3c3129e502ae6526340fc6aeb74913f81fab0dfb234ad22efa4562a78"
+dependency_manifest = "214053d6e7855bb63ecda09939084dd73bf3e59f3eb2082a531ab46047a608f4"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.rollout_callaway_santanna_not_yet_treated_multiplier_interval.v2_validation_not_applicable"
@@ -268644,7 +268644,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_t
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::rollout_callaway_santanna_not_yet_treated_multiplier_interval_upper_units"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "c65bcad01a0f19453b381f7127da615dbf1c49dcd73a1602e2f968191974fac2"
+dependency_manifest = "e222b30e9e8994f5f3849d36126e591f683209ec86d60a8b1435960277691c50"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.rollout_dynamic_aggregation_intervals_and_band.v2_validation_not_applicable.event_time_0"
@@ -269204,7 +269204,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_t
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::rollout_imputation_multiplier_interval_upper_units"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "83bac85ef5d132ee7b5e63dfd0a31425c8f5060da1bb31045603a4cdf87c64c3"
+dependency_manifest = "868774d906e1ac05d0e74f9c3dfbdb7bd69f9ab28ff4f5b1f6d614ee128d1e8d"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.rollout_sun_abraham_multiplier_interval.v2_validation_not_applicable"
@@ -269316,7 +269316,7 @@ dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_t
 test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::rollout_sun_abraham_multiplier_interval_upper_units"
 calibration_sha = "17f8e279082e0cfe204ffab25d85753fe9a84a7b"
 fingerprint = "911b133eba095defdf83d45f0f9cd2c539366d4ce757b09acfeefca1b44c7cec"
-dependency_manifest = "b03bee0e0e412f7992652d64d061f31210c85a423cab9e3de1aad84b6ad0ee99"
+dependency_manifest = "138a41533979eb4d3f9d2cc561366bd560b1d93f141a3d0c70eebe19719dd1c7"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.frequentist.bootstrap_se.l95.rollout_unbalanced_callaway_santanna_multiplier_interval.v2_validation_not_applicable"
@@ -322690,7 +322690,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs::co
 test = "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs::finite_population_bernoulli_arms_sharp_null_credible_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "127f6680275a77a2513ed708af147ec9fe294fd8f370e2b02cfbf8fc69cc6d1e"
-dependency_manifest = "2a5f7e1aebadd6bfd3542d8abe3af07b10090461ed33579bec6f67129e56bfee"
+dependency_manifest = "68b8459fa21fbbc8f2325f7fd07f0781160258df6aecb7f98ec4cb8ccdf1c05b"
 
 [[record]]
 id = "cov.randomized_effect.randomized_trial.bayesian.posterior_quantile.l95.finite_population_bernoulli_arms_varying_effects_credible_interval.v2_validation_not_applicable"
@@ -322747,7 +322747,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs::co
 test = "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs::finite_population_bernoulli_arms_varying_effects_credible_interval"
 calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
 fingerprint = "127f6680275a77a2513ed708af147ec9fe294fd8f370e2b02cfbf8fc69cc6d1e"
-dependency_manifest = "87982a12db4e625ead6e0ca3109a5171dfcb2b7ddc4d6ae5dc6c389d53c4b48b"
+dependency_manifest = "8d1b204008054d4083d191833184d29ec3d292e71689ab93d74a2b414bd845ac"
 
 [[record]]
 id = "cov.randomized_effect.randomized_trial.bayesian.posterior_quantile.l95.finite_population_gaussian_arms_credible_interval.v2_validation_not_applicable"
@@ -431293,7 +431293,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_calibration.rs::constant_haza
 test = "crates/antecedent/tests/bayesian_randomized_calibration.rs::piecewise_restricted_mean_difference_credible_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "112bebe9623a102d33585cad3e812c8bda5b9790c8dd48aeaa4564319230343c"
-dependency_manifest = "847189e578da416b297801230b627c9ff8a32b2e029e39e29176348163fe44a5"
+dependency_manifest = "1e904535cb9fd166743dd5e9758b9b62faa4cef7a5cd8a6b4810bbff76e2b6ae"
 
 [[record]]
 id = "cov.survival.randomized_trial.bayesian.posterior_quantile.l95.piecewise_survival_difference_credible_interval.v2_validation_not_applicable"
@@ -431349,7 +431349,7 @@ dgp = "crates/antecedent/tests/bayesian_randomized_calibration.rs::constant_haza
 test = "crates/antecedent/tests/bayesian_randomized_calibration.rs::piecewise_survival_difference_credible_interval"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "112bebe9623a102d33585cad3e812c8bda5b9790c8dd48aeaa4564319230343c"
-dependency_manifest = "5c1ab660383eaf1ab565fc6073ea1427a950742797bf49f6c00e64e930de9d1b"
+dependency_manifest = "dd0d35f03eafb7e9fc89214248e2ce29cfa8d1d5007f0fc7b4536c9113b5bb18"
 
 [[record]]
 id = "cov.sustained_effect.temporal_admg.bayesian.posterior_quantile.l90.sustained_effect_temporal_admg_given_bayesian_coverage.v2_validation_cheap"
