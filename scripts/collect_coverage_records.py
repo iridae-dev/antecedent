@@ -448,7 +448,16 @@ def panel_counts_expected(record: dict) -> bool:
     )
 
 
+def requires_overlap_counts(record: dict) -> bool:
+    return (
+        record.get("query") == "SequentialContrast"
+        and str(record.get("dgp", "")).rpartition("::")[-1] == "sequential_panel_wide_probabilities"
+    )
+
+
 def grid_fields_valid(point: dict, record: dict) -> bool:
+    if requires_overlap_counts(record) and "overlap_refusals" not in point:
+        return False
     if panel_counts_expected(record) != ("interval_counts" in point):
         return False
     if "interval_counts" in point and not valid_interval_counts(point["interval_counts"], point):
@@ -582,6 +591,8 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         ):
             raise SystemExit(f"record {rid}: inconsistent returned-interval counts")
     conditional = "overlap_refusals" in first
+    if requires_overlap_counts(first) and not conditional:
+        raise SystemExit(f"record {rid}: missing overlap refusal count on a conditional study")
     for payload in ordered:
         if ("overlap_refusals" in payload) != conditional:
             raise SystemExit(f"record {rid}: different coverage denominators across the grid")

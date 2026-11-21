@@ -1170,6 +1170,19 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "different coverage denominators"):
             collector.merge_grid("id", points)
 
+    def test_conditional_sequential_grid_cannot_drop_all_refusal_counts(self):
+        points = {i: self.point(i) for i in range(3)}
+        for p in points.values():
+            p.update(query="SequentialContrast", dgp="fixture.rs::sequential_panel_wide_probabilities")
+        with self.assertRaisesRegex(SystemExit, "missing overlap refusal count"):
+            collector.merge_grid("id", points)
+        for p in points.values():
+            p.update(overlap_refusals=0, bound_replicates=p["replicates"])
+        record = collector.merge_grid("id", points)
+        point = dict(record["grid"][0])
+        del point["overlap_refusals"]
+        self.assertFalse(collector.grid_fields_valid(point, record))
+
     def test_named_boundary_grid_point_retains_its_separate_boundary_role(self):
         points = {k: self.point(k) for k in range(3)}
         points[0] = _point(0, 0.8, "named_boundary", boundary=True)
