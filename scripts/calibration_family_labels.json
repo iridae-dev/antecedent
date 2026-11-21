@@ -1442,7 +1442,7 @@
     },
     {
       "path": "crates/antecedent/tests/event_count_calibration.rs",
-      "sha256": "f8d8c9a34e543c1801ef4d42875b30ec205ac0634daccf0b1dca0a07a5bbfd66",
+      "sha256": "90b8013dd65567966837dc6782a51dabff36a036b8f7874d512dd6d71dfdd30b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1451,7 +1451,7 @@
           "argument": "RecordKey {\n            test: TEST,\n            dgp: \"hawkes_exponential_cluster_interior\",\n            interval: \"smoothed_rank_90\",\n        },\n        0.90,"
         }
       ],
-      "review": "One source-fixed exponential-kernel Hawkes cluster process simulated independently of the fitted model. Each replicate refits the forecast (16 refits, 256 paths) and scores the 0.90 smoothed-rank count interval on a fixed two-unit window against the simulated future count; the runtime basis is bound before coverage is seen. The smoothed-rank construction, separately keyed, replaced inclusive nearest-rank quantiles after a measured over-coverage traced to their always-included tied boundary counts."
+      "review": "One source-fixed exponential-kernel Hawkes cluster process simulated independently of the fitted model. The history windows are 128, 256 and 512 time units; the record scopes each point by its measured event counts. Each replicate refits the forecast (16 refits, 256 paths) and scores the 0.90 smoothed-rank count interval on a fixed two-unit window against the simulated future count; the runtime basis is bound before coverage is seen. The smoothed-rank construction, separately keyed, replaced inclusive nearest-rank quantiles after a measured over-coverage traced to their always-included tied boundary counts."
     },
     {
       "path": "crates/antecedent/tests/evidence_synthesis_calibration.rs",

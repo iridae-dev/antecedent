@@ -14868,7 +14868,7 @@ target = "event_count_calibration"
 features = ["calibration-internal"]
 tests = ["hawkes_recursive_refit_count_l90"]
 ignored = true
-grid = false
+grid = true
 whole = true
 
 # One fixed binary construct, a complete two-indicator joint error table, labelled validation

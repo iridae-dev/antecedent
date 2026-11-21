@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "1a399154a909a52005f382fcf60a38efabefe12655414f6b268fdca3d6989e7a",
+  "gate_sha256": "37979330f8f9bf9a06bb429a410c1a9f07baaa48dbd9322107ab572888fee780",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "953a7c5ef3f2d689471cd47438c58ae7beb7405b32b0823a3c566573775bf414",
+  "label_audit_sha256": "7a2ddad2a09b973a4cebbe846afa1da497e2c5d923e0a580b6073e7e0b412322",
   "groups": [
     {
       "index": 1,
@@ -8926,7 +8926,7 @@
     {
       "index": 1781,
       "label": "event_count_calibration: hawkes_recursive_refit_count_l90",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1782,
