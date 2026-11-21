@@ -97,10 +97,13 @@ class RegistryTests(unittest.TestCase):
                 cls.records.append(("calibration", bound, ref, tests[rid]))
         cls.reasons: dict[tuple[str, str], list[str]] = {}
         cls.tests: dict[tuple[str, str], str] = {}
+        cls.probed = set()
         for kind, binding, ref, test in cls.records:
             label = (kind, binding["key"])
             cls.reasons[label] = checker.check(binding, ref)["reasons"]
             cls.tests[label] = test
+            if binding["kind"] == "probe":
+                cls.probed.add(label)
         # Owed whatever these edits: a reason that names none of the edited files.
         cls.owed_before = {label for label, reasons in cls.reasons.items()
                            if any(not reason.endswith(tuple(":" + rel for rel in edited)) for reason in reasons)}
@@ -127,7 +130,15 @@ class RegistryTests(unittest.TestCase):
             self.assertTrue(measured, family)
             self.assertFalse({label for label in set(measured) & owed
                               if not self.tests[label].startswith(LEFT_BROAD)}, family)
-        self.assertLessEqual(len(owed), 45)
+        # The original ceiling counts direct measurement bindings. Active probes
+        # have separate evidence and now participate in the same route checks.
+        self.assertLessEqual(len(owed - self.probed), 45)
+        for label in owed & self.probed:
+            test = self.tests[label]
+            self.assertTrue(test.startswith(ROLLOUT_TARGETS), test)
+            selector = test.split("::")[-1]
+            self.assertTrue(selector.startswith(("conformal_synthetic_control_", "joint_response_"))
+                            or selector == "multi_unit_synthetic_placebo_variance_interval", test)
 
     def test_a_comment_in_a_recipe_or_in_policy_code_owes_nothing(self):
         for rel in (*RECIPES, *POLICY):
