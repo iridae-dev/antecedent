@@ -4,10 +4,25 @@ use super::{CoverageTally, grid_point, last_map_end, sharding, smoke};
 
 impl CoverageTally {
     /// Publish the actual attempted, returned and covered counts for a scoped panel study.
-    pub fn assert_panel_interval(mut self) {
+    pub fn assert_panel_interval(self) {
+        self.check_panel_interval(None);
+    }
+
+    /// Validate a frozen empirical coverage prediction on a fresh panel stream.
+    /// The historical counts are read only as a prediction, never pooled into
+    /// the new frequency. The release collector independently replays the rule.
+    pub fn assert_panel_reference(self, covered: u32, returned: u32) {
+        self.check_panel_interval(Some((covered, returned)));
+    }
+
+    fn check_panel_interval(mut self, reference: Option<(u32, u32)>) {
         let scoped = self.record.as_ref().and_then(|r| r.construction.as_ref()).is_some_and(|c| {
             c.query == "SyntheticControl" && c.functional.starts_with("synthetic_control/")
         });
+        assert!(
+            reference.is_none() || scoped || sharding(),
+            "empirical panel has no matching construction"
+        );
         if sharding() || !scoped {
             self.assert();
             return;
@@ -21,7 +36,51 @@ impl CoverageTally {
             self.check_skips();
         }
         self.skipped = 0;
-        self.assert();
+        if let Some((covered, returned)) = reference {
+            let prediction = f64::from(covered) / f64::from(returned);
+            if !smoke() && attempted < super::RECHECK_N_SIM {
+                eprintln!(
+                    "calibration-recheck {}: empirical panel validation requires 2000 attempts",
+                    self.name
+                );
+                if let Some(test) = std::thread::current().name() {
+                    eprintln!("calibration-recheck-test {test}");
+                }
+            } else if !smoke() {
+                assert_eq!(attempted, super::RECHECK_N_SIM, "unregistered panel validation look");
+                let rate = self.rate();
+                // Half of a five-percentage-point reporting step. Test both
+                // boundaries of this prediction with the exact binomial tails.
+                // A pass needs positive evidence that the held-out rate is inside.
+                let margin = 0.025;
+                let p_lower = super::decision::binomial_p_value(
+                    self.scored,
+                    self.scored - self.covered,
+                    1.0 - (prediction - margin),
+                    true,
+                )
+                .expect("valid frozen panel prediction");
+                let p_upper = super::decision::binomial_p_value(
+                    self.scored,
+                    self.covered,
+                    prediction + margin,
+                    true,
+                )
+                .expect("valid frozen panel prediction");
+                // Four fixed predictions, one final look, simultaneous 95% assurance.
+                let alpha = 0.05 / 4.0;
+                let mcse = (rate * (1.0 - rate) / f64::from(self.scored)).sqrt();
+                assert!(
+                    mcse <= 0.01 && p_lower <= alpha && p_upper <= alpha,
+                    "panel prediction {covered}/{returned}, validation {}/{}, MCSE {mcse}, equivalence tail probabilities {p_lower}, {p_upper}",
+                    self.covered,
+                    self.scored
+                );
+            }
+            self.assert_measured_band(prediction);
+        } else {
+            self.assert();
+        }
         self.emit_design_counts(serde_json::json!({
             "interval_counts": {
                 "attempted": attempted, "returned": self.with_interval, "covered": self.covered
