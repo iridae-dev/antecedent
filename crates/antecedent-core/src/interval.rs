@@ -10,8 +10,6 @@ pub enum IntervalMethod {
     BootstrapSe,
     /// Posterior quantile interval.
     PosteriorQuantile,
-    /// Symmetric credible interval formed from posterior absolute deviations about the estimate.
-    PosteriorAbsoluteDeviation,
     /// Per-unit posterior quantile interval: equal-tailed quantiles of one
     /// observed unit's effect draws (counterfactual `unit_effect_intervals`).
     /// Kept apart from [`Self::PosteriorQuantile`] because it covers a
@@ -29,6 +27,8 @@ pub enum IntervalMethod {
     AndersonRubin,
     /// No interval was formed.
     None,
+    /// Symmetric credible interval formed from posterior absolute deviations about the estimate.
+    PosteriorAbsoluteDeviation,
 }
 
 impl IntervalMethod {
@@ -37,13 +37,13 @@ impl IntervalMethod {
         Self::AnalyticSe,
         Self::BootstrapSe,
         Self::PosteriorQuantile,
-        Self::PosteriorAbsoluteDeviation,
         Self::UnitPosteriorQuantile,
         Self::IdentifiedSet,
         Self::CircularBlockSe,
         Self::SimultaneousBand,
         Self::AndersonRubin,
         Self::None,
+        Self::PosteriorAbsoluteDeviation,
     ];
 
     /// Stable `snake_case` name.
