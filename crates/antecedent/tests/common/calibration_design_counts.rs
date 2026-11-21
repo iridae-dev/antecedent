@@ -1,23 +1,30 @@
 //! Extra counts for studies that distinguish returned intervals from refused panels.
 
-use super::{CoverageTally, grid_point, sharding};
+use super::{CoverageTally, grid_point, last_map_end, sharding};
 
 impl CoverageTally {
     /// Publish the actual attempted, returned and covered counts for a scoped panel study.
-    pub fn assert_panel_interval(&self) {
-        self.assert();
-        let Some(binding) = self.record.as_ref() else { return };
-        if !sharding()
-            && binding.construction.as_ref().is_some_and(|c| {
-                c.query == "SyntheticControl" && c.functional.starts_with("synthetic_control/")
-            })
-        {
-            self.emit_design_counts(serde_json::json!({
-                "interval_counts": {
-                    "attempted": self.attempts(), "returned": self.with_interval, "covered": self.covered
-                }
-            }));
+    pub fn assert_panel_interval(mut self) {
+        let scoped = self.record.as_ref().and_then(|r| r.construction.as_ref()).is_some_and(|c| {
+            c.query == "SyntheticControl" && c.functional.starts_with("synthetic_control/")
+        });
+        if sharding() || !scoped {
+            self.assert();
+            return;
         }
+        // The fixed map owns the attempts. Its end includes all earlier shards and
+        // prefix runs, including refusals whose event digests remain in the tally.
+        let attempted = last_map_end().expect("panel coverage requires a fixed attempt budget");
+        assert_eq!(self.scored, self.with_interval, "invalid returned panel interval");
+        self.skipped = attempted.checked_sub(self.scored).expect("more returns than attempts");
+        self.check_skips();
+        self.skipped = 0;
+        self.assert();
+        self.emit_design_counts(serde_json::json!({
+            "interval_counts": {
+                "attempted": attempted, "returned": self.with_interval, "covered": self.covered
+            }
+        }));
     }
 
     /// Sum the per-replicate refusal counts with the same ordered extension and shard

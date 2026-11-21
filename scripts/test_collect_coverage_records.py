@@ -1137,6 +1137,11 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         points = {i: self.point(i, 1880) for i in range(3)}
         for point in points.values():
             point.update(
+                observed=1880 / 1993,
+                replicates=1993,
+                decision_protocol=collector.coverage_decision.evaluate(
+                    self.config(), 2000, 1993, 1880, 0.95, False
+                ),
                 query="SyntheticControl",
                 functional="synthetic_control/posterior_average+donors=20+post_periods=5",
                 bound_replicates=1993,

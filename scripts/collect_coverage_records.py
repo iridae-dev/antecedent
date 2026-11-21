@@ -429,12 +429,13 @@ def valid_interval_counts(counts: object, point: dict) -> bool:
     return (
         0 <= covered <= returned <= attempted
         and returned > 0
-        and attempted == point.get("replicates")
+        and returned == point.get("replicates")
         and returned == point.get("bound_replicates", returned)
         and isinstance(decision, dict)
+        and attempted == decision.get("planned_replicates", attempted)
         and covered == decision.get("covered", covered)
         and type(observed) in (int, float)
-        and abs(covered / attempted - observed) < 1e-9
+        and abs(covered / returned - observed) < 1e-9
     )
 
 
