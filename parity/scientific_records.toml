@@ -314,7 +314,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2d26596041152eff15f65f79b08e0de433ca05c91f7017e346da05f89364be5c"
 recorded_at = "2026-11-09T21:17:24Z"
-dependency_manifest = "bd9f87c24860559b1bc24e9de36b5a78b2515da834f2dc458c2eb5891565f98e"
+dependency_manifest = "af133f652300afe347cdb3de3e620e267faff983c421eaf58b077f50d66e149c"
 
 [[record]]
 test = "antecedent-contract::lib::bridge::point_propagation::a_trial_level_line_carries_the_variance_of_its_fitted_mean_line"
@@ -324,7 +324,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2d26596041152eff15f65f79b08e0de433ca05c91f7017e346da05f89364be5c"
 recorded_at = "2026-11-09T21:17:24Z"
-dependency_manifest = "a6214373dd49773c6ca1b77a525e8ab658dd08ef4705e3446f257f3babd0b025"
+dependency_manifest = "401812bd85cca33dad5d145681ffd3f93e3d6f0ab58fded2ad17cb08a7664c5e"
 
 [[record]]
 test = "antecedent-contract::lib::bridge::point_propagation::an_affine_map_with_declared_uncertainty_carries_the_hand_delta_variance"
@@ -334,7 +334,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "2d26596041152eff15f65f79b08e0de433ca05c91f7017e346da05f89364be5c"
 recorded_at = "2026-11-09T21:17:24Z"
-dependency_manifest = "40c4f347b2aedf50cec24b26f6f8ed403389e3b2be7d83ea74361c8c51ed4689"
+dependency_manifest = "c26e5a659ec63268a5adbd815e945efda43e69616af6f9ff6eebedd38f2da7b6"
 
 [[record]]
 test = "antecedent-contract::program_binding_exact::the_requested_coordinates_are_the_hand_derived_g_format_regimes_in_grid_order"
@@ -474,7 +474,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "7c5e006abb6f9000ec044e7eeba3e8cf71c4e5cb6de4caaa88650727c3cdf958"
 recorded_at = "2026-11-09T21:20:32Z"
-dependency_manifest = "a9b108a8123bbf10c68f5b3e7f82c2a1cb765b6a7bd8fe6091859d363924172f"
+dependency_manifest = "26d13e272949f5f2a87ba8dba385a0f8d6b8b0e819649401a1c11ea797daef47"
 
 [[record]]
 test = "antecedent-contract::suite_01::scientific_bridge::a_model_parameter_is_an_intervention_response_only_through_its_declared_contrast"
@@ -484,7 +484,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "7c5e006abb6f9000ec044e7eeba3e8cf71c4e5cb6de4caaa88650727c3cdf958"
 recorded_at = "2026-11-09T21:20:32Z"
-dependency_manifest = "c58a62a547795711d8578ea9fc4350a0b80e3cbb306d2036242cfaa16f910417"
+dependency_manifest = "b149d56b967330ef1b3b55e190e457b70f724f426ac2e3a2ef65db8913bd7b72"
 
 [[record]]
 test = "antecedent-contract::suite_01::scientific_bridge::an_association_is_a_causal_quantity_only_under_a_named_identification"
@@ -494,7 +494,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "7c5e006abb6f9000ec044e7eeba3e8cf71c4e5cb6de4caaa88650727c3cdf958"
 recorded_at = "2026-11-09T21:20:32Z"
-dependency_manifest = "cd10fc941800caccae07bc0e83a2f374e76542b2e99feda6f74de709f6d52143"
+dependency_manifest = "f1bb3703afcf0456accda142ce439224d6c34ba3afc97bed86c877a516057c94"
 
 [[record]]
 test = "antecedent-contract::suite_01::scientific_bridge::surrogate_bridge_matches_the_hand_computed_trial_level_regression"
@@ -504,7 +504,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "7c5e006abb6f9000ec044e7eeba3e8cf71c4e5cb6de4caaa88650727c3cdf958"
 recorded_at = "2026-11-09T21:20:32Z"
-dependency_manifest = "530a49e7eec84990ccabe575e2be18de8035edda8b5e1daa7d0bf530d7acfea7"
+dependency_manifest = "f40b0ab6e68df16ab737bdfbfc8ad2d30fd00bae8a01cf0ef8c96ccf1160837d"
 
 [[record]]
 test = "antecedent-contract::suite_01::transport_revalidation::changed_target_recomputes_a_point_claim_and_withdraws_a_claim_calibrated_elsewhere"
@@ -524,7 +524,7 @@ commit = "de323962fec4897e3f85b3bc976e18b786b29b10"
 dirty = false
 fingerprint = "edee9c0270a0821d312095b4438596395ce5033cbd820bb3d75c0aa618030974"
 recorded_at = "2026-11-09T21:12:16Z"
-dependency_manifest = "7cf87695d5257cd9cfb895c503667357e17561a19579e985d14d84f9fd03c745"
+dependency_manifest = "7ed65be0d63a973b5dad46b6e238e9f41b4e4b0d9676ffb52f72f6893a8c0dd8"
 
 [[record]]
 test = "antecedent-counterfactual::suite_01::cross_world_execution::natural_effects_are_recomputed_from_coupled_worlds"
@@ -7022,7 +7022,7 @@ commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
 fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
 recorded_at = "2026-11-20T13:51:48Z"
-dependency_manifest = "d900a4a4625c8674d7895f3a841a57b6912f152d378378c34858cce8fbdb9b37"
+dependency_manifest = "dbf2bff6aaa1075a61428219f774712bbae492c35422d3c3ac11954b1f5c6438"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::graph_predictive_fit_chain_and_decision_replay"
@@ -7032,7 +7032,7 @@ commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
 fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
 recorded_at = "2026-11-20T13:51:48Z"
-dependency_manifest = "58ab1e5051e42f684ee3c52918de512b92025473d52a0110d85d21f0853dd7aa"
+dependency_manifest = "94c787092f4d49593a6644469f0f8239d548e2553af31387eaa0c11e7374d8ec"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::joint_predictive_fit_chain_and_decision_replay"
@@ -7042,7 +7042,7 @@ commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
 fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
 recorded_at = "2026-11-20T13:51:48Z"
-dependency_manifest = "eb88cabf6b67ea20ff73767434f1125f09c14705d145a17c3fe04631d42e6442"
+dependency_manifest = "07070c0e104d719a41e46992de50655b6e68fa34c2092b90d7968146a178c7e6"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_predictive_bundle_tests::trial_predictive_fit_chain_and_decision_replay"
@@ -7052,7 +7052,7 @@ commit = "050caae32b589383a5453c656da4950e89b25dd6"
 dirty = false
 fingerprint = "899310f098789429e443bb7e35dcb44cd0ecad645f8f1669c11e0c8b7890f443"
 recorded_at = "2026-11-20T13:51:48Z"
-dependency_manifest = "37bc864a93e2ea6ad7d55686769d5b155dcd9f8b172b9595a4aa44ec0ee98cbd"
+dependency_manifest = "37bd718aadc783c380f6abcabeea8e0d698bf140483cae6174c84eaf333754f7"
 
 [[record]]
 test = "antecedent::lib::analysis::composition_sequential_bundle::producer_carrier_and_diagnostic_recompute_portably"
