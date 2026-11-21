@@ -59,6 +59,7 @@ dev = [
     "pyarrow>=25.0.0",
     "pytest>=9.1.1",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.8,<4",
     "pyyaml>=6.0.2",
     "ruff>=0.12.0",
 ]

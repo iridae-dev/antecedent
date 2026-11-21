@@ -138,7 +138,7 @@ import test_evidence  # noqa: E402  (the one reader of test source for the gates
 
 
 def oracle_fixture_has_test(fixture_dir: str) -> bool:
-    return bool(test_evidence.fixture_consumers(fixture_dir))
+    return test_evidence.fixture_has_consumer(fixture_dir)
 
 
 methods, ledger_errors = oracle_rows(ledger)

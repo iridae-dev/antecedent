@@ -21,6 +21,7 @@
 # measured_below_nominal) still never changes support.
 #
 #   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
+#   bash scripts/gate_release_candidate.sh --local   # all host checks, without CI certification
 #   bash scripts/gate_release_candidate.sh --self-test
 #
 # Job ids are workflow keys; `gh run view --json jobs` reports display names
@@ -97,7 +98,14 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exit $?
 fi
 
-if [[ -z "${CI_RUN_ID:-}" ]]; then
+local_only=0
+if [[ "$#" == 1 && "${1:-}" == "--local" ]]; then
+  local_only=1
+elif [[ "$#" != 0 ]]; then
+  echo "usage: gate_release_candidate.sh [--local | --self-test]" >&2
+  exit 2
+fi
+if [[ "$local_only" == 0 && -z "${CI_RUN_ID:-}" ]]; then
   echo "FAIL: RC requires CI_RUN_ID (GitHub Actions ci run that built this SHA)"
   echo "  find it with: gh run list --workflow ci.yml --commit \"\$(git rev-parse HEAD)\""
   exit 1
@@ -112,7 +120,7 @@ if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
   git status --short
   exit 1
 fi
-if ! command -v gh >/dev/null 2>&1; then
+if [[ "$local_only" == 0 ]] && ! command -v gh >/dev/null 2>&1; then
   echo "FAIL: gh is required for the RC CI job check"
   exit 1
 fi
@@ -121,18 +129,33 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "== release candidate: CI run ${CI_RUN_ID} =="
-RUN_JSON="$(mktemp)"
-trap 'rm -f "$RUN_JSON"' EXIT
-gh run view "$CI_RUN_ID" --json headSha,jobs >"$RUN_JSON"
-check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
+verification_head="$(git rev-parse HEAD)"
+if [[ "$local_only" == 0 ]]; then
+  echo "== release candidate: CI run ${CI_RUN_ID} =="
+  run_json="$(mktemp)"
+  trap 'rm -f "$run_json"' EXIT
+  gh run view "$CI_RUN_ID" --json headSha,jobs >"$run_json"
+  check_ci_run "$run_json" "$verification_head"
+fi
 
 # Every other section of the pull-request gate; the static section includes the record-currency
 # checks (the scientific section is the same pair as its own CI job).
-for gate_section in static public-api cited-tests benches deny python-lint engineering development; do
-  echo "== release candidate: gate_release.sh --section ${gate_section} =="
-  bash scripts/gate_release.sh --section "$gate_section"
-done
+# Keep static source readers busy while Cargo compiles. Finish both lanes before
+# starting the scale cases, which have measured wall-clock and memory budgets.
+export CARGO_PROFILE_TEST_OPT_LEVEL="${CARGO_PROFILE_TEST_OPT_LEVEL:-2}"
+export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-line-tables-only}"
+run_build_and_test_sections() {
+  for gate_section in python-lint public-api deny engineering development cited-tests benches; do
+    echo "== release candidate: gate_release.sh --section ${gate_section} =="
+    bash scripts/gate_release.sh --section "$gate_section" || return "$?"
+  done
+}
+ANTECEDENT_STATIC_JOBS=2 bash scripts/gate_release.sh --section static &
+static_pid=$!
+gate_status=0
+run_build_and_test_sections || gate_status=$?
+wait "$static_pid" || gate_status=$?
+if [[ "$gate_status" -ne 0 ]]; then exit "$gate_status"; fi
 
 echo "== release candidate: cited tests listed by cargo =="
 bash scripts/gate_capability_records.sh --resolve
@@ -187,7 +210,7 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   fi
   uv venv "$venv_dir/venv"
   uv pip install --python "$venv_dir/venv/bin/python" "${wheels[0]}" \
-    numpy pandas pyarrow pytest 'mypy>=1.17.0'
+    numpy pandas pyarrow pytest 'pytest-xdist>=3.8,<4' 'mypy>=1.17.0'
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
   "$venv_dir/venv/bin/python" "$ROOT/scripts/check_installed_wheel_import.py" "$venv_dir"
@@ -195,8 +218,15 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   "$venv_dir/venv/bin/python" "$ROOT/scripts/run_doc_examples.py"
   # The cyclic-systems implementation gate against the installed wheel.
   (cd "$ROOT" && "$venv_dir/venv/bin/python" scripts/gate_cyclic_systems.py --python "$venv_dir/venv/bin/python")
-  "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
+  "$venv_dir/venv/bin/python" -m pytest -q -n auto --maxprocesses=4 --dist worksteal -p no:cacheprovider "$ROOT/python/tests"
 )
 
-echo "RC host gate PASSED."
-echo "Verified required CI jobs from CI_RUN_ID=${CI_RUN_ID}."
+if [[ "$(git rev-parse HEAD)" != "$verification_head" || -n "$(git status --porcelain)" ]]; then
+  echo "Release verification inputs changed during the run" >&2
+  exit 1
+fi
+echo "Local release checks passed at $verification_head in ${SECONDS}s."
+if [[ "$local_only" == 0 ]]; then
+  echo "RC host gate PASSED."
+  echo "Verified required CI jobs from CI_RUN_ID=${CI_RUN_ID}."
+fi

@@ -1119,6 +1119,17 @@ def matrix_problems(shard: str = "all", *, resolve: bool = False) -> tuple[list[
 
     # --- supported cells ----------------------------------------------------------
     cells = lic_doc.get("cell") or []
+    if resolve:
+        citations = []
+        for index, row in enumerate(cells, 1):
+            if not in_shard(index):
+                continue
+            candidates = [(row.get("evidence_test"), row.get("evidence_assertion"))]
+            entries = row.get("checked_execution")
+            if isinstance(entries, list):
+                candidates.extend((e.get("test"), e.get("assertion")) for e in entries if isinstance(e, dict))
+            citations.extend((root / p, n) for p, n in candidates if isinstance(p, str) and isinstance(n, str))
+        test_evidence.prefetch_rust_listings(citations)
     seen: set[tuple[str, ...]] = set()
     required = (
         "query",
@@ -1629,6 +1640,7 @@ def cited_test_problems(shard: str) -> list[str]:
     whole = shard in ("all", "0")  # the graphless and transport citations ride with the first shard
     if whole:
         cited = graphless_cited()
+        test_evidence.prefetch_rust_listings(cited)
         print(f"== resolving {len(cited)} graphless evidence citation(s) via cargo test -- --list", flush=True)
         excluded = (
             set()

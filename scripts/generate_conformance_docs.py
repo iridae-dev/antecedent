@@ -81,19 +81,14 @@ def render_fixture(fix: Path) -> str:
     return "\n".join(parts).rstrip() + "\n"
 
 
-def main() -> int:
-    OUT.mkdir(parents=True, exist_ok=True)
-    # Remove previously generated pages (keep directory).
-    for old in OUT.glob("*.md"):
-        if old.name != "README.md":
-            old.unlink()
-
+def main(check: bool = False) -> int:
+    pages = {}
     index_rows: list[str] = []
     for fix in fixture_dirs():
         rel = fix.relative_to(CONF)
         slug = rel.as_posix().replace("/", "__")
         page = OUT / f"{slug}.md"
-        page.write_text(render_fixture(fix), encoding="utf-8", newline="\n")
+        pages[page] = render_fixture(fix)
         index_rows.append(f"- [`{rel.as_posix()}`]({slug}.md)")
 
     index = "\n".join(
@@ -107,10 +102,23 @@ def main() -> int:
             "",
         ]
     )
-    (OUT / "README.md").write_text(index, encoding="utf-8", newline="\n")
+    pages[OUT / "README.md"] = index
+    obsolete = set(OUT.glob("*.md")) - pages.keys()
+    changed = [p for p, content in pages.items() if not p.exists() or p.read_bytes() != content.encode("utf-8")]
+    if check:
+        for path in sorted([*obsolete, *changed]):
+            print(f"stale generated page: {path.relative_to(ROOT)}")
+        return int(bool(obsolete or changed))
+    OUT.mkdir(parents=True, exist_ok=True)
+    for path in obsolete:
+        path.unlink()
+    for path in changed:
+        path.write_text(pages[path], encoding="utf-8", newline="\n")
     print(f"Wrote {len(index_rows)} fixture pages under {OUT.relative_to(ROOT)}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if sys.argv[1:] not in ([], ["--check"]):
+        sys.exit("usage: generate_conformance_docs.py [--check]")
+    sys.exit(main(check=bool(sys.argv[1:])))

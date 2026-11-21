@@ -45,13 +45,44 @@ section_start() { section_since=$SECONDS; echo "== $1 started $(date -u +%FT%TZ)
 section_end() { echo "== $1 finished in $((SECONDS - section_since))s =="; }
 # Static checks run to the end and report every failure together, so one run lists them all.
 failed_steps=()
-step() { "$@" || failed_steps+=("$*"); }
+parallel_steps=0
+step_pids=()
+step_names=()
+next_step=0
+first_step=0
+finish_step() {
+  if ! wait "${step_pids[$first_step]}"; then
+    failed_steps+=("${step_names[$first_step]}")
+  fi
+  cat "$step_logs/$first_step"
+  first_step=$((first_step + 1))
+}
+finish_readers() {
+  while (( first_step < next_step )); do finish_step; done
+  parallel_steps=0
+}
+step() {
+  if (( ! parallel_steps )); then
+    "$@" || failed_steps+=("$*")
+    return
+  fi
+  if (( next_step - first_step >= parallel_steps )); then finish_step; fi
+  "$@" > "$step_logs/$next_step" 2>&1 &
+  step_pids[$next_step]=$!
+  step_names[$next_step]="$*"
+  next_step=$((next_step + 1))
+}
+
 
 # ---------------------------------------------------------------------------------------
 # Tier 0: static. One job, no build, no test execution.
 # ---------------------------------------------------------------------------------------
 if wanted static; then
 section_start static
+step_logs="$(mktemp -d)"
+trap 'rm -rf "$step_logs"' EXIT
+parallel_steps="${ANTECEDENT_STATIC_JOBS:-3}"
+case "$parallel_steps" in 1|2|3) ;; *) echo "ANTECEDENT_STATIC_JOBS must be 1, 2, or 3" >&2; exit 2 ;; esac
 
 echo "== format, lint allows, test targets, crate ownership =="
 step bash scripts/gate_rustfmt.sh
@@ -105,42 +136,8 @@ step python3 scripts/check_doc_links.py
 step python3 scripts/check_conformance_references.py
 
 echo "== generated files are current =="
-step python3 scripts/generate_conformance_docs.py
-if ! git diff --exit-code -- docs/conformance >/dev/null; then
-  echo "docs/conformance is stale; commit regenerated output"
-  git diff --stat -- docs/conformance
-  exit 1
-fi
-step python3 scripts/generate_support_matrix_docs.py
-VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
-generated=(docs/support-matrix.md crates/antecedent/data/support_matrix.json
-  crates/antecedent-io-core/data/coverage_records.json crates/antecedent-core/src/reason_codes_data.rs)
-if ! git diff --exit-code -- "${generated[@]}" >/dev/null; then
-  echo "support-matrix generated files are stale; commit regenerated output"
-  git diff --stat -- "${generated[@]}"
-  exit 1
-fi
-# Only the generated block of the release notes is compared; the hand-written text around it is not read.
-if ! python3 - "docs/release-notes/v${VERSION}.md" <<'PY'
-import subprocess
-import sys
-
-begin = "<!-- generated:support-matrix:supported:begin -->"
-end = "<!-- generated:support-matrix:supported:end -->"
-path = sys.argv[1]
-
-
-def block(text: str) -> str:
-    return text.split(begin, 1)[1].split(end, 1)[0]
-
-
-committed = subprocess.run(["git", "show", f":{path}"], capture_output=True, text=True, check=True).stdout
-sys.exit(0 if block(committed) == block(open(path, encoding="utf-8").read()) else 1)
-PY
-then
-  echo "the generated supported block of the release notes is stale; commit regenerated output"
-  exit 1
-fi
+step python3 scripts/generate_conformance_docs.py --check
+step python3 scripts/generate_support_matrix_docs.py --check
 step python3 scripts/generate_host_schema.py --check
 step python3 scripts/generate_supported_route_records.py --check
 step python3 scripts/support_functional_graph_posterior_rows.py --check
@@ -151,6 +148,7 @@ step python3 scripts/support_temporal_window_rows.py --check
 echo "== scientific and calibration records are current (earned locally, checked here) =="
 step python3 scripts/scientific_records.py status --check
 step python3 scripts/calibration_status.py --check
+finish_readers
 if (( ${#failed_steps[@]} )); then
   echo "== static: ${#failed_steps[@]} check(s) failed ==" >&2
   printf '  FAILED: %s\n' "${failed_steps[@]}" >&2
@@ -276,7 +274,7 @@ fi
 # The static tier runs these two checks inside its larger list; this section is the same
 # pair as a job of their own, so CI's `scientific` job keeps meaning "the scientific and
 # calibration evidence is current" and is quick (a checkout and Python, no build).
-if wanted scientific; then
+if [[ "$section" == scientific ]]; then
 section_start scientific
 step python3 scripts/scientific_records.py status --check
 step python3 scripts/calibration_status.py --check

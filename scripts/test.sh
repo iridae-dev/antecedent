@@ -210,7 +210,7 @@ engineering_tests() {
   doctests -p antecedent-learn --features ml-full,ml-neural
   rust_tests -p antecedent-model --features gaussian-process,ml-full
   doctests -p antecedent-model --features gaussian-process,ml-full
-  python_engineering_tests --durations=30
+  python_engineering_tests -n auto --maxprocesses=4 --dist worksteal --durations=30
 }
 
 

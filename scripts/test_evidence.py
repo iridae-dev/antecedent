@@ -27,11 +27,14 @@ from __future__ import annotations
 
 import ast
 import functools
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -537,6 +540,44 @@ def static_rust_test(path: Path, name: str) -> StaticTest:
 _CARGO_LIST_CACHE: dict[
     tuple[str, tuple[str, ...], tuple[str, ...]], tuple[set[str], set[str], str | None]
 ] = {}
+
+
+def prefetch_rust_listings(citations: list[tuple[Path, str]]) -> None:
+    """List all requested targets in one Cargo invocation per package and feature set."""
+    if not shutil.which("cargo-nextest"):
+        return  # cargo_listed also works on hosts with just Cargo and libtest.
+    groups = {}
+    for path, name in sorted(set(citations)):
+        if path.suffix != ".rs" or not path.is_file() or not path.resolve().is_relative_to(ROOT):
+            continue
+        owner = target_root(path)
+        if owner is None:
+            continue
+        _, crate, target = owner
+        features = tuple(sorted(set(rust_test_features(path, name))))
+        key = crate, tuple(target), features
+        if key in _CARGO_LIST_CACHE:
+            continue
+        required = target[target.index("--features") + 1].split(",") if "--features" in target else []
+        build = crate, tuple(sorted(set(required).union(features)))
+        selector = tuple(target[:1] if target[0] == "--lib" else target[:2])
+        groups.setdefault(build, {}).setdefault(selector, set()).add(key)
+
+    for (crate, features), targets in groups.items():
+        command = ["cargo", "nextest", "list", "--message-format", "json",
+                   "--ignore-default-filter", "-p", crate]
+        if features:
+            command.extend(["--features", ",".join(features)])
+        for selector in sorted(targets):
+            command.extend(selector)
+        listed = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, text=True, check=True)
+        suites = json.loads(listed.stdout)["rust-suites"]
+        for selector, keys in targets.items():
+            binary = crate if selector == ("--lib",) else f"{crate}::{selector[1]}"
+            cases = suites[binary]["testcases"]
+            ignored = {name for name, case in cases.items() if case["ignored"]}
+            for key in keys:
+                _CARGO_LIST_CACHE[key] = set(cases), ignored, None
 
 
 def cargo_listed(
@@ -1364,17 +1405,16 @@ def _candidate_files() -> tuple[Path, ...]:
     return tuple(p for p in files if "target" not in p.parts)
 
 
-def fixture_consumers(fixture: str) -> list[str]:
+def _fixture_consumers(fixture: str, files: tuple[Path, ...]) -> Iterator[str]:
     """`file::test` for every executing test whose closure consumes `fixture`.
 
     Static: the test must be a compiled, non-ignored, non-cfg-disabled `#[test]`
     (or a collected pytest without a static skip); comments never count."""
     parts = Path(fixture).parts
     if len(parts) < 3:
-        return []
+        return
     name = parts[2]
-    out = []
-    for f in _candidate_files():
+    for f in files:
         raw = _read(f)
         if name not in raw:
             continue
@@ -1385,7 +1425,7 @@ def fixture_consumers(fixture: str) -> list[str]:
                 if static_python_test(f, t) or name not in closure(f, t):
                     continue
                 if not consumption_problems(f, t, fixture):
-                    out.append(f"{f.relative_to(ROOT.resolve())}::{t}")
+                    yield f"{f.relative_to(ROOT.resolve())}::{t}"
             continue
         masked, items = rust_items(f)
         if name not in masked.code:
@@ -1396,8 +1436,18 @@ def fixture_consumers(fixture: str) -> list[str]:
             if static_rust_test(f, it.name).problems or name not in closure(f, it.name):
                 continue
             if not consumption_problems(f, it.name, fixture):
-                out.append(f"{f.relative_to(ROOT.resolve())}::{it.name}")
-    return out
+                yield f"{f.relative_to(ROOT.resolve())}::{it.name}"
+
+
+def fixture_consumers(fixture: str) -> list[str]:
+    return list(_fixture_consumers(fixture, _candidate_files()))
+
+
+def fixture_has_consumer(fixture: str) -> bool:
+    """Stop at the first verified consumer. Check namesake test files first."""
+    name = Path(fixture).name
+    files = sorted(_candidate_files(), key=lambda path: name not in path.stem)
+    return next(_fixture_consumers(fixture, tuple(files)), None) is not None
 
 
 # ------------------------------------------------------------------- matrix axes

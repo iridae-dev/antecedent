@@ -31,9 +31,11 @@ whose bytes are unchanged is current without being parsed.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
+import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -79,33 +81,36 @@ def parse(path: Path) -> File:
 class Names:
     """A Bloom filter of identifiers. A false positive only adds a guard entry."""
 
-    HASHES = 7
-
     def __init__(self, bits: int, data: bytes):
         self.bits = bits
-        self.data = bytearray(data)
+        self.data = bytes(data)
+        self._membership: dict[str, bool] = {}
 
     @classmethod
     def of(cls, names: set[str]) -> Names:
         bits = max(1024, 12 * len(names))
         bits += (-bits) % 8
-        filter_ = cls(bits, bytes(bits // 8))
+        data = bytearray(bits // 8)
         for name in names:
-            for index in filter_._indices(name):
-                filter_.data[index // 8] |= 1 << (index % 8)
-        return filter_
+            for word in cls._words(name):
+                index = word % bits
+                data[index // 8] |= 1 << (index % 8)
+        return cls(bits, data)
 
     @classmethod
     def load(cls, entry: dict) -> Names:
         return cls(int(entry["bits"]), bytes.fromhex(entry["filter"]))
 
-    def _indices(self, name: str):
-        digest = hashlib.sha256(name.encode()).digest()
-        for i in range(self.HASHES):
-            yield int.from_bytes(digest[4 * i:4 * i + 4], "big") % self.bits
+    @staticmethod
+    @functools.lru_cache(maxsize=65536)
+    def _words(name: str) -> tuple[int, ...]:
+        return struct.unpack_from(">7I", hashlib.sha256(name.encode()).digest())
 
     def __contains__(self, name: str) -> bool:
-        return all(self.data[i // 8] >> (i % 8) & 1 for i in self._indices(name))
+        if name not in self._membership:
+            indices = (word % self.bits for word in self._words(name))
+            self._membership[name] = all(self.data[i // 8] & (1 << (i % 8)) for i in indices)
+        return self._membership[name]
 
     def entry(self) -> dict:
         return {"bits": self.bits, "filter": bytes(self.data).hex()}
@@ -737,6 +742,7 @@ class ItemChecker:
     def __init__(self, checker):
         self.checker = checker
         self.tables: dict[str, list[str]] = {}
+        self.names: dict[tuple[int, str], Names] = {}
         self.cache: dict[tuple, bool] = {}
         # Tables of a manifest being published, before they are written.
         self.pending: dict[str, bytes] = {}
@@ -760,12 +766,15 @@ class ItemChecker:
             return True
         if names_entry is None:
             return False
-        key = ("items", rel, self.checker.input_digest("file", rel), entry["digest"], names_entry["filter"])
+        name_key = names_entry["bits"], names_entry["filter"]
+        key = ("items", rel, self.checker.input_digest("file", rel), entry["digest"], name_key)
         if key not in self.cache:
             try:
                 file = parse(self.checker.path(rel))
+                if name_key not in self.names:
+                    self.names[name_key] = Names.load(names_entry)
                 self.cache[key] = items_digest(file, self.table(entry["table"]), entry,
-                                               Names.load(names_entry)) == entry["digest"]
+                                               self.names[name_key]) == entry["digest"]
             except (ParseError, KeyError, IndexError, OSError):
                 self.cache[key] = False
         return self.cache[key]

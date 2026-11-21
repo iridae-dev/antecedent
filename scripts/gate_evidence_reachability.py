@@ -24,7 +24,7 @@ import test_evidence  # noqa: E402  (the one reader of test source for the gates
 
 
 def referenced(fixture: str) -> bool:
-    return bool(test_evidence.fixture_consumers(fixture))
+    return test_evidence.fixture_has_consumer(fixture)
 
 
 # ------------------------------------------------ declared unexercised list

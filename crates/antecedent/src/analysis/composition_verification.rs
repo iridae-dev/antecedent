@@ -451,12 +451,19 @@ pub fn registry_record_identity(record_id: &str) -> SemanticDigest {
 /// code it measured.
 #[must_use]
 pub fn registry_record_attests(record: &SemanticDigest) -> bool {
-    use antecedent_io::coverage_records_data::{CoverageRecord, RECORDS};
-    RECORDS.iter().any(|row| {
-        let row: &CoverageRecord = std::borrow::Borrow::borrow(&row);
-        registry_record_identity(row.id) == *record
-            && antecedent_io::calibration::record_attests_current_code(row)
-    })
+    use std::collections::HashSet;
+    use std::sync::LazyLock;
+
+    use antecedent_io::coverage_records_data::RECORDS;
+
+    static ATTESTING: LazyLock<HashSet<SemanticDigest>> = LazyLock::new(|| {
+        RECORDS
+            .iter()
+            .filter(|row| antecedent_io::calibration::record_attests_current_code(row))
+            .map(|row| registry_record_identity(row.id))
+            .collect()
+    });
+    ATTESTING.contains(record)
 }
 
 /// A declaration with every record that does not name a currently attesting

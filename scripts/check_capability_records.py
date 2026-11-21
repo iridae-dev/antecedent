@@ -101,6 +101,7 @@ from capability_source import (
     typed_input_exception_problems,
 )
 from test_evidence import (
+    prefetch_rust_listings,
     resolve_python_test,
     resolve_rust_test,
     rust_items,
@@ -594,6 +595,12 @@ evidence_rows: list[tuple[str, str, str]] = []
 # (path, assertion) -> [(record, fixture id, role, shared_evidence)]
 test_backers: dict[tuple[str, str], list[tuple[str, str, str, bool]]] = {}
 records = registry.get("record", [])
+if not (STATIC_ONLY or trusted_testing):
+    prefetch_rust_listings([
+        (root / fixture["evidence_test"], fixture["evidence_assertion"])
+        for record in records for fixture in record.get("fixtures", [])
+        if isinstance(fixture.get("evidence_test"), str) and isinstance(fixture.get("evidence_assertion"), str)
+    ])
 namespaces_in_use = {
     refusal.get("detail", "").split(".")[0]
     for rec in records

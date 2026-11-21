@@ -69,7 +69,7 @@ def has_consuming_test(fixture: str) -> bool:
     asserts: not a file that merely mentions the basename and asserts elsewhere."""
     path = Path(fixture)
     directory = path.parent if path.suffix == ".json" else path
-    return bool(test_evidence.fixture_consumers(directory.as_posix()))
+    return test_evidence.fixture_has_consumer(directory.as_posix())
 
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
