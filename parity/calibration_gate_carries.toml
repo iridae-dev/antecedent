@@ -334,7 +334,15 @@ inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py", "sc
 
 [[review]]
 reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "Four existing coverage rows changed only their measurement commit. Every other field in the complete runtime registry is identical; no identity alias refers to these four rows. Both old and new commits identify the identical statistical results. All 78 grid receipts passed, and their saved decisions were replayed. Registry lookup uses measurement SHA only to match identity aliases. The exposed source reference is provenance. Reviewed again after the single-unit Bayesian panel correction. Only the label-audit digest changed in the family manifest. No changed estimator or test source was executed by these receipts; the original verdicts replay under the unchanged family allocation and risk limits. Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
+basis = "Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
+inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py"]
+[review.receipts]
+"antecedent-discovery: observed_score_six_variable_per_edge_reliability" = "f054f69b5f4e473e0478b39fcafb65680880b8ea4d6dceaf34386dc0d215bb78"
+"antecedent-discovery: observed_score_six_variable_soft_tier_reliability" = "4b7f254e8ed75600af21589ab933e7e0e2370bc1a92bc563ab7110eea93dc08e"
+
+[[review]]
+reviewed_at = "c48527fa7765666667ce3502687d1f1df157954f"
+basis = "Replayed every stored grid decision. The only changed executed dependency since the prior receipt review was the embedded calibration registry. Eight measured rows changed or were added, all for the single-unit Bayesian synthetic-control estimator at twenty or forty donors. These precision, decision, envelope and design gates exercise different constructions. Registry lookup partitions by query and estimator; the edited rows cannot govern their returned intervals or numerical verdicts. Aliases and interval-method reasons are unchanged."
 inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/src/analysis/contract/calibration.rs", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "71b6b5cff4a1e62899a725f46067a35b7cb12557babbb286def3d9897664c1ab"
@@ -363,11 +371,3 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "static_envelope_calibration: unknown_two_scenario_joint_band_nominal_95_coverage" = "babac7c06153172608ce7bf2e445059d305b3dd4ce6b737373db375f59336a94"
 "temporal_class_calibration: bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion" = "e1c067bb4c07c2f0a8102feb71930fbeab90424aef28564880d10837fafb8297"
 "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "3ce31cd51ffe7d8c7be2b355b3697d075ff51c6a2cbe7f2594a92849cd452798"
-
-[[review]]
-reviewed_at = "42d53e564c51aa831bf6b0af60411f0b1903f9d7"
-basis = "Verified every active task retains its label, index, binary, selector, grid, and family risk limits. Retained discovery Rust items have identical normalized bodies. The five active probability reports were independently replayed from their saved datasets."
-inputs = ["parity/calibration_groups.toml", "scripts/calibration_family.py"]
-[review.receipts]
-"antecedent-discovery: observed_score_six_variable_per_edge_reliability" = "f054f69b5f4e473e0478b39fcafb65680880b8ea4d6dceaf34386dc0d215bb78"
-"antecedent-discovery: observed_score_six_variable_soft_tier_reliability" = "4b7f254e8ed75600af21589ab933e7e0e2370bc1a92bc563ab7110eea93dc08e"
