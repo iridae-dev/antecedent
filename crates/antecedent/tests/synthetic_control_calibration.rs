@@ -247,7 +247,7 @@ fn measure(test: &'static str, scored: Scored, seed_base: u64) {
         tally.bind_validation(&construction, *scope, validation);
         tally.record(Some(interval), truth);
     }
-    tally.assert();
+    tally.assert_panel_interval();
 }
 
 #[test]
@@ -403,7 +403,7 @@ fn measure_published(
         tally.bind_validation(&run.construction, run.scope, NO_VALIDATION);
         tally.record(Some(run.interval), truth);
     }
-    tally.assert();
+    tally.assert_panel_interval();
 }
 
 fn measure_conformal(test: &'static str, set: ConformalSet, seed_base: u64) {

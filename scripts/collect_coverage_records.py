@@ -300,6 +300,32 @@ def rechecked_tests(recheck_log: Path) -> set[str] | None:
     return {name.rpartition("::")[2] for name in found} or None
 
 
+def study_record_lines(text: str) -> list[dict]:
+    """Join an optional count report to its own measured construction and grid point."""
+    records = []
+    counts = {}
+    for line in text.splitlines():
+        if line.startswith("calibration-record "):
+            records.append(json.loads(line.partition(" ")[2]))
+        elif line.startswith("calibration-design-counts "):
+            report = json.loads(line.partition(" ")[2])
+            key = (report["id"], report["grid_point"])
+            values = report["counts"]
+            if key in counts or not isinstance(values, dict) or set(values) not in (
+                {"interval_counts"}, {"overlap_refusals"},
+            ):
+                raise ValueError(f"invalid or duplicate design counts for {key}")
+            counts[key] = values
+    for record in records:
+        values = counts.pop((record["id"], record.get("grid_point")), {})
+        if values.keys() & record.keys():
+            raise ValueError(f"conflicting design counts for {record['id']}")
+        record.update(values)
+    if counts:
+        raise ValueError(f"design counts have no matching measurement: {list(counts)}")
+    return records
+
+
 def record_lines(
     logs: list[Path], smoke: bool = False, sha: str | None = None, confirmation: bool = False
 ) -> dict[str, dict[int, dict]]:
@@ -322,10 +348,7 @@ def record_lines(
                 superseded = rechecked_tests(partner)
                 if superseded is None:
                     continue  # the whole group was re-run
-        for line in read_text(log, errors="ignore").splitlines():
-            if not line.startswith("calibration-record "):
-                continue
-            payload = json.loads(line.split(" ", 1)[1])
+        for payload in study_record_lines(read_text(log, errors="ignore")):
             rid = str(payload["id"])
             if problem := validation_record_problem(payload):
                 raise SystemExit(f"{log.name}: record {rid}: {problem}")

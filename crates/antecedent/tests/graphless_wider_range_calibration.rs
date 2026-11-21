@@ -335,7 +335,7 @@ fn measure_sc(
         tally.record(Some(run.interval), truth);
     }
     match assertion {
-        Assertion::TwoSided => tally.assert(),
+        Assertion::TwoSided => tally.assert_panel_interval(),
         Assertion::Conservative(target) => tally.assert_one_sided(CoverageSide::Upper, target),
     }
 }

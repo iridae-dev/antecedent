@@ -10,7 +10,8 @@ mod calibration;
 mod truth;
 
 use calibration::{
-    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, grid_seed, map_replicates, n_sim,
+    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, grid_seed, map_replicates,
+    n_sim,
 };
 
 const TEST: &str = "hawkes_recursive_refit_count_l90";

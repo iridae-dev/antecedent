@@ -1153,7 +1153,7 @@
     },
     {
       "path": "crates/antecedent/tests/common/calibration.rs",
-      "sha256": "0c3c9c44c70b778f98855890357108e238196046d9984545c4176be8dafcb5d9",
+      "sha256": "e8db65dc18bfb4992c236fccf7b2f6f2bd864aa45ec09b4928793a1ffe1e255f",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared tally definition plus bounded unit fixtures; actual named hypothesis labels/levels come from audited caller sources."
@@ -1164,6 +1164,13 @@
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses."
+    },
+    {
+      "path": "crates/antecedent/tests/common/calibration_design_counts.rs",
+      "sha256": "7a704955ef811253cd77a74cf32baea7f54511619d0dc848f443ead2199c8ca8",
+      "labelled_calls": [],
+      "constructor_calls": [],
+      "review": "Reports auxiliary counts for an existing bound panel or sequential hypothesis. The second sequential tally sums refusals and has no independent statistical assertion or coverage record."
     },
     {
       "path": "crates/antecedent/tests/common/grid_cell.rs",
@@ -1442,11 +1449,11 @@
     },
     {
       "path": "crates/antecedent/tests/event_count_calibration.rs",
-      "sha256": "90b8013dd65567966837dc6782a51dabff36a036b8f7874d512dd6d71dfdd30b",
+      "sha256": "0a8f3603505885972d7ba99668ab129ed715bcf07198e1521efd4e29de0757c2",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 22,
+          "line": 23,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: TEST,\n            dgp: \"hawkes_exponential_cluster_interior\",\n            interval: \"smoothed_rank_90\",\n        },\n        0.90,"
         }
@@ -1736,7 +1743,7 @@
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
-      "sha256": "878e98a68b6cd7fd47875ee4e68f2cba018bbc6b6ac61ec76a71dba92f8ca9b4",
+      "sha256": "db658cb36e3050e2a48529d258d90834677ec20c7b8235481295f6e2bb1be901",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2949,7 +2956,7 @@
     },
     {
       "path": "crates/antecedent/tests/synthetic_control_calibration.rs",
-      "sha256": "2131ab3d3037e8c4caf1e7264bbfbe5c9a1040e390b4db85436e0dbfc2c65441",
+      "sha256": "a8a7cb6c016ddd4c0902af09daca2331f3c95dcb628209115da4485f22972533",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2967,7 +2974,7 @@
     },
     {
       "path": "crates/antecedent/tests/synthetic_control_range_calibration.rs",
-      "sha256": "e7958c003bdab598022198f81460c1f93cccb4f1370af8d211289b909ee9eb21",
+      "sha256": "f963f486fb9d092409f47eb9f4168dc92d65b8e7bfbc7b5bbf9a907195d1a46b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -3223,7 +3230,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_wider_range_calibration.rs",
-      "sha256": "9eea822e861738e08425702ecbce46a331428010ea2ebbd0452846a57529dcc5",
+      "sha256": "aac5067981bc06761b5b6cdb1cadb5f8a1222dfd2be356b0021822b8e3f762b5",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -3235,6 +3242,11 @@
           "line": 824,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"sequential_panel_wide_probabilities\", interval },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 828,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"{test}_overlap_refusals\"), REPORTED_LEVEL"
         }
       ],
       "review": "Fifty-four source-fixed designs repeating base temporal-design, sequential-contrast and regime-survival panels with one axis moved (decision lags two and three of every lag-taking design, assignment probabilities on each row's floor, a sequential panel whose true action probabilities reach 0.07 and 0.93, regime survival with thin treatment overlap and with heavy censoring), each scoring the one interval the route publishes at one 0.95 level against the base design's closed-form or simulated truth with static record keys; no lag, probability, censoring rate or coordinate is chosen from outcomes. In each wide sequential group reserve a second hypothesis slot for coverage conditional on publication, with fixed independent panel streams 0x5E20201 (Wald) and 0x5E20202 (Bayesian absolute-deviation radius). The first slot and its all-panel outcome remain historical. Only a typed fitted-overlap refusal redraws; a refusal count creates no additional hypothesis."

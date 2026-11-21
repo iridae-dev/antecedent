@@ -131,7 +131,7 @@ fn measure(
         tally.bind_validation(&run.construction, run.scope, NO_VALIDATION);
         tally.record(Some(run.interval), truth);
     }
-    tally.assert();
+    tally.assert_panel_interval();
 }
 
 // ------------------------------------------------------------------ predictive path

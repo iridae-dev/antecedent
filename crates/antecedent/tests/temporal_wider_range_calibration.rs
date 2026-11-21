@@ -825,14 +825,16 @@ fn measure_wide_sequential(test: &'static str, bayesian: bool, seed: u64) {
         RecordKey { test, dgp: "sequential_panel_wide_probabilities", interval },
         REPORTED_LEVEL,
     );
+    let mut refusals = CoverageTally::new(format!("{test}_overlap_refusals"), REPORTED_LEVEL);
     for (refused, run) in runs {
         let (lo, hi) = run.interval;
         assert!(lo.is_finite() && hi.is_finite() && lo <= hi, "{test}: invalid interval");
-        tally.track_overlap_refusals(refused);
+        tally.absorb(&refused);
+        refusals.record(Some((0.0, f64::from(u32::try_from(refused).expect("retry limit")))), 0.0);
         tally.bind_validation(&run.construction, run.scope, "not_applicable");
         tally.record(Some(run.interval), CONTRAST_TRUTH);
     }
-    tally.assert();
+    tally.assert_with_overlap_refusals(&refusals);
 }
 
 // ----------------------------------------------------------- regime survival

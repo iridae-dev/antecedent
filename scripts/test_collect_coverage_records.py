@@ -1123,6 +1123,16 @@ class FamilyDecisionRecordTest(unittest.TestCase):
         )
         self.assertTrue(all(collector.grid_fields_valid(p, record) for p in record["grid"]))
 
+    def test_auxiliary_counts_must_match_the_record_and_point(self):
+        measurement = 'calibration-record {"id":"wide","grid_point":1}'
+        supplement = 'calibration-design-counts {"id":"wide","grid_point":1,"counts":{"overlap_refusals":17}}'
+        records = collector.study_record_lines(measurement + "\n" + supplement)
+        self.assertEqual(records[0]["overlap_refusals"], 17)
+        with self.assertRaisesRegex(ValueError, "no matching measurement"):
+            collector.study_record_lines(measurement + "\n" + supplement.replace('"grid_point":1', '"grid_point":0'))
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            collector.study_record_lines("\n".join([measurement, supplement, supplement]))
+
     def test_exact_panel_provenance_keeps_attempted_returned_and_covered(self):
         points = {i: self.point(i, 1880) for i in range(3)}
         for point in points.values():
