@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -85,6 +86,38 @@ class PublicationOrderTest(unittest.TestCase):
                 condition = " ".join(str(jobs[job_id].get("if", "")).split())
                 if "always()" in condition:
                     self.assertIn("needs.docs.result == 'success'", condition)
+
+    def test_tag_requires_registry_configuration_before_upload(self) -> None:
+        jobs = ci.load_jobs(REPO_ROOT / ".github" / "workflows" / "publish-release.yml")
+        steps = jobs["publish-pypi"]["steps"]
+        (check,) = (
+            i
+            for i, step in enumerate(steps)
+            if "HAS_CRATES_TOKEN" in step.get("env", {})
+        )
+        (publish,) = (
+            i for i, step in enumerate(steps) if "uv publish" in step.get("run", "")
+        )
+        self.assertLess(check, publish)
+        self.assertIn(
+            "secrets.CRATES_IO_TOKEN != ''", steps[check]["env"]["HAS_CRATES_TOKEN"]
+        )
+        for configured, succeeds in [("false", False), ("true", True)]:
+            result = subprocess.run(
+                ["bash", "-c", steps[check]["run"]],
+                env={"HAS_CRATES_TOKEN": configured},
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode == 0, succeeds)
+        self.assertIn("publish-pypi", jobs["publish-crates"]["needs"])
+        (upload,) = (
+            step
+            for step in jobs["publish-crates"]["steps"]
+            if "scripts/publish_crates.sh" in step.get("run", "")
+        )
+        self.assertIn("--execute", upload["run"])
+        self.assertNotIn("--dry-run", upload["run"])
 
 
 if __name__ == "__main__":

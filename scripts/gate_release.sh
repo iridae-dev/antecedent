@@ -14,7 +14,7 @@
 # (bash scripts/test.sh), rerunning only the records that are owed, and committed. This
 # gate never executes either lane: it checks that every record is current
 # (scripts/scientific_records.py status --check, scripts/calibration_status.py --check),
-# in the static tier and again as its own CI job. An owed record fails the change.
+# in the local static gate or the dedicated CI job. An owed record fails the change.
 #
 # Tier 4 is the release candidate (scripts/gate_release_candidate.sh): this gate, then the
 # CI-run check, scale cases and the installed wheel. It requires the same current records.
@@ -28,7 +28,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-SECTIONS="static public-api cited-tests cited-tests-0..7 benches deny python-lint engineering development scientific"
+SECTIONS="static ci-static public-api cited-tests cited-tests-0..7 benches deny python-lint engineering development scientific"
 section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
@@ -36,7 +36,7 @@ elif [[ $# -ne 0 ]]; then
   echo "usage: $0 [--section ${SECTIONS// /|}]" >&2
   exit 2
 fi
-case "$section" in all|static|public-api|cited-tests|cited-tests-[0-7]|benches|deny|python-lint|engineering|development|scientific) ;; *)
+case "$section" in all|static|ci-static|public-api|cited-tests|cited-tests-[0-7]|benches|deny|python-lint|engineering|development|scientific) ;; *)
   echo "unknown gate section: $section" >&2; exit 2 ;;
 esac
 wanted() { [[ "$section" == all || "$section" == "$1" ]]; }
@@ -89,10 +89,19 @@ step() {
 }
 
 
+check_records() {
+  if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+    step python3 scripts/gate_support.py --check-scientific --write-current "$ANTECEDENT_RC_RECEIPTS/current.json"
+  else
+    step python3 scripts/gate_support.py --check-scientific
+  fi
+  step python3 scripts/calibration_status.py --check --check-support-docs
+}
+
 # ---------------------------------------------------------------------------------------
 # Tier 0: static. One job, no build, no test execution.
 # ---------------------------------------------------------------------------------------
-if wanted static; then
+if wanted static || wanted ci-static; then
 section_start static
 step_logs="$(mktemp -d)"
 trap 'rm -rf "$step_logs"' EXIT
@@ -131,11 +140,7 @@ step bash scripts/gate_checked_execution.sh
 step bash scripts/gate_gcm_conformance.sh --tests-only
 
 echo "== support: the one count, the matrix, the graphless supports, the transport stages =="
-if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
-  step python3 scripts/gate_support.py --check-scientific --write-current "$ANTECEDENT_RC_RECEIPTS/current.json"
-else
-  step python3 scripts/gate_support.py --check-scientific
-fi
+if [[ "$section" != ci-static ]]; then check_records; fi
 step python3 scripts/gate_not_supported_sites.py
 step bash scripts/gate_docs_support_matrix.sh
 
@@ -160,7 +165,6 @@ step python3 scripts/check_conformance_references.py
 
 echo "== generated files are current =="
 step python3 scripts/generate_conformance_docs.py --check
-step python3 scripts/calibration_status.py --check --check-support-docs
 step python3 scripts/generate_host_schema.py --check
 step python3 scripts/generate_supported_route_records.py --check
 step python3 scripts/support_functional_graph_posterior_rows.py --check
@@ -291,13 +295,9 @@ fi
 # ---------------------------------------------------------------------------------------
 # Tier 3: record currency. Nothing executes; an owed record fails the change.
 # ---------------------------------------------------------------------------------------
-# The static tier runs these two checks inside its larger list; this section is the same
-# pair as a job of their own, so CI's `scientific` job keeps meaning "the scientific and
-# calibration evidence is current" and is quick (a checkout and Python, no build).
 if [[ "$section" == scientific ]]; then
 section_start scientific
-step python3 scripts/scientific_records.py status --check
-step python3 scripts/calibration_status.py --check
+check_records
 if (( ${#failed_steps[@]} )); then
   echo "== scientific: ${#failed_steps[@]} check(s) failed; earn the owed records with bash scripts/test.sh and commit them ==" >&2
   printf '  FAILED: %s\n' "${failed_steps[@]}" >&2

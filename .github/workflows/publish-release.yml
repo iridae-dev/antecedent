@@ -60,12 +60,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Information only: the records that are not current for this tag. A
-      # release is never blocked by calibration state.
-      - name: Calibration status (informational)
-        continue-on-error: true
-        run: python3 scripts/calibration_status.py status
-
       - name: Resolve version from tag or input
         id: ver
         env:
@@ -253,6 +247,15 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
+      - name: Check crates.io publication is configured
+        env:
+          HAS_CRATES_TOKEN: ${{ secrets.CRATES_IO_TOKEN != '' }}
+        run: |
+          if [[ "$HAS_CRATES_TOKEN" != true ]]; then
+            echo "::error::Set CRATES_IO_TOKEN in the release environment before publishing."
+            exit 1
+          fi
+
       - name: Publish wheels to PyPI
         run: |
           set -euo pipefail
@@ -336,18 +339,10 @@ jobs:
       - name: Embed release support status
         run: python3 scripts/generate_support_matrix_docs.py --release
 
-      - name: Publish (dry-run when no token is configured)
+      - name: Publish crates
         env:
-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${CRATES_IO_TOKEN:-}" ]]; then
-            export CARGO_REGISTRY_TOKEN="$CRATES_IO_TOKEN"
-            bash scripts/publish_crates.sh --execute --allow-dirty  # the embedded status differs from the tag
-          else
-            echo "CRATES_IO_TOKEN unset; dry-run only"
-            bash scripts/publish_crates.sh --dry-run
-          fi
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: bash scripts/publish_crates.sh --execute --allow-dirty
 
   github-release:
     name: Publish GitHub Release

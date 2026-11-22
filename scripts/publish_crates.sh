@@ -11,7 +11,7 @@
 # CRATES_IO_TOKEN / CARGO_REGISTRY_TOKEN must be set for --execute.
 #
 # Env (execute only):
-#   PUBLISH_SLEEP_SECS   seconds between successful uploads (default: 60)
+#   PUBLISH_SLEEP_SECS   seconds after successful uploads (default: 0)
 #   PUBLISH_MAX_RETRIES  retries on rate-limit / transient errors (default: 8)
 #
 # Idempotent: crates already present at this workspace version are skipped, so
@@ -148,7 +148,8 @@ fi
 export CARGO_REGISTRY_TOKEN="${CARGO_REGISTRY_TOKEN:-$CRATES_IO_TOKEN}"
 
 VERSION="$(workspace_version)"
-SLEEP_SECS="${PUBLISH_SLEEP_SECS:-60}"
+SLEEP_SECS="${PUBLISH_SLEEP_SECS:-0}"
+RETRY_SECS="${PUBLISH_SLEEP_SECS:-60}"
 MAX_RETRIES="${PUBLISH_MAX_RETRIES:-8}"
 published=0
 skipped=0
@@ -172,8 +173,7 @@ for crate in "${CRATES[@]}"; do
     if [[ $status -eq 0 ]]; then
       echo "$out" | tail -n 8
       published=$((published + 1))
-      echo "sleeping ${SLEEP_SECS}s…"
-      sleep "$SLEEP_SECS"
+      if (( SLEEP_SECS > 0 )); then sleep "$SLEEP_SECS"; fi
       break
     fi
     if is_already_uploaded "$out"; then
@@ -182,7 +182,7 @@ for crate in "${CRATES[@]}"; do
       break
     fi
     if { is_rate_limited "$out" || is_index_lag "$out"; } && [[ "$attempt" -lt "$MAX_RETRIES" ]]; then
-      wait=$((SLEEP_SECS * attempt))
+      wait=$((RETRY_SECS * attempt))
       echo "transient (rate limit or index propagation; attempt ${attempt}/${MAX_RETRIES}); sleeping ${wait}s…" >&2
       sleep "$wait"
       attempt=$((attempt + 1))

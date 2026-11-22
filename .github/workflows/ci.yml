@@ -77,7 +77,7 @@ jobs:
           python-version: "3.12"
 
       - name: Static gate
-        run: bash scripts/gate_release.sh --section static
+        run: bash scripts/gate_release.sh --section ci-static
 
   rust:
     name: Rust ${{ matrix.display }}
@@ -173,9 +173,8 @@ jobs:
           # The facade's dev-dependencies enabled these features in the former
           # full-workspace command. The calibration-internal self dev-dependencies
           # are gone, so this shard passes the same feature set explicitly.
-          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
           rm -f target/nextest/ci/junit.xml
-          cargo nextest run -P ci --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
+          cargo nextest run --locked --timings -P ci --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
 
       - name: Test facade
@@ -186,9 +185,8 @@ jobs:
           # Python's default features activate ml-gbdt, ml-forest, ml-neural and
           # data/arrow in the former full-workspace command. calibration-internal
           # is not a default feature; the closed-estimator targets opt into it here.
-          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --no-run --timings
           rm -f target/nextest/ci/junit.xml
-          cargo nextest run -P ci -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
+          cargo nextest run --locked --timings -P ci -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal"
           cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES,calibration-internal" --doc
 
       - name: Upload Cargo timings
