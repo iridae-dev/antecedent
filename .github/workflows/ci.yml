@@ -261,8 +261,24 @@ jobs:
       # Do not inherit the workflow `-D warnings`. This package builds path
       # dependencies as they are, and those crates currently warn.
       RUSTFLAGS: ""
+      # The sanitizer build of the whole workspace lost its runner mid-compile with
+      # one rustc per core; build two at a time, with swap, to stay within memory.
+      CARGO_BUILD_JOBS: "2"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free disk and add swap
+        run: |
+          set -euo pipefail
+          for path in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android /opt/ghc /usr/local/share/boost; do
+            if [[ -e "$path" ]]; then sudo rm -rf "$path"; fi
+          done
+          sudo fallocate -l 16G /swapfile.fuzz
+          sudo chmod 600 /swapfile.fuzz
+          sudo mkswap /swapfile.fuzz
+          sudo swapon /swapfile.fuzz
+          free -h
+          df -h /
 
       - name: Install nightly
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
@@ -738,6 +754,8 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
+          # The smoke may run no uv command, which leaves nothing to cache.
+          ignore-nothing-to-cache: true
 
       - name: Criterion smoke
         env:
@@ -775,6 +793,8 @@ jobs:
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: "3.12"
+          # The record checks run no uv command, which leaves nothing to cache.
+          ignore-nothing-to-cache: true
 
       - name: Scientific and calibration records are current
         env:
