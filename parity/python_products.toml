@@ -130,6 +130,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_explicit"
 
 [[route]]
+kind = "average_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_graph_posterior"
+
+[[route]]
 kind = "conditional"
 data = "tabular"
 structure = "accepted"
@@ -184,6 +193,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_explicit"
 
 [[route]]
+kind = "counterfactual"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_graph_posterior"
+
+[[route]]
 kind = "directional_derivative"
 data = "tabular"
 structure = "accepted"
@@ -200,6 +218,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_explicit"
+
+[[route]]
+kind = "directional_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_graph_posterior"
 
 [[route]]
 kind = "distribution"
@@ -236,6 +263,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_elasticity_tabular_explicit"
+
+[[route]]
+kind = "elasticity"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_elasticity_tabular_graph_posterior"
 
 [[route]]
 kind = "intervention_response"
@@ -398,6 +434,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_explicit"
+
+[[route]]
+kind = "point_derivative"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_graph_posterior"
 
 [[route]]
 kind = "pulse"
@@ -652,6 +697,15 @@ reason = ""
 test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_explicit"
 
 [[route]]
+kind = "response_jacobian"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_graph_posterior"
+
+[[route]]
 kind = "semi_elasticity"
 data = "tabular"
 structure = "accepted"
@@ -668,6 +722,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_explicit"
+
+[[route]]
+kind = "semi_elasticity"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_graph_posterior"
 
 [[route]]
 kind = "sustained"

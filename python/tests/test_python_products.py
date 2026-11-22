@@ -291,6 +291,13 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
             "pulse",
             "sustained",
             "temporal_mediation",
+            "counterfactual",
+            "average_derivative",
+            "point_derivative",
+            "elasticity",
+            "semi_elasticity",
+            "directional_derivative",
+            "response_jacobian",
         }
         kwargs["inference"] = Frequentist(bootstrap=0) if freq_ok else Bayesian(n_draws=32)
     if structure.startswith("discovered."):
@@ -451,9 +458,10 @@ def test_every_route_retains():
         assert row.get("retains") is True, row
 
 
-#: Graph classes the Rust support table covers that `analyze` cannot be handed: a
-#: `TemporalAdmg` is a native-only graph object (the contemporaneous-projection twin of the
-#: static latent-graph analyses), not an edge list, so no Python route exists to carry a row.
+#: Graph classes this kind × data grid does not separate: a `TemporalAdmg` carries static
+#: queries on rows (its contemporaneous projection) and temporal queries on a series, while the
+#: grid maps every temporal class to series data. Its static routes are exercised by
+#: `test_class_graph_query_routes.py`.
 RUST_ONLY_GRAPH_CLASSES = frozenset({"TemporalAdmg"})
 
 
@@ -501,17 +509,12 @@ def test_every_supported_combination_has_a_route_row():
                 expected.add((kind, "panel", structure))
             if structure != "graph_posterior" and kind in {"pulse", "sustained"}:
                 expected.add((kind, "multi_env", structure))
-    # The Python facade names its own graph-posterior cells, and its static average takes only
-    # series data on a temporal graph: the rest are Rust-only and pinned as refusals.
+    # The Python static average takes only series data on a temporal graph: the rest are
+    # Rust-only and pinned as refusals.
     refused = {
         (kind, data, structure)
         for kind, data, structure in expected
-        if (kind in PYTHON_STATIC_QUERY_KINDS and data in {"event", "panel"})
-        or (
-            kind in PYTHON_WITHOUT_GRAPH_POSTERIOR
-            and structure == "graph_posterior"
-            and data == "tabular"
-        )
+        if kind in PYTHON_STATIC_QUERY_KINDS and data in {"event", "panel"}
     }
     # An event frame handed to the static average under a graph posterior is analysed, but the
     # prepared tabular study cannot be rebound onto it; the combination has no route or
@@ -569,29 +572,11 @@ def test_every_refusal_row_names_a_reason_code():
 #: frames are refused (pinned by the refusal rows).
 PYTHON_STATIC_QUERY_KINDS = frozenset({"average"})
 
-#: Query kinds the Python facade does not offer a graph-posterior mixture for (it names its own
-#: graph-posterior cells and refuses these with `option_not_applicable`, pinned by refusal rows).
-PYTHON_WITHOUT_GRAPH_POSTERIOR = frozenset(
-    {
-        "average_derivative",
-        "counterfactual",
-        "directional_derivative",
-        "elasticity",
-        "point_derivative",
-        "response_jacobian",
-        "semi_elasticity",
-    }
-)
-
 #: The combinations the facade refuses although the Rust table supports them, with their codes.
 RUST_ONLY_REFUSALS = {
     ("average", "event", "explicit"): "data_modality_not_supported",
     ("average", "event", "accepted"): "data_modality_not_supported",
     ("average", "panel", "accepted"): "data_modality_not_supported",
-    **{
-        (kind, "tabular", "graph_posterior"): "option_not_applicable"
-        for kind in sorted(PYTHON_WITHOUT_GRAPH_POSTERIOR)
-    },
 }
 
 QUERY_KIND = {

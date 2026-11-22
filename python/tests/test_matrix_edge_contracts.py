@@ -24,35 +24,36 @@ DERIVATIVES = [
 ]
 
 
+def confounded_data():
+    """`z -> t`, `z -> y`, `t -> y`: the treatment's confounder is observed."""
+    rng = np.random.default_rng(19019)
+    z = rng.uniform(0.3, 1.7, 160)
+    t = 0.6 * z + rng.uniform(0.0, 0.8, 160)
+    return {"t": t, "y": 4 + 2.5 * t + 1.5 * z + rng.normal(0, 0.06, 160), "z": z}
+
+
 @pytest.mark.parametrize("query", DERIVATIVES)
 @pytest.mark.parametrize("accepted", [False, True])
-def test_cpdag_derivatives_normalize_only_fully_oriented_graphs(query, accepted):
-    for complete in (True, False):
-        graph = ant.Cpdag.from_directed_undirected(
-            ["t", "y"],
-            [("t", "y")] if complete else [],
-            [] if complete else [("t", "y")],
+def test_cpdag_derivatives_run_on_the_class_whether_or_not_it_is_oriented(query, accepted):
+    # A CPDAG is executed as the class it is, never coerced to a Dag: a fully oriented one has
+    # one member, and `z -- t` leaves two (`z -> t` adjusts `{z}`, `t -> z` adjusts nothing).
+    complete = ant.Cpdag.from_directed_undirected(["t", "y"], [("t", "y")], [])
+    incomplete = ant.Cpdag.from_directed_undirected(
+        ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
+    )
+    for graph, values in ((complete, data()), (incomplete, confounded_data())):
+        prepared = ant.prepare(
+            values,
+            graph=ant.AcceptedGraph.from_graph(graph) if accepted else graph,
+            query=query,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+            estimator_config={"bandwidth": 0.3},
         )
-        if accepted:
-            graph = ant.AcceptedGraph.from_graph(graph)
-
-        def prepared(graph=graph):
-            return ant.prepare(
-                data(),
-                graph=graph,
-                query=query,
-                refute="none",
-                inference=ant.Frequentist(bootstrap=0),
-                estimator_config={"bandwidth": 0.3},
-            )
-
-        if complete:
-            assert prepared().inspect().support.payload["matrix_coordinate"] == (
-                f"{type(query).__name__}:Dag:{'accepted' if accepted else 'explicit'}:Frequentist:none"
-            )
-        else:
-            with pytest.raises(ValueError, match="undirected|orient"):
-                prepared()
+        assert prepared.inspect().support.payload["matrix_coordinate"] == (
+            f"{type(query).__name__}:Cpdag:{'accepted' if accepted else 'explicit'}:Frequentist:none"
+        )
+        require_success(prepared.estimate())
 
 
 @pytest.mark.parametrize(
@@ -97,38 +98,31 @@ def test_bayesian_response_band_has_portable_uncertainty_source(query):
     ],
 )
 @pytest.mark.parametrize("accepted", [False, True])
-def test_static_dag_families_preserve_cpdag_compatibility(query, accepted):
+def test_cross_world_families_run_on_the_cpdag_class_whether_or_not_it_is_oriented(query, accepted):
     values = data()
     values["m"] = values["t"] + np.sin(np.arange(len(values["t"])))
-    if isinstance(query, (ant.InterventionalDistribution, ant.PathSpecificEffect)):
-        # Both functional-distribution and path-specific estimators require a
-        # finite discrete law. Keep this graph-class compatibility fixture
-        # inside those estimator contracts.
+    if not isinstance(query, ant.Counterfactual):
+        # The class routes of mediation, path-specific effects and distributions run the
+        # finite-discrete functional plug-in on every member; a CPDAG counterfactual fits the
+        # mechanisms of each member instead and reads the continuous law.
         values = {
             name: (column > np.median(column)).astype(float) for name, column in values.items()
         }
+    # Oriented, the class has one member; with `t -- m` it has two (`t -> m` and `m -> t`).
     for complete in (True, False):
         graph = ant.Cpdag.from_directed_undirected(
             ["t", "y", "m"],
             [("m", "y"), ("t", "y")] + ([("t", "m")] if complete else []),
             [] if complete else [("t", "m")],
         )
-        if accepted:
-            graph = ant.AcceptedGraph.from_graph(graph)
-
-        def prepared(graph=graph):
-            return ant.prepare(
-                values,
-                graph=graph,
-                query=query,
-                refute="none",
-                inference=ant.Frequentist(bootstrap=0),
-            )
-
-        if complete:
-            assert prepared().inspect().support.payload["matrix_coordinate"] == (
-                f"{type(query).__name__}:Dag:{'accepted' if accepted else 'explicit'}:Frequentist:none"
-            )
-        else:
-            with pytest.raises(ValueError, match="undirected|orient"):
-                prepared()
+        prepared = ant.prepare(
+            values,
+            graph=ant.AcceptedGraph.from_graph(graph) if accepted else graph,
+            query=query,
+            refute="none",
+            inference=ant.Frequentist(bootstrap=0),
+        )
+        assert prepared.inspect().support.payload["matrix_coordinate"] == (
+            f"{type(query).__name__}:Cpdag:{'accepted' if accepted else 'explicit'}:Frequentist:none"
+        )
+        require_success(prepared.estimate())

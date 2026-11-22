@@ -4,7 +4,6 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import artifacts
-from antecedent.errors import CausalUnsupportedError
 from antecedent.identify import identify
 from antecedent.outcomes import require_success
 
@@ -613,19 +612,21 @@ def test_v13_named_refusals():
         )
     )
     assert deriv.response is not None or deriv.ate is not None
-    # A counterfactual has no graph-posterior mixture in the facade; a mediation does: every
-    # atom of the posterior decomposes it with the executor of its own structure and the
-    # atoms are mixed by posterior probability.
-    with pytest.raises(CausalUnsupportedError, match="no graph-posterior mixture"):
-        require_success(
-            ac.analyze(
-                data,
-                query=cf,
-                discovery=posterior,
-                inference=ac.Bayesian(),
-                refute="none",
-            )
+    # A counterfactual and a mediation both mix over a graph posterior: every atom is answered
+    # by the executor of its own structure and the atoms are mixed by posterior probability.
+    mixed_cf = require_success(
+        ac.analyze(
+            data,
+            query=cf,
+            discovery=posterior,
+            inference=ac.Bayesian(),
+            refute="none",
         )
+    )
+    assert np.isfinite(mixed_cf.estimate.ate)
+    assert mixed_cf.inspect().support.payload["matrix_coordinate"] == (
+        "Counterfactual:Dag:graph_posterior:Bayesian:none"
+    )
     mixed = require_success(
         ac.analyze(
             data,

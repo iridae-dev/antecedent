@@ -1,10 +1,10 @@
 """PathSpecific / Interventional queries with discovery= and CPDAG graph=.
 
 Live discovery is accepted through its review gate and then estimated like any
-other accepted structure: an oriented DAG runs, a class structure that
-PathSpecific / Interventional cannot read refuses by naming what it needs. A
-graph *posterior* mixes: every atom is answered by the executor of its own structure
-and the atoms are weighted by posterior probability.
+other accepted structure: an oriented DAG runs on that DAG, and a class structure
+(a CPDAG or PAG) runs the query's class executor on its completions. A graph
+*posterior* mixes: every atom is answered by the executor of its own structure and
+the atoms are weighted by posterior probability.
 """
 
 from __future__ import annotations
@@ -183,57 +183,6 @@ def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():
         assert mixed.estimate.ate == pytest.approx(expected, abs=1e-9)
 
 
-def test_path_specific_fci_rejected():
-    n = 80
-    rng = np.random.default_rng(5)
-    z = rng.normal(size=n)
-    t = z + rng.normal(size=n) * 0.3
-    y = t + z + rng.normal(size=n) * 0.3
-    data = {"z": z, "t": t, "y": y}
-    # FCI accepts as a PAG; PathSpecific reads an oriented DAG and says so.
-    with pytest.raises(ValueError, match="fully oriented|orient"):
-        require_success(
-            antecedent.analyze(
-                data,
-                graph=antecedent.discovery.discover(
-                    data,
-                    method=antecedent.discovery.FCI(alpha=0.2, fdr=False),
-                    execution=antecedent.Execution(seed=1),
-                    accept_discovered=True,
-                ),
-                query=antecedent.PathSpecificEffect("t", "y"),
-                refute=False,
-                inference=antecedent.Frequentist(bootstrap=0),
-                execution=antecedent.Execution(seed=1),
-            )
-        )
-
-
-def test_path_specific_incomplete_pc_rejected():
-    n = 80
-    rng = np.random.default_rng(5)
-    z = rng.normal(size=n)
-    t = z + rng.normal(size=n) * 0.3
-    y = t + z + rng.normal(size=n) * 0.3
-    data = {"z": z, "t": t, "y": y}
-    with pytest.raises(ValueError, match="undirected|orient"):
-        require_success(
-            antecedent.analyze(
-                data,
-                graph=antecedent.discovery.discover(
-                    data,
-                    method=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
-                    execution=antecedent.Execution(seed=1),
-                    accept_discovered=True,
-                ),
-                query=antecedent.PathSpecificEffect("t", "y"),
-                refute=False,
-                inference=antecedent.Frequentist(bootstrap=0),
-                execution=antecedent.Execution(seed=1),
-            )
-        )
-
-
 def test_path_specific_accept_discovered_false_review_attrs():
     n = 80
     rng = np.random.default_rng(11)
@@ -278,22 +227,31 @@ def test_analyze_path_specific_graph_cpdag_fully_oriented():
     )
     # No t -> y arrow, so the path effect is the total effect E[y|t=1] - E[y|t=0] = 0.8 - 0.5.
     assert result.ate == pytest.approx(0.3, abs=1e-9)
+    # The class is executed as itself: the result names the Cpdag, not a Dag it was coerced to.
+    assert result.inspect().support.payload["matrix_coordinate"] == (
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:none"
+    )
 
 
-def test_analyze_path_specific_graph_cpdag_incomplete():
+def test_analyze_path_specific_graph_cpdag_with_an_undirected_edge():
     data = _discrete_chain()
     cpdag = antecedent.Cpdag.from_directed_undirected(
         ["t", "m", "y"],
         directed=[("t", "m")],
         undirected=[("m", "y")],
     )
-    with pytest.raises(ValueError, match="undirected|orient|not fully oriented"):
-        require_success(
-            antecedent.analyze(
-                data,
-                graph=cpdag,
-                query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-                refute=False,
-                inference=antecedent.Frequentist(bootstrap=0),
-            )
+    result = require_success(
+        antecedent.analyze(
+            data,
+            graph=cpdag,
+            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+            refute=False,
+            inference=antecedent.Frequentist(bootstrap=0),
         )
+    )
+    # Orienting m <- y would add the unshielded collider t -> m <- y, so t -> m -> y is the
+    # class's only member and the class reads its path effect, 0.8 - 0.5.
+    assert result.ate == pytest.approx(0.3, abs=1e-9)
+    assert result.inspect().support.payload["matrix_coordinate"] == (
+        "PathSpecificEffect:Cpdag:explicit:Frequentist:none"
+    )

@@ -9128,6 +9128,13 @@ path = "python/tests/test_matrix_edge_contracts.py"
 gates = ["inventory"]
 
 [[test]]
+id = "class-graph-query-routes-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_class_graph_query_routes.py"
+gates = ["inventory"]
+
+[[test]]
 id = "measured-inference-python"
 crate = "python"
 cargo_target = "script"
