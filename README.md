@@ -96,6 +96,7 @@ Each tutorial follows one scientific task from declaration to what the computati
 | [When the comparison group does not overlap](docs/tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap. |
 | [When the causal assumptions stop holding](docs/tutorials/when-assumptions-change.md) | Decide what to do when new data stop fitting the graph behind an estimate. |
 | [Use an analysis inside an application](docs/tutorials/application-component.md) | Run a scientific component inside an application. |
+| [When outside events interrupt a launch](docs/tutorials/event-driven-launch.md) | Forecast clustered announcements with a fitted Hawkes model, compare launch actions under the same simulated arrivals, and value an extra hour of observation before deciding. |
 
 The [guides](docs/index.md#guides) are organized by the question you have: data and inputs, estimating effects, experiments and study designs, discovery, structural models, transport, decisions and study planning.
 
