@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import tempfile
 import unittest
@@ -168,6 +169,30 @@ class PublicationOrderTest(unittest.TestCase):
         )
         self.assertIn("--execute", upload["run"])
         self.assertNotIn("--dry-run", upload["run"])
+
+
+class FullHistoryTest(unittest.TestCase):
+    """Record currency recovers bound sources from the commits records were built at."""
+
+    READERS = re.compile(
+        r"generate_support_matrix_docs\.py|gate_support\.py|calibration_status\.py|scientific_records\.py"
+        r"|gate_release\.sh --section (?:ci-static|static|scientific)\b|scripts/test\.sh scripts\b"
+    )
+
+    def test_every_job_that_reads_records_checks_out_full_history(self) -> None:
+        readers = 0
+        for workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+            for job_id, job in ci.load_jobs(workflow).items():
+                steps = job.get("steps") or []
+                if not any(self.READERS.search(str(step.get("run", ""))) for step in steps):
+                    continue
+                readers += 1
+                checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout@")]
+                with self.subTest(workflow=workflow.name, job=job_id):
+                    self.assertTrue(checkouts)
+                    for step in checkouts:
+                        self.assertEqual((step.get("with") or {}).get("fetch-depth"), 0)
+        self.assertGreater(readers, 0)
 
 
 if __name__ == "__main__":

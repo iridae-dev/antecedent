@@ -38,6 +38,28 @@ STORE = "parity/evidence_manifests"
 INPUT_GROUPS = "parity/evidence_inputs"
 
 
+class ShallowClone(RuntimeError):
+    """Currency cannot be judged in a clone that lacks the commits records were built at."""
+
+
+def is_shallow_clone(root: Path) -> bool:
+    """Whether `root` is the top of a shallow clone: its common git directory holds `shallow`.
+    Read from the filesystem, so constructing a checker starts no subprocess."""
+    dot = root / ".git"
+    if dot.is_dir():
+        gitdir = dot
+    elif dot.is_file():  # a linked worktree or submodule: `gitdir: <dir>`
+        text = dot.read_text(encoding="utf-8").strip()
+        if not text.startswith("gitdir:"):
+            return False
+        gitdir = (root / text.removeprefix("gitdir:").strip()).resolve()
+        if (gitdir / "commondir").is_file():
+            gitdir = (gitdir / (gitdir / "commondir").read_text(encoding="utf-8").strip()).resolve()
+    else:
+        return False
+    return (gitdir / "shallow").is_file()
+
+
 def input_group_key(entry: dict) -> str:
     """The group of an input: its directory, or its kind for named inputs."""
     path = entry.get("path")
@@ -404,6 +426,14 @@ class Checker:
 
     def __init__(self, root: Path, environ: dict[str, str] | None = None):
         self.root = root.resolve()
+        # `same_code_as_bound` recovers bound bytes from the record's build commit. A shallow
+        # clone lacks those commits, which would mark current records owed without an error
+        # (and a release build would embed them as not_supported).
+        if is_shallow_clone(self.root):
+            raise ShallowClone(
+                f"{self.root} is a shallow clone; evidence currency needs full history "
+                "(actions/checkout fetch-depth: 0, or git fetch --unshallow)"
+            )
         # Currency is judged against the canonical environment, not this process's.
         self.environ = {} if environ is None else environ
         self.cache: dict[tuple[str, str], str] = {}

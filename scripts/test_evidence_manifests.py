@@ -395,6 +395,21 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(self.check(manifest)["current"])
         self.assertFalse(self.check(membership)["current"])
 
+    def test_a_shallow_clone_refuses_instead_of_owing_current_records(self):
+        git = lambda *args, cwd=self.root: subprocess.run(  # noqa: E731
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=cwd, check=True, capture_output=True)
+        git("init", "-q")
+        git("add", "src/a.rs", "tools")
+        git("commit", "-qm", "first")
+        self.write("src/a.rs", "fn a() { 2; }\n")
+        git("commit", "-qam", "second")
+        shallow = self.root / "shallow"
+        git("clone", "-q", "--depth", "1", self.root.as_uri(), str(shallow))
+        with self.assertRaises(em.ShallowClone):
+            em.Checker(shallow, {})
+        git("fetch", "-q", "--unshallow", cwd=shallow)
+        em.Checker(shallow, {})
+
 
 if __name__ == "__main__":
     unittest.main()
