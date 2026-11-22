@@ -1,6 +1,6 @@
 //! Chunk streams and readers over an opened table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::schema::SchemaView;
 use super::{

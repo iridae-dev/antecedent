@@ -15,7 +15,7 @@
 //! of the selected candidate and the true ranking are known), noisy Monte Carlo
 //! utilities on a selection stream, and an independent validation stream.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::calibration::{

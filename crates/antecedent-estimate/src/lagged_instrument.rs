@@ -23,7 +23,7 @@
 //! earlier treatment or outcome of the same series often breaks exclusion. Neither can be tested
 //! from a just-identified fit. The caller declares them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{QuantileRule, column_is_constant, quantile_sorted};
 

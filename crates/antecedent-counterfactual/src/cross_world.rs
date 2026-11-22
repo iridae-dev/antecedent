@@ -24,7 +24,7 @@
 //! exogenous term reaches the outcome through a parent) shows its per-unit
 //! abduced value in the answer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

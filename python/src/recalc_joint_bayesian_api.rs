@@ -1,6 +1,6 @@
 //! Checked joint transport recalculation: one native aligned candidate posterior over the
 //! sources, with measured work and no calibrated interval.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::recalc_api::{RunPayload, bounded_context, invalid, parse_json};
 use crate::recalc_family_api::{caps, payload, resume, run_error};
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;

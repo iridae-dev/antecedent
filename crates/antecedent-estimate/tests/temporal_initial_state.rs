@@ -10,7 +10,7 @@
 //! its mode gives `0.46`. The panel itself is half `s0 = 0`, so its observed-state
 //! mean (`0.395`) is a third, different quantity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,

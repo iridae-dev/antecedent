@@ -3,7 +3,7 @@
 //! [`PlanId::as_str`] is the historical wire string. The enum is the source of
 //! those ids so a new route cannot invent a literal beside this table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Logical-plan id written on a compiled record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

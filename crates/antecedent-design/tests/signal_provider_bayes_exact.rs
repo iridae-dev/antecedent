@@ -14,7 +14,7 @@
 //!
 //! Tolerance 1e-12: a few float operations per entry.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -66,7 +66,7 @@
 //! The functionals are exact posterior quantities under the stated model and
 //! priors; no coverage or error-rate claim follows from them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::OnceLock;
 

@@ -17,7 +17,7 @@
 //! first-order variance of `E[Y | do(X = 2)]` has gradient `(3, 6, 0, 1, 2, 2.5)` over
 //! `(a_M, b_MX, a_X, a_Y, b_YX, b_YM)` and equals `0.36 + 0.09 + 0.04 + 0.015625 = 0.505625`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

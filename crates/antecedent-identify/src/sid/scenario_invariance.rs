@@ -37,7 +37,7 @@
 //! A scenario that is not identified reports its structural reason instead (the
 //! s-hedge or witness variables), never an invariance list.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;

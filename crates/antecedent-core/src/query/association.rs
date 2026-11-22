@@ -1,5 +1,5 @@
 //! Descriptive association of an outcome with predictors, stated as a noncausal query.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::AssociationFault;
 use std::sync::Arc;

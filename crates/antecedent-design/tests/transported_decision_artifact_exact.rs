@@ -10,7 +10,7 @@
 //! and give (3 + 14) / 15 = 17/15 and `treat` = 4 * 17/15 - 3.5 = 31/30 > 0, the opposite choice; the
 //! native mean alone gives 4 * 0.6 - 3.5 = -1.1.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_contract::evidence_ledger::{

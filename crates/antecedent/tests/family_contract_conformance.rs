@@ -17,7 +17,7 @@
 //! A route id the table does not list fails the build, as does a family without a row.
 //! A violation is an integration gap: the finding names the study and the obligation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

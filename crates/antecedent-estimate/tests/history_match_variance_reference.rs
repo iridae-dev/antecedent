@@ -10,7 +10,7 @@
 //! reproduce the standard error and contrast on every pattern and to return no standard error
 //! exactly where the reference has no within-arm neighbour.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::history_match::{HistoryUnit, PeriodHistoryContrast};
 use serde_json::Value;

@@ -6,7 +6,7 @@
 //! which gives the working-Gaussian quadratic-form reference and the exact conditional noise
 //! component of a linear point.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::prepare::PreparedPropensityProblem;
 use super::weighting::{PopulationLinearVariance, hajek_iid_se};

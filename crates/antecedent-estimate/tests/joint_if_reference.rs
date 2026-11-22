@@ -9,7 +9,7 @@
 //! weights, collinear columns and zero-weight atoms. This reviews the linear combination and
 //! the covariance arithmetic, not the nuisance fits that produce the scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::{
     frozen_weight_mixture_scores, joint_influence_covariance, weighted_mean,

@@ -1,7 +1,7 @@
 //! Closed-form checks of the analytic planner against published values, the
 //! solves in both directions, and the refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

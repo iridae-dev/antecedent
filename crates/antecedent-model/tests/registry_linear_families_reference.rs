@@ -10,7 +10,7 @@
 //! under row weights. The registry fits are taken from `assign_and_fit_with` with the family
 //! required, and the weighted refits from `refit_weighted`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

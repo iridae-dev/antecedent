@@ -1,6 +1,6 @@
 //! Prior/posterior predictive checks, prior sensitivity, MCMC diagnostics, and SBC.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod calibration;
 mod mcmc;

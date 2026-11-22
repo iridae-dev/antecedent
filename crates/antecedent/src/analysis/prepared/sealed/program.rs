@@ -2,7 +2,7 @@
 //! path-specific and functional effects, distributions, front-door, IV, and the
 //! nested counterfactual.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, stamp_tabular};
 use crate::analysis::builder::{DataInput, RefuteSuite};

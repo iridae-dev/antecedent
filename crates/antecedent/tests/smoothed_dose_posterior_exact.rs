@@ -6,7 +6,7 @@
 //! expected posterior mean is `(n / s^2) / (n / s^2 + 1 / scale^2) * mean` with `s^2` the
 //! sample variance of that dose's scores, at prior scales that visibly shrink the mean.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "smoothed_dose_dgp/mod.rs"]
 mod dgp;

@@ -1,6 +1,6 @@
 //! Design-based estimation under network interference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     EXPOSURE_LEVEL_TOLERANCE, ExecutionContext, ExposureLevel, InterferenceFunctional,

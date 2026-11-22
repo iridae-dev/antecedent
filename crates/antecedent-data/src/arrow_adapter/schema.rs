@@ -1,6 +1,6 @@
 //! Schema binding and the scans a frame is converted under (schema, categories, missingness).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::chunks::{owned_payload_bytes, variable_id};
 use super::{

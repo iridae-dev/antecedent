@@ -5,7 +5,7 @@
 //! the algorithm's assumption records, or turn a dense node set into the variables an estimand
 //! carries. That common preamble lives here once.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, Intervention, Value, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

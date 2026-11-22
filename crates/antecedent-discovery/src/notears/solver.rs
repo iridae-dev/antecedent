@@ -4,7 +4,7 @@
 //! (Zheng et al. 2018): free parameters are the off-diagonal, non-forbidden
 //! entries (diagonal / forbidden fixed at 0 by packing, not box bounds).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::dot;
 

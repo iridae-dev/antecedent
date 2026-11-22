@@ -13,7 +13,7 @@
 //! | B | `Z -> T`, `Z -> Y`, `T -> Y` (adjust `Z`) | adjusted |
 //! | C | `Y -> T` | unidentified |
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -7,7 +7,7 @@
 //! goal and the simulation size and seed, so two plans that differ in any of
 //! them have different lowered identities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

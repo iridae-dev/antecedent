@@ -18,7 +18,7 @@
 //! -> `antecedent_io::calibration::calibration_slot_in`), the path a claim takes,
 //! against this fixture registry instead of the generated one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

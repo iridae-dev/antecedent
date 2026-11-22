@@ -5,7 +5,7 @@
 //! column missingness are recorded per lagged column so masked MCI can keep
 //! complete-case windows without requiring a fully contiguous unmasked series.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

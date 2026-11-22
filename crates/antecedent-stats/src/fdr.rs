@@ -1,6 +1,6 @@
 //! Multiple-testing / false-discovery-rate helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Multiple-testing adjustment procedure.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]

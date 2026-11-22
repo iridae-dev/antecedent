@@ -69,7 +69,7 @@
 //! * `misspecified_test`: right-skewed noise, for which the partial-correlation test does not
 //!   see the dependence among a collider's parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

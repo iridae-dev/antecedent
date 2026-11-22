@@ -1,7 +1,7 @@
 //! Sealers of the static causal-query routes: counterfactual, mediation and
 //! attribution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;

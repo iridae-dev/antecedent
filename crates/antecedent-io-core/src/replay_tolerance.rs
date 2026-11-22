@@ -6,7 +6,7 @@
 //! choices once so every format states its policy as a constant instead of re-deriving the
 //! comparison.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// What a [`ReplayTolerance`] measures the difference against.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

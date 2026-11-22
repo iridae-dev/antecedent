@@ -9,7 +9,7 @@
 //! larger template falls back to template MCMC automatically (or when `force_mcmc` is set);
 //! MCMC handles a template of any width, its lag-edge set being a growable [`LagMask`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

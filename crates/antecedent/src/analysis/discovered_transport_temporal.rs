@@ -25,7 +25,7 @@
 //! are resampled jointly. The block length defaults to twice the window's span and is conditional on the discovered class; it
 //! carries no coverage claim until its complete-procedure design is measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,

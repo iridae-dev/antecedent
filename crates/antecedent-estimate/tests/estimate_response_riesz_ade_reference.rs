@@ -11,7 +11,7 @@
 //! backfit to its stopping tolerance, so scores are compared at that resolution, per row scaled by
 //! the row's Riesz weight, not to rounding. The exported influence is the centered score.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

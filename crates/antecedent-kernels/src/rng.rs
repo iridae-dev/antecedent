@@ -5,7 +5,7 @@
 //! platforms to the last digits only; artifact replays of sampled results compare within
 //! a stated tolerance rather than bit for bit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 

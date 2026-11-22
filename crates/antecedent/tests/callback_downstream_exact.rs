@@ -6,7 +6,7 @@
 //! * A callback reaches a consumer, a claim reaches a callback input, and a callback law reaches
 //!   the predictive assessment exactly as the connection and standing rules say, tabulated by hand.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};

@@ -8,7 +8,7 @@
 //! each population's structural model, so the formula is checked against the
 //! target's own interventional truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

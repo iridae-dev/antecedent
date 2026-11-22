@@ -3,7 +3,7 @@
 //! Draws live in an Arrow-IPC (or raw f64 LE) numerical section; metadata is CBOR.
 //! Internal Rust structs are never serialized directly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

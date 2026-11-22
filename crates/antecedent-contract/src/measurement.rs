@@ -17,7 +17,7 @@
 //! representation-version coordinate live here, beside it, so no exhaustive
 //! match over roles in another crate is broken.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

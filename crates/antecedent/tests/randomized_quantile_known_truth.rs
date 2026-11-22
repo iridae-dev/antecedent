@@ -26,7 +26,7 @@
 //! out from this derivation, never read from the library, and compared to 1e-9 (the only
 //! inexactness is the floating cancellation of `h` in `2h / (38 h)` and the bracket weight).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, CausalError, EstimatorId, RefuteSuite, StructureSource, Study, StudyResult,

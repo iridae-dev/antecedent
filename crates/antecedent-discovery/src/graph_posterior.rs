@@ -3,7 +3,7 @@
 //! Scoring uses [`antecedent_state::GraphScoreFamily`] (Gaussian BIC) rather than
 //! `antecedent-model::MechanismFamily`, keeping discovery above the model crate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

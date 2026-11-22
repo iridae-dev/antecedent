@@ -21,7 +21,7 @@
 //! reported with the calibration status `not_measured`; the rollout error is labelled an
 //! uncalibrated diagnostic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};

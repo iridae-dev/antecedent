@@ -6,7 +6,7 @@
 //! `linear.adjustment.ate` refuses one on every graph class instead of
 //! reporting its coefficient under the target's name.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

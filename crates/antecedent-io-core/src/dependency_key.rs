@@ -5,7 +5,7 @@
 //! intervention targets, joint alignment, inference, and numerical policy.
 //! The staleness report reads these declarations to say which class changed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 const CLASS_COUNT: usize = 8;
 

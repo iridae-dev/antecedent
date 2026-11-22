@@ -1,7 +1,7 @@
 //! Abduced noise replayed through the batch noise-replay API matches the counterfactual
 //! engine's own prediction, and the noise inference disclosure travels with the table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

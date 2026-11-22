@@ -9,7 +9,7 @@
 //! with a covariate offset of 1e3, near-collinear covariates and a design with a row of
 //! leverage one, where HC2 is undefined and no interval is published.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::ancova::{fit_ancova, small_arm_interval_95};
 use serde_json::Value;

@@ -8,7 +8,7 @@
 //! query never produces a fallback, a budget or cancellation is never converted, the
 //! association never ranks actions, and a query kind with no association form says so.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

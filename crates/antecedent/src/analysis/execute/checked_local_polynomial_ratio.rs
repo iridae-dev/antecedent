@@ -1,5 +1,5 @@
 //! Retained graphless fuzzy-discontinuity and regression-kink execution.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,

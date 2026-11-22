@@ -12,7 +12,7 @@
 //! stationary law is the kernel density of the pilot draws, whose mean and variance are the
 //! pilot's mean and the pilot's variance plus the squared bandwidth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

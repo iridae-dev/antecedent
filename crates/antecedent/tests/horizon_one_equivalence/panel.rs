@@ -6,7 +6,7 @@
 //! is one, a different target by construction. The numerical engines differ (cell scores against
 //! a fitted dynamic mechanism) and so do their supports, which is pinned.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use antecedent::analysis::joint_panel::{

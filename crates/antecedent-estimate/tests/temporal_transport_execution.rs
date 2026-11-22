@@ -7,7 +7,7 @@
 //! two latent confounders. Every expected value is enumerated from the
 //! structural model, never from the formula under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

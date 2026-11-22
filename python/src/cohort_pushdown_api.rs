@@ -5,7 +5,7 @@
 //! that the rows a pushdown delivers are the declared cohort are Rust's; a refusal raises a
 //! `ValueError` naming the column that must stay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::file_table::{
     ClosureInputs, ColumnClosure, ColumnFilter, ColumnRole, ObservationFrame, checked_projection,

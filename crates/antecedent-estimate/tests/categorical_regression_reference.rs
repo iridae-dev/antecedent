@@ -8,7 +8,7 @@
 //! a reference inside the level list, an outcome offset of 1e8, an adjustment nearly equal to a
 //! level indicator and levels with two rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale, MonotonicityDirection,

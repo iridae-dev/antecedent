@@ -6,7 +6,7 @@
 //! and [`implicit_closure`] over a lazily expanded successor function on arbitrary ordered
 //! keys (product graphs, indexed copies, class quotients).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap};

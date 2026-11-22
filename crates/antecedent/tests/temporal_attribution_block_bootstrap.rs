@@ -5,7 +5,7 @@
 //! The interval is unsupported and its calibration `not_measured`; these tests pin what the
 //! construction computes, not its coverage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{

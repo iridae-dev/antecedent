@@ -7,7 +7,7 @@
 //! covariances and its homoskedastic standard error on the lag-aligned rows, computed here from
 //! the raw series. Both estimators are unsupported with calibration `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

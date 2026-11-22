@@ -37,7 +37,7 @@
 //! refused. The simulation design that measures the routes lives in [`calibration`] and
 //! [`coverage_design`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod artifact;
 pub mod calibration;

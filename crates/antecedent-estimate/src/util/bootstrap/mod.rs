@@ -7,7 +7,7 @@
 //! tolerance wave procedure; [`bootstrap_outcome_by_design`] chooses between the two from an
 //! optional [`IntervalRequest`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AdaptiveBootstrapBudget, DeclaredSamplingDesign, ExecutionContext, ResamplingRule,

@@ -8,7 +8,7 @@
 //! reference degrees of freedom) and the interval by root finding on the exact distribution
 //! functions. The product selector and interval must match.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::PublishedScalarUncertainty;
 use antecedent_core::{AssumptionSet, IntervalMethod};

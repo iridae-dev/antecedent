@@ -10,7 +10,7 @@
 //! allocations from the test harness's own threads — a global counter
 //! intermittently picked those up in CI and failed the run.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

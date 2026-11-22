@@ -12,7 +12,7 @@
 //! compile and one-shot run refuse a context already inside a lowered dispatch
 //! (`public_builder_reentry`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) mod associational;
 pub(crate) mod categorical_posterior_candidate;

@@ -15,7 +15,7 @@
 //! These are exact-value checks of the estimator, its standard error and its interval
 //! construction. The repeated-sampling coverage tests in `panel_did_interval_calibration.rs`
 //! are calibration evidence and are a separate claim.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_lossless,
     clippy::cast_precision_loss,

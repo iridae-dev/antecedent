@@ -3,7 +3,7 @@
 //! Embedded attribution and change queries reuse their own
 //! [`CausalQueryWire`] forms, so one decoder validates each of them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

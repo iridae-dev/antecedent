@@ -3,7 +3,7 @@
 //! Metadata wraps existing posterior artifacts — it is not a new draw format.
 //! Compatibility never panics on mismatch.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;

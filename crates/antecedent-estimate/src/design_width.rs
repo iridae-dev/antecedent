@@ -5,7 +5,7 @@
 //! categorical adjustment variable. Physical planning sizes the design from this
 //! quote; preparation then builds a design with exactly this many columns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
 use antecedent_data::{ColumnView, Contrast, TableView, TabularData};

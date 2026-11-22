@@ -37,7 +37,7 @@
 //! [`PropagationClaim::interval`] and [`PropagationClaim::posterior`] refuse
 //! with the stated remedy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     ComposedCoordinate, CoverageRecord, ExternalRefusal, InputAlignment, InputRole,

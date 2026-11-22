@@ -16,7 +16,7 @@
 //! the same kind of string; a dense variable id is assigned when a schema is
 //! built and is remapped by projection, so it is the wrong key for this check.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::fmt;

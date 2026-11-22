@@ -8,7 +8,7 @@
 //! to six Monte-Carlo standard errors of at least 2 000 draws of a posterior whose sd is at
 //! most 1e-1 (tolerance 6 * 0.1 / sqrt(2000) = 0.0134).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "known_truth_cells/mod.rs"]
 mod support;

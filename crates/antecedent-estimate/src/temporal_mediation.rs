@@ -6,7 +6,7 @@
 //! slope in the outcome regression on the treatment, every mediator and the
 //! adjustment set). One mediator is the single path product `a · b`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

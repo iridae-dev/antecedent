@@ -15,7 +15,7 @@
 //! the published estimate the report is attached to (`original_ate`), not on the
 //! diagnostic fit's clipped IPW contrast, which supplies only `α`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

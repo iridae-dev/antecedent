@@ -8,7 +8,7 @@
 //! within 1e-6 of the positive-definite limit), a between-unit variance from 0 to 1e6 times the
 //! within variance, and priors from informative to variance 1e6.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     NormalMeanPrior, OutcomeStructure, RepeatedMeasuresPosteriorRequest, SelectionMechanism,

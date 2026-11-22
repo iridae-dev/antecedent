@@ -54,7 +54,7 @@
 //! target or another route: a different transported value is a different
 //! statement and is built again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{CanonicalWriter, SemanticDigest};

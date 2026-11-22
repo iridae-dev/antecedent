@@ -7,7 +7,7 @@
 //! order: the last axis varies fastest. [`Reduction::Full`] returns every row, draw, and grid
 //! point in the tile. This module does not fit a model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

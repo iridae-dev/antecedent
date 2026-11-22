@@ -8,7 +8,7 @@
 //! ran (`none` runs nothing; `cheap` / `full` attach the reports the cell's
 //! limitations name).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

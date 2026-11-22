@@ -13,7 +13,7 @@
 //!
 //! A single dependent series is refused. Nothing here registers a supported route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

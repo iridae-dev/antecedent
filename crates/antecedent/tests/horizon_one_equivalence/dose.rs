@@ -6,7 +6,7 @@
 //! targets are different objects whose kernels, normalization and nuisance structure are part
 //! of the estimand, so each is pinned against its own closed form and against the other.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use antecedent_core::{DerivativeWeighting, TemporalDoseTarget};

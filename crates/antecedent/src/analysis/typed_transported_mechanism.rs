@@ -34,7 +34,7 @@
 //! inference label is `point_only`, its support label is `extrapolative`; the interval
 //! route is not supported ([`TypedTransportedComposition::interval`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::mechanism_composition::MechanismCompositionRefusal;
 pub use super::mechanism_exports::model_crate::typed_mechanism_transport::{

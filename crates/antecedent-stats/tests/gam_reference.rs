@@ -5,7 +5,7 @@
 //! least-squares problem exactly, so neither backfitting nor the Cholesky and spectral
 //! shortcuts of the implementation are shared with the reference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     FaerBackend, GamFit, GamOptions, GamWorkspace, PredictorMatrix, SmoothSpec, expand_bspline,

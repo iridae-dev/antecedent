@@ -5,7 +5,7 @@
 //! is that function; the per-procedure conversions it dispatches to are pure
 //! readers of the checked preparation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

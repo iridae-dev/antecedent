@@ -9,7 +9,7 @@
 //! measured in `crates/antecedent-estimate/tests/conjugate_prior_calibration.rs`, and the
 //! closed-form oracles of the route are `association_count_conjugate.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation sizes and small indices")]
 

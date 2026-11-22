@@ -6,7 +6,7 @@
 //! per-draw study lifecycle on the completed columns and hands the per-draw estimates back
 //! for pooling; a refusal comes back as structured JSON.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::estimate::measurement::{
     DetectionFunctionDeclaration, ExposureDraws, ExposureErrorDeclaration, ExposureMeasurement,

@@ -1,5 +1,5 @@
 //! Shared receipt sealing and typed boundaries for checked posterior/history adapters.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::recalc_api::{
     RunPayload, artifact_invalid, counts_wire, parse_json, plan_refusal_json, refusal_json,
 };

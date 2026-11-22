@@ -1,6 +1,6 @@
 //! Per-unit panel response fitting, aggregation and uncertainty disclosures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalResponse, CompletionFitMemo, Diagnostic, DiagnosticKind,

@@ -3,7 +3,7 @@
 //! Prints wall time and the bits of each report's numbers per thread count, so a change to the
 //! replicate loops can be checked for both speed and bit-identical output.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

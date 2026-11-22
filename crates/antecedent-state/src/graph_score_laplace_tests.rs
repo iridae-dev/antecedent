@@ -7,7 +7,7 @@
 //! `laplace_bic_local`, and the score follows from the optimum as
 //! `-n (ln(2 b) + 1) - (|Pa| + 2) / 2 ln n` with `b` the mean absolute residual.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

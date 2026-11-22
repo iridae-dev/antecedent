@@ -17,7 +17,7 @@
 //! [`ContinuousMeasurementEstimate::export`] refuses rather than write a
 //! format no consumer can replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::measurement::MeasurementOperation;
 use antecedent_core::ExecutionContext;

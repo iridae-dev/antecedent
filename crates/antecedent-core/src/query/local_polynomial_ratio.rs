@@ -1,5 +1,5 @@
 //! Declared local-polynomial fuzzy discontinuity and regression kink design.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
 use super::fault::LocalPolynomialRatioFault;

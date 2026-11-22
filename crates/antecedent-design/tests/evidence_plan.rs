@@ -7,7 +7,7 @@
 //! `theta in {1/4, 3/4}`, bet pays `theta - 1/2`): `EVSI(n = 2) = 1/16` and
 //! `EVSI(n = 4) = 11/128`, written out by hand, never read from the code under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

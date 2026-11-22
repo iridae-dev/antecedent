@@ -24,7 +24,7 @@
 //! The artifact decides and records nothing beyond the ledger's own rules:
 //! it carries no interval, posterior or coverage statement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     AppliedOperation, ClaimClass, CombinationRequest, DetectedOverlap, EvidenceLedger, LedgerError,

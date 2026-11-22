@@ -29,7 +29,7 @@
 //! The record vocabulary below is the one the fixed-truth designs of the neighbouring suite
 //! declare; the interval is the same construction, so a record differs only in its truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(

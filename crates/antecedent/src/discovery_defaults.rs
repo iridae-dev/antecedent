@@ -5,7 +5,7 @@
 //! blocks built from them for PC, PCMCI and J-PCMCI, are defined once here and shared by
 //! [`crate::analysis`] and the Python bindings.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

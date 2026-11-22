@@ -8,7 +8,7 @@
 //! reported number is finite, that the selected analysis is one the declared selection rule can
 //! name, and that the uncertainty label names only what the section holds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

@@ -6,7 +6,7 @@
 //! (`antecedent::analysis::transported_measurement::transport_pooled_differential_prevalence`).
 //! The interval is an uncalibrated simulation interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::transported_measurement::{
     PooledDifferentialRequest, PooledRate, PopulationValidation,

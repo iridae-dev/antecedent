@@ -16,7 +16,7 @@
 //! * the joint closure is accepted by `identify_tiered_joint` exactly when the reference accepts
 //!   it, and every joint query it accepts is also identified by general ID.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Intervention,

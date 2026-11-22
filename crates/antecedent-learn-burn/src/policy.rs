@@ -15,7 +15,7 @@
 //! duration of the device fit and returned on every exit, including a device panic, which
 //! is caught and (for `auto`) retried on the CPU.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

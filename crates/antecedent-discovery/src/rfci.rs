@@ -5,7 +5,7 @@
 //! 2. Lemma 3.1 unshielded-triple checks (local CI; may remove edges)
 //! 3. Zhang R1–R3 / R8–R10 plus Lemma 3.2 discriminating-path CI checks
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

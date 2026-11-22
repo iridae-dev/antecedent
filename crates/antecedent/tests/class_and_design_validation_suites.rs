@@ -6,7 +6,7 @@
 //! saturations of a twelve-unit two-stage design, and the exposure bookkeeping of sixteen
 //! two-unit clusters.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

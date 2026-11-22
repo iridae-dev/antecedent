@@ -17,7 +17,7 @@
 //! calibration of the complete discovery-plus-analysis method that is not part of this
 //! module; see [`crate::selective`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

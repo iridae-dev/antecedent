@@ -21,7 +21,7 @@
 //! interval or coverage support follows until the whole-procedure coverage is
 //! measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_stats::adaptive_inference::{

@@ -27,7 +27,7 @@
 //! The imputation outcome model must contain the relations the analysis relies on; that is the
 //! declared assumption of the route and the draws are proper only when it holds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

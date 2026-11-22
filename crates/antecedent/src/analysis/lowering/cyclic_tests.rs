@@ -5,7 +5,7 @@
 //!
 //! The equilibrium numbers are those of `A = 0.4 B + U_A`, `B = 0.5 A + U_B`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::cyclic_dynamic_inference::{DynamicQuantity, OuInferenceProblem};

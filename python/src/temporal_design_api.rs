@@ -5,7 +5,7 @@
 //! interval, the simultaneous band and Holm family when the design has them, the worst-case
 //! smoothing bias of a dose grid, and the standing of the reported uncertainty.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use pyo3::prelude::*;
 

@@ -1,6 +1,6 @@
 //! Ledger operations, derived results and their downstream effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, SemanticDigest};
 

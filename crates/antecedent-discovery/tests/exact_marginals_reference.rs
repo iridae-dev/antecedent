@@ -7,7 +7,7 @@
 //! prior with a parent cap, and forbidden and required edges, including a near-collinear design
 //! and scores of order a thousand nats.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

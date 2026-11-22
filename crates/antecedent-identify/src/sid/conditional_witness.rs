@@ -35,7 +35,7 @@
 //! after the exact verifier accepts it. When no block yields a verified pair the
 //! search returns nothing and the decision stays `not_certified`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional::{
     ConditionalTransportQuery, dense_variables, invalid_derivation, validate,

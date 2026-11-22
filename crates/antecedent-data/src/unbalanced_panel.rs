@@ -15,7 +15,7 @@
 //! A unit-period counts as observed only when its row is present and complete. A
 //! present row with a missing analysed value is a gap like an absent row.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::error::Error;
 use std::fmt;

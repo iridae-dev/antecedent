@@ -10,7 +10,7 @@
 //! vector for the whole stack, correlated by that structure and mapped back through each
 //! regression's own covariance factor.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_prob::PosteriorQuantityKind;
 use antecedent_stats::CompiledDesign;

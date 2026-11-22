@@ -4,7 +4,7 @@
 //! marginalized over observed modifier values:
 //! `ATE = (β_T + β_{T×W} · Ē[W]) · (active − control)` for a single modifier.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

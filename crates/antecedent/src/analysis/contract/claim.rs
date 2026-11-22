@@ -1,6 +1,6 @@
 //! Claim assembly: the portable claim over a contract and an execution, and its wire section.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(
     clippy::wildcard_imports,

@@ -6,7 +6,7 @@
 //! dose `d` one step back moves the outcome by `0.9 d`, so the mean curve over doses `[0, 1]` is
 //! `[0, 0.9]` and the intervention response at dose 1 is `0.9`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

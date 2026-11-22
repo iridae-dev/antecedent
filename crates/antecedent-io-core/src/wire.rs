@@ -1,6 +1,6 @@
 //! Wire types for durable artifacts (not internal Rust structs).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

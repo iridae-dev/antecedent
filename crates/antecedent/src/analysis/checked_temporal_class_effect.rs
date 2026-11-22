@@ -1,6 +1,6 @@
 //! Retained proof and execution settings for an incomplete temporal graph effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, ExecutionContext, TemporalEffectQuery};
 use antecedent_data::DiscoveryEstimationSplit;

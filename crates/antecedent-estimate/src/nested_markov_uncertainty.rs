@@ -9,7 +9,7 @@
 //! refuse. Correct model specification and IID sampling are declared assumptions;
 //! a table alone cannot verify them. Empirical constraint residuals stay visible.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod internal {
     use antecedent_core::ExecutionContext;

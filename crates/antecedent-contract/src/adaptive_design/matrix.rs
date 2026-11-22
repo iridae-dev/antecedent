@@ -17,7 +17,7 @@
 //! The matrix is a total function of the four axes; [`procedure_cells`]
 //! enumerates the whole product so a cell cannot be left unlisted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 macro_rules! axis_enum {
     (

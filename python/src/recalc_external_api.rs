@@ -1,5 +1,5 @@
 //! Bounded executing external mean callbacks, retaining attested output only.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::NumericColumn;
 use crate::program_claims_api::{ClaimWire, claim_from, parse_binding};
 use crate::recalc_api::{bounded_context, parse_json, plan_refusal_json, refusal_value};

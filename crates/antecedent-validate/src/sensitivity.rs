@@ -24,7 +24,7 @@
 //! example `ρ = 0.3 → 0.231` against Cinelli–Hazlett's `0.269`; it is the more conservative
 //! of the two.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

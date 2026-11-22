@@ -1,5 +1,5 @@
 //! Repeated-sampling evidence for the native fuzzy RD and regression-kink intervals.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;

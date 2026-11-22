@@ -37,7 +37,7 @@
 //! [`CrossfitNuisanceCache::active`] and [`CrossfitNuisanceCache::run_in`]. Bootstrap
 //! replicates never use the cache.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::any::Any;
 use std::cell::RefCell;

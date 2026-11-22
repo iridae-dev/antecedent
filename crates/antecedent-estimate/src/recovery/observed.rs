@@ -1,6 +1,6 @@
 //! Exact observation-recovery law and downstream effect evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

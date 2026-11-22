@@ -1,5 +1,5 @@
 //! Repeated-sampling evidence for retained two-period `DiD` cluster scores.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_lossless,
     clippy::cast_sign_loss,

@@ -10,7 +10,7 @@
 //! size 2^20 and a range one part in 1024 wide. The refusals of the range (reversed or oversized
 //! range, a negative or non-finite moment) are executed as well.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{MomentSummary, correlation_range_envelope, paired_moments};
 use serde_json::Value;

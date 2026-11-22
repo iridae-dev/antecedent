@@ -23,7 +23,7 @@
 //! result recreates no prepared study, score table or fit. The artifact decides and records;
 //! it computes nothing and carries no estimate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

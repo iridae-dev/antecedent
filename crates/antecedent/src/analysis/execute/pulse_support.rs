@@ -10,7 +10,7 @@
 //! The control level is only reported: a control of 0 outside the observed interval is how
 //! pulses are written, and it is never the refused quantity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention,

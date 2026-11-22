@@ -6,7 +6,7 @@
 //! `counterfactual_mean`). The accepted-structure coordinate is executed and compared with
 //! that closed form, not with the explicit-structure result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

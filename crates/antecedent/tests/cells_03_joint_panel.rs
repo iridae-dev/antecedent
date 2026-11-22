@@ -7,7 +7,7 @@
 //! refusal instead of changing the population or the estimand silently. The undeclared panel is
 //! first prepared and fitted, so every refusal below is of a route that works.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]

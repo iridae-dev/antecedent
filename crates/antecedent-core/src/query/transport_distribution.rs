@@ -7,7 +7,7 @@
 //! produce derived descriptors that always keep the catalog entry they came from,
 //! so a leaf can be traced back to its original regime.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::sync::Arc;

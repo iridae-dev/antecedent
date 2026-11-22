@@ -9,7 +9,7 @@
 //! derivative, a Jacobian and a directional derivative). The naive slope of `y` on `a` is
 //! confounded and must not be what a route publishes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

@@ -9,7 +9,7 @@
 //! containing `full` or `minimal`; the cheapest is {minimal} (20) and, with sample budget as
 //! the objective, {full} (100), although `decoy` is the cheapest single study overall.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

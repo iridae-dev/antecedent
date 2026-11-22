@@ -42,7 +42,7 @@
 //! posterior is never turned into a probability or quantile here: the shared engine
 //! refuses that when the query is evaluated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod wire;
 

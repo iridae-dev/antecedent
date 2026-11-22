@@ -7,7 +7,7 @@
 //! scores at stated lag histories. A single dependent series is refused with its next attempt, and
 //! the retained artifact is refit on load and refused when forged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

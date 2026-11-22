@@ -18,7 +18,7 @@
 //! too small to invert) is unresolved and is counted. More than one percent unresolved
 //! refuses the posterior: the grid does not support that quantile.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::sample_gamma;

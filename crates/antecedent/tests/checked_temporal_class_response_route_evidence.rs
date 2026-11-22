@@ -1,7 +1,7 @@
 //! Builder-independent evidence for checked TemporalCpdag/TemporalPag responses
 //! (mean curve and single-step intervention response, both inferences).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 

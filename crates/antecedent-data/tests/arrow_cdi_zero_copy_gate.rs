@@ -1,6 +1,6 @@
 //! Arrow C Data Interface zero-copy acceptance gate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "arrow")]
 

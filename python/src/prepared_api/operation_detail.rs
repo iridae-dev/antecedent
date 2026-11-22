@@ -4,7 +4,7 @@
 //! `plan_view().operation` sees the target, procedure and frozen plan the route will run
 //! without executing it. Routes that publish none name only their kind.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::PyPreparedAnalysis;
 

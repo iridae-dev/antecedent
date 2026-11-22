@@ -4,7 +4,7 @@
 //! mean, or a demand no mean can carry) and the carriers the answer published. Which carrier
 //! scores the demand, the affine arithmetic and the typed missing-carrier refusal are Rust's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::{DecisionDemand, PublishedCarriers, score_decision};
 use pyo3::prelude::*;

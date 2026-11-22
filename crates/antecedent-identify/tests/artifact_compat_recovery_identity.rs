@@ -10,7 +10,7 @@
 //! records keyed by the earlier identity are preserved, no longer match, and stay
 //! `not_measured` until the whole method is measured again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
 mod recovery_scm;

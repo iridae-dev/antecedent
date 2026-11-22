@@ -5,7 +5,7 @@
 //! diagonal it was reduced from, so NaN input and numerically singular matrices
 //! are refused instead of yielding a factor that looks valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Why a Cholesky factorization was refused.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -10,7 +10,7 @@
 //! state is a different estimand with its own result type, and neither type
 //! converts into the other. Point-only: no interval claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

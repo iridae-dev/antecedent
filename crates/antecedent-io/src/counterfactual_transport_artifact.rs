@@ -26,7 +26,7 @@
 //! Every failure is a [`CounterfactualTransportArtifactError`] naming its slot.
 //! The artifact is point-only; this module never produces an interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::{

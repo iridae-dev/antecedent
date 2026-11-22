@@ -5,7 +5,7 @@
 //! full recomputation. `RollingMechanismDiagnostics` keeps the linear-Gaussian mechanism fit,
 //! residual summaries and CUSUM of the last `window` rows of one node.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

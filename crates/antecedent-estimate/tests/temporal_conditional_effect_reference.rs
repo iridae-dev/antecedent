@@ -10,7 +10,7 @@
 //! the same variable at other lags stays an adjustment node), the gap handling, the contrast
 //! scaling and the modifier-mean term of the variance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

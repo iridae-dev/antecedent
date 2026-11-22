@@ -1,7 +1,7 @@
 //! Digest and identity helpers for hosts: hex spellings, content digests and the contract
 //! identity layers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// The seven identity layers of one compiled contract.
 pub use antecedent_core::ContractIdentities;

@@ -13,7 +13,7 @@
 //! The Bayesian bootstrap, the simultaneous band and the quantile, dose, observational and regime
 //! functionals are other routes and are not covered here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::temporal_design::contrasts::{
     factorial_scores, interference_scores, multi_arm_scores, two_arm_scores,

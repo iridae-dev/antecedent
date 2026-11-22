@@ -5,7 +5,7 @@
 //! entries, Dirichlet and supported-Dirichlet means, and the ridge normal equations solved by exact
 //! Gauss-Jordan elimination) and freezes the binary64 roundings in the JSON beside it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::posterior_mean::{
     DirichletNamespace, PosteriorRequest, ScalarNamespace, ScoreNamespace,

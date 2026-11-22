@@ -1,6 +1,6 @@
 //! Checked single-source z-transport evidence repair through the generic search.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::EvidenceObligation;
 use antecedent_core::{EvidenceRegime, ExecutionContext, reason_code};

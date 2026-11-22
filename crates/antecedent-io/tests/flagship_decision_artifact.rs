@@ -12,7 +12,7 @@
 //! = S00 + S11 + S22 + 2 (S01 - S02 - S12)`. The off-diagonal terms are not
 //! zero, so the variance differs from the sum of the diagonal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_io::joint_law_propagation_artifact::{

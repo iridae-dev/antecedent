@@ -5,7 +5,7 @@
 //! a proposed study would repair the failure. Cheap inspection and identified
 //! products retain no failure, so nothing is read from them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

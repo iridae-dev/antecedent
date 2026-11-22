@@ -62,7 +62,7 @@
 //! on every regime of the declared family and differ on the query, re-verified by
 //! exact rational enumeration. Completeness of the derivation is not claimed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod closure;
 mod derivation;

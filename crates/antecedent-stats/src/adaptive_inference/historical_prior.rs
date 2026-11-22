@@ -29,7 +29,7 @@
 //! [`super::participant_procedure::ParticipantSpec::amend_borrowing`] refuses a
 //! change after the first look.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::procedure_contract::BetaPrior;
 

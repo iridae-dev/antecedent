@@ -21,7 +21,7 @@
 //! Exact finite-law arithmetic supplies no interval or calibration support: the law is of the
 //! declared procedure under a hypothesized truth, nothing more.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

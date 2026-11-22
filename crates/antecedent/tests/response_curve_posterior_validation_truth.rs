@@ -11,7 +11,7 @@
 //! posterior atoms (`curve.atom_support`): the identified mass, which must equal the posterior
 //! weight of the atoms the identifier accepts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

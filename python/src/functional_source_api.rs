@@ -1,6 +1,6 @@
 //! Original finite-law functional proof binding; historical replay issues no authority.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::design::decision_artifact::contract_from_json_refusal;
 use pyo3::prelude::*;
 

@@ -7,7 +7,7 @@
 //! * The last state is a three-way tie, so P(best) is A 7/12, B 1/3, C 1/12.
 //! * A is selected; with three candidates considered the in-sample value is labelled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::decision_reliability::{
     CandidateCoupling, CandidateDraws, CandidateOrigin, DecisionDraws,

@@ -4,7 +4,7 @@
 //! The chain `a -> b -> c` is linear Gaussian with known coefficients and noise scales,
 //! so fixed-coordinate variances have closed forms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixed coordinates and hard sets replay exact literal values")]
 

@@ -20,7 +20,7 @@
 //! matrix a cell fits (an ANCOVA randomized effect) and states for every other cell what
 //! it fits instead.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 #[path = "design_based_tests.rs"]

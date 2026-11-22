@@ -8,7 +8,7 @@
 //! for the counterfactual and an outcome error coupled to the mediator error for the nested
 //! effect: the cross-world sensitivity refuter flags each and passes its clean twin.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

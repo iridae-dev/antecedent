@@ -163,7 +163,7 @@
 //! Tutorials, guides, the support matrix and the refusal-code reference are at
 //! <https://antecedent.readthedocs.io/>.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

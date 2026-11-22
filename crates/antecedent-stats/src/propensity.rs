@@ -1,6 +1,6 @@
 //! Propensity score fitting via logistic GLM.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
 use crate::glm::{GlmDesignRef, GlmFamily, GlmFit, GlmOptions, fit_glm, fit_logistic_weighted};

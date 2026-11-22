@@ -37,7 +37,7 @@
 //! [`antecedent_prob::gaussian_target`] is crate-private as well. This route
 //! does not time a host and does not record a measured resident set.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod rows;
 mod solver;

@@ -10,7 +10,7 @@
 //! placebo treatment (exact null 0), subset stability and, under full, the placebo outcome and
 //! bootstrap stability of the whole procedure; the Bayesian arm refits at each prior-grid point.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult,

@@ -29,7 +29,7 @@
 //! treatment lags) is invisible to the fit at short `n`; the short-series warning, not
 //! this factor, says the series is too short for the dependence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Largest absolute autoregressive coefficient a fit reports (Andrews & Monahan 1992 cap
 /// the AR(1) coefficient the same way, so a near-unit-root score cannot make the model

@@ -15,7 +15,7 @@
 //! tolerance. Matching on a propensity that takes two values is a tie-breaking procedure whose
 //! point estimate is not a function of the cell counts, so it is not asserted here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{EstimatorId, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};

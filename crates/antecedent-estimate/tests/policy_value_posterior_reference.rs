@@ -8,7 +8,7 @@
 //! distribution functions on a grid. The three posteriors share draws, so the difference law is
 //! the law of the differenced scores, not of a difference of independent laws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::policy_value::BinaryPolicyDesign;

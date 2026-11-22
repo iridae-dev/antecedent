@@ -1,5 +1,5 @@
 //! Retained existing sequence history mechanisms and empirical source joint.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::EstimationError;
 use crate::temporal_dependent_interval::{SequenceTallies, TemporalUnitPanel, UnitHistories};

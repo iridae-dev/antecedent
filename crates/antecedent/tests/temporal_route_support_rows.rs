@@ -10,7 +10,7 @@
 //! claim (refused by the artifact check), and runs the same route outside the row, where it
 //! states no support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,

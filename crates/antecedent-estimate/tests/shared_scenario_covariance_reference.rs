@@ -11,7 +11,7 @@
 //! path: the count vectors it hands to the estimators are recorded and the covariance it reports is
 //! recomputed from them in exact integer arithmetic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,

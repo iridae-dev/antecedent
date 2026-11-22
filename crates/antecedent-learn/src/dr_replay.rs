@@ -17,7 +17,7 @@
 //! Cancellation is observed before the cross-fit, per fold, and around the final fit, and a
 //! cancelled replay returns [`DrReplayError::Cancelled`] and no partial result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionError;

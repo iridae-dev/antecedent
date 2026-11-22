@@ -12,7 +12,7 @@
 //! Contrasts share their never-treated subjects, so they are dependent; each posterior here is a
 //! pointwise marginal and nothing is claimed simultaneously across the curve.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

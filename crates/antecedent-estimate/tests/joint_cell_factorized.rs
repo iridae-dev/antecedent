@@ -5,7 +5,7 @@
 //! empirical joint frequencies of a hand-counted law, and every unsupported route (undeclared
 //! learner, lasso, interval, covariance) refuses with its reason code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

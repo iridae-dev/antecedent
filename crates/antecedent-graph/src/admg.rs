@@ -1,6 +1,6 @@
 //! Acyclic directed mixed graphs (ADMGs): directed + bidirected edges.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VariableId;
 

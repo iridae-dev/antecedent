@@ -17,7 +17,7 @@
 //! upstream mean-only claim. The bundle identity the consumer passes to
 //! [`consume`] is retained independently of the bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_design::composition_bundle::{
     BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage, ClaimLabel,

@@ -9,7 +9,7 @@
 //! by an external provider (declared through the provider contract's object
 //! identity). A law that exists only as a callback is refused by name.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::overlap::FitDeclaration;
 use super::refusal::{PredictiveAssessmentError, detail, invalid, refuse, unsupported};

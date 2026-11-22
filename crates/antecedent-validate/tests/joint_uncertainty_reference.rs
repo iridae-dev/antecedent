@@ -15,7 +15,7 @@
 //! box, and an outcome offset of 1e6. The sampler's resampling stream and the closed-form range are
 //! reviewed in their own records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

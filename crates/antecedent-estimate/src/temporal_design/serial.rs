@@ -10,7 +10,7 @@
 //! labels (a missing period invents no adjacency). The covariance is
 //! `T / (T - 1) * meat / (sum of weights)^2` for the `T` observed periods.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 

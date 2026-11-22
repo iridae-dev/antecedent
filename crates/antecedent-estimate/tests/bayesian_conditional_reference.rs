@@ -7,7 +7,7 @@
 //! `Var(eps) = var_w / (n + 1)`. The posterior mean of the reported effect must be the treatment
 //! coefficient's and its standard deviation must include that extra variance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

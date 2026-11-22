@@ -34,7 +34,7 @@
 //! `route_not_supported` (`scenario_covariance.unknown_dependence`); a diagonal-only or
 //! zero off-diagonal matrix is never a fallback.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::fmt;

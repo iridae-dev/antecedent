@@ -16,7 +16,7 @@
 //!   reduced form, standard error and the normal interval to the library output.
 //!
 //! The repeated-sampling coverage tests are calibration evidence and are a separate claim.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::needless_range_loop, reason = "small dense linear algebra written by index")]
 
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;

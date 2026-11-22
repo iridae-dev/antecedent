@@ -7,7 +7,7 @@
 //! a weighted sum of independent exponentials (cross-checked by simulation in the script). Every
 //! input is dyadic, so the references are exact for the binary64 values the product reads.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

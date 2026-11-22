@@ -32,7 +32,7 @@
 //! Local-score caches are internal to a score-based run and bound to one data fingerprint.
 //! No score route is delivered; [`WorkUnits::score_evaluations`] is zero by construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

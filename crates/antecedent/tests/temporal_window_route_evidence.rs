@@ -9,7 +9,7 @@
 //! windows have exactly the law of the process. The window plug-in therefore reproduces the
 //! enumerated effects to rounding error, and the Bayesian bootstrap to its declared band.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::too_many_lines,

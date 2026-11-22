@@ -11,7 +11,7 @@
 //! containing a difference, or a nested ratio is guarded against cancellation exactly like a
 //! plain difference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::numeric::CompensatedSum;
 

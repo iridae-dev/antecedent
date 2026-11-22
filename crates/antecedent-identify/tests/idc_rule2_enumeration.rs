@@ -9,7 +9,7 @@
 //! question is put to ID, whose refusals are separately checked against a hedge enumeration in
 //! `hedge_definition_enumeration.rs`; a reduced query with no intervention is identified.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalQuery, Intervention, InterventionalDistributionQuery, Value, VariableId,

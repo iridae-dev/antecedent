@@ -1,6 +1,6 @@
 //! Discrete CI with a permutation reference when a chi-square reference is unsupported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

@@ -1,7 +1,7 @@
 //! Axis naming: which matrix query name and graph-class label a query and a
 //! supplied graph occupy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
 

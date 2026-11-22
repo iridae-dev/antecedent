@@ -9,7 +9,7 @@
 //! a diagnostic of the exact enumeration, with an uncalibrated Monte Carlo
 //! standard error; it is never an interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, RngFactory, StreamDomain};
 

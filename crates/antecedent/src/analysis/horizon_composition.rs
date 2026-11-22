@@ -19,7 +19,7 @@
 //! read against the fixed-b normal reference (bootstrap replicates) or the batch-means Student-t
 //! reference (block-weight draws). A nonlinear composition has the spread only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     ComposedCoordinate, ExternalRefusal, JOINT_LAW_STAGE, PropagationOperation, PropagationPlan,

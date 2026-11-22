@@ -5,7 +5,7 @@
 //! `UPDATE_ESTIMATOR_VALIDITY=1` rewrites `parity/estimator_validity.toml`; otherwise the file
 //! must match.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

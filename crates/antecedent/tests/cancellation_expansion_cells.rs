@@ -6,7 +6,7 @@
 //! typed one (never another error, never a half-built result) until the call completes, after
 //! which every larger budget completes too.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -16,7 +16,7 @@
 //! [`install`](super::install) adds them to the program's physical layer for
 //! every route that reads a table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     not(test),

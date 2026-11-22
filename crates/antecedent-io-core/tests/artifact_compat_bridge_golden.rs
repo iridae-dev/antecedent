@@ -10,7 +10,7 @@
 //! Generate or refresh it with
 //! `cargo test -p antecedent-io-core --test artifact_compat_bridge_golden -- --ignored write_`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::Arc;

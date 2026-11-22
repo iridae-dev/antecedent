@@ -5,7 +5,7 @@
 //! must reconstruct it from the original rows and independently verify the associated
 //! compiled identification and any applicable measured-inference evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::CanonicalWriter;
 use crate::operator::{

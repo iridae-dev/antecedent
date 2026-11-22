@@ -18,7 +18,7 @@
 //! cancellation, [`CategoricalTreatment::export_within`] under an export byte budget, and
 //! [`CategoricalTreatment::verify_data`] checks held rows against the digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_OMNIBUS_NULL, LevelScale, MONOTONICITY_NON_DECREASING_NULL,

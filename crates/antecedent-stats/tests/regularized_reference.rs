@@ -4,7 +4,7 @@
 //! by enumerating every active set and sign pattern with Karush-Kuhn-Tucker verification in
 //! 80-digit arithmetic, so no iterative solver is shared with the implementation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     LassoFit, LassoOptions, RidgeIntercept, fit_lasso, fit_ridge_with, predict_lasso,

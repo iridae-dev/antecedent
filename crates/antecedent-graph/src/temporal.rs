@@ -1,6 +1,6 @@
 //! Temporal DAG over lagged variable nodes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::TemporalNodeKey;
 use antecedent_core::{Lag, VariableId};

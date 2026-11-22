@@ -18,7 +18,7 @@
 //!
 //! Needs the `ml-gbdt` and `ml-forest` features.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 
 use std::sync::Arc;

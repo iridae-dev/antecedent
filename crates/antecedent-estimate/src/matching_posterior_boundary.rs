@@ -12,7 +12,7 @@
 //! Both matching settings answer the same way, with the next attempt that does reach a
 //! posterior: change the estimand to one that has a likelihood and say so.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 

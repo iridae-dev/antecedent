@@ -32,7 +32,7 @@
 //! **Effective sample size.** The Kish effective sample size `(Σ s)² / Σ s²` of the analysed
 //! rows is reported beside the row count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

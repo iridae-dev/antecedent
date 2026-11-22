@@ -1,6 +1,6 @@
 //! Tiered-background average-effect execution and scenario envelopes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::{CheckedUnknownTiered, Study};
 use super::{

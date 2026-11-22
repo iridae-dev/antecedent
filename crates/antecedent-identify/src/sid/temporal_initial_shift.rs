@@ -1,5 +1,5 @@
 //! Checked source observational ID composed with a root initial-law shift.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SidLimits, temporal_sequence::TemporalSequenceSpec};
 use crate::{IdIdentifier, IdentificationError, IdentificationResult, IdentificationWorkspace};

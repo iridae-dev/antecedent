@@ -31,7 +31,7 @@
 //! claim is one whose declared inputs did not change; it is not a statement
 //! that the claim is true, and the artifact carries no interval or posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

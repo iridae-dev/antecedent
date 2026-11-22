@@ -1,5 +1,5 @@
 //! The contract identity is the canonical digest every host computes the same way.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_io::canonical_json::canonical_json_digest;
 use antecedent_io::external_binding_wire::{CONTRACT_PREMISES_DOMAIN, native_contract_identity};
 

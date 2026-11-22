@@ -14,7 +14,7 @@
 //!
 //! The newer-version check reseals the stored metadata and needs `--features test-util`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

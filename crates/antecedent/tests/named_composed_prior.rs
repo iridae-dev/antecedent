@@ -7,7 +7,7 @@
 //! refused with the next attempt, and a power-prior discount selected from the data composes into
 //! an ordinary prior whose provenance names the selection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

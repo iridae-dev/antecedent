@@ -33,7 +33,7 @@
 //! * Nothing here is a calibration claim. The clean-case rejection rate and the power against
 //!   planted violations are separate measurements.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::chi_square_sf;
 

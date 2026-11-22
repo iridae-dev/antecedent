@@ -21,7 +21,7 @@
 //! Every function returns `NaN` (or `None`) for an input outside its domain;
 //! callers validate and refuse before they get here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{norm_cdf, norm_sf};
 

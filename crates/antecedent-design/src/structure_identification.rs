@@ -9,7 +9,7 @@
 //! identifier. Nothing here estimates anything or invents a weight; the weights are
 //! the posterior's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, IdentificationStatus, VariableId, reason_code};
 use antecedent_graph::{Admg, DenseNodeId};

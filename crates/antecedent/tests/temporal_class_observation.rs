@@ -1,6 +1,6 @@
 //! Observation pins on incomplete temporal classes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

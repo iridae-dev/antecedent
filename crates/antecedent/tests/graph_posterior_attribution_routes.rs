@@ -5,7 +5,7 @@
 //! only which structure attributes, how the atoms' contributions are weighted, and how much
 //! posterior mass attributes nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{CellStatus, InferenceMode, RefuteSuite, StructuralWeightBasis, Study};
 use antecedent_attribution::AnomalyScores;

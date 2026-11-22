@@ -8,7 +8,7 @@
 //! 2.8, 3.0, 2.2` (treat is uniquely best); making treat cost 2 gives `2.8, 2.0, 2.2` (wait is
 //! uniquely best). The providers' own numbers differ from these, so a decision that read the
 //! wrong source would not match.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_composite::*;
 use antecedent::analysis::recalc_external::{CallbackPolicy, ExternalMeanProvider};
 use antecedent::analysis::recalc_receipt::UtilitySpec;

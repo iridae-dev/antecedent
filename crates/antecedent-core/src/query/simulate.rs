@@ -5,7 +5,7 @@
 //! the population; only the Monte Carlo error of the draws is quantified. The
 //! route executes with calibration status `not_measured`; no coverage record covers it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::{InterventionFault, SimulateFault};
 use std::sync::Arc;

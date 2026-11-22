@@ -7,7 +7,7 @@
 //! alternative model families through the oracle, so a witness the identifier
 //! reports is never the only evidence for non-transportability.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

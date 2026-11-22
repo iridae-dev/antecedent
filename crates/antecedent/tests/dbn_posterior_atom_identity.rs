@@ -1,6 +1,6 @@
 //! Regression coverage for collision-free DBN-posterior atom identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

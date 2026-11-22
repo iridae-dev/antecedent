@@ -6,7 +6,7 @@
 //! outside the support, a machine-learning fallback and a design the outcome stage cannot fit
 //! are refused with their reason codes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

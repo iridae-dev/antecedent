@@ -29,7 +29,7 @@
 //! field name is shared by every estimator and does not assert which of the two readings
 //! applies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

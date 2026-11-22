@@ -8,7 +8,7 @@
 //! apart, counts near 1e4, mostly-zero counts, prior weights spanning nine decades with a zero
 //! weight, and completely or quasi-completely separated binary outcomes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, GlmRefusalKind,

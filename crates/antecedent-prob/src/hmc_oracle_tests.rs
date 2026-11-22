@@ -5,7 +5,7 @@
 //! the invariance of one full transition (fresh momentum, leapfrog, Metropolis correction) can
 //! be checked against its moments and distribution function.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 

@@ -6,7 +6,7 @@
 //! expanded inside each estimator's `impl` block, so a change to one builder's contract is a
 //! change to one definition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::se::AnalyticSeKind;
 use crate::util::{IntervalRequest, SamplingDeclaration};

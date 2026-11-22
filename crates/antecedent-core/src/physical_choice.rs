@@ -17,7 +17,7 @@
 //! resident bytes exceed the route budget. This module does not execute the
 //! plan, scan rows, build a design, or run a lazy backend.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::named_variants;
 use std::error::Error;

@@ -13,7 +13,7 @@
 //! window cannot hide. A candidate whose ancestry is unbounded (an autoregressive chain into it)
 //! is not certified and is not reported valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

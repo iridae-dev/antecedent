@@ -7,7 +7,7 @@
 //! are evaluated on the lag-aligned window table with circular blocks of consecutive windows.
 //! The expected values below come from the generating equations, not from the engine.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

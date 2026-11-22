@@ -10,7 +10,7 @@
 //! labelled `derived_not_measured`, and the posterior claim and the
 //! anytime-valid frequentist claim of every look are separate fields.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignDeclaration, AssignmentFamily, DelayMechanism, InterimAnalysis,

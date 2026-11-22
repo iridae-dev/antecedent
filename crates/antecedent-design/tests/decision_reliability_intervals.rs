@@ -5,7 +5,7 @@
 //! values are `norm_inv` of the stated tail mass. No tolerance is tuned to an observed
 //! value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::ProbabilityQuantity;

@@ -1,6 +1,6 @@
 //! Read options, chunk quotes, read plans and row cursors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, ChunkIndex, ColumnClosure, DEFAULT_CHUNK_ROWS, DEFAULT_TEXT_BYTES_PER_ROW, FileColumn,

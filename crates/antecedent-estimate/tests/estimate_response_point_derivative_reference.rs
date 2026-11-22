@@ -10,7 +10,7 @@
 //! the corrected coordinate. Cases: a positive level, a level within sampling noise of zero, and a
 //! treatment offset of 1e3 with an outcome offset of 1e5.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AssumptionSet, DerivativeScale, IdentificationStatus, ResponseFunctional,

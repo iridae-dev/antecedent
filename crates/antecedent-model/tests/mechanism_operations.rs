@@ -3,7 +3,7 @@
 //!
 //! Known truth: `y = 0.5 + 1.2 x^2 + 0.3 e` with `x ~ N(0, 1)` and `e ~ N(0, 1)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "evaluation replays the literal structural equation")]
 

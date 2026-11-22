@@ -1,6 +1,6 @@
 //! Portable classical transport proofs. Decoding never reruns identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{
     IoError,
     expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire},

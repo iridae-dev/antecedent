@@ -9,7 +9,7 @@
 //! again from their stated definitions, so the library's `inversion_interval` is compared with
 //! a computation that shares none of its code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

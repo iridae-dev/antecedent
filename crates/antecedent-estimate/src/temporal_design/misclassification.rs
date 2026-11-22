@@ -15,7 +15,7 @@
 //! the correction to that draw. A Youden index `J` near zero leaves the true outcome
 //! unidentified, and the correction refuses it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 

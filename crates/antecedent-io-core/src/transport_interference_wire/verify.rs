@@ -7,7 +7,7 @@
 //! variable sets are consistent with each other. A formula that is not the output of any
 //! implemented rule is refused instead of being trusted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

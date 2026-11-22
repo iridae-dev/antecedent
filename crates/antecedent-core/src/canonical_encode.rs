@@ -5,7 +5,7 @@
 //! exhaustive matches, so a new variant fails to compile until it is given a tag
 //! and a canonical form.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;

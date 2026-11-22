@@ -1,7 +1,7 @@
 //! Sealed temporal response execution for a fixed `TemporalDag`: a dose × horizon
 //! mean curve or a single-step intervention response, frequentist or Bayesian.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

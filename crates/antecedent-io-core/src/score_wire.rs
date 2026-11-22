@@ -6,7 +6,7 @@
 //! `analysis_wire::ScoreTableWire` of the result body is a separate, defaulting
 //! form with its own bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

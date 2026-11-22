@@ -5,7 +5,7 @@
 //! which rows they were. The digest is taken over original row positions, so two analyses
 //! that excluded the same rows agree and an analysis that excluded different rows does not.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

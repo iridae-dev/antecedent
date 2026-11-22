@@ -17,7 +17,7 @@
 //! mediation Total `C + A·B`, Direct `C`, Mediated `A·B`. Every graph yields a
 //! single temporal-backdoor estimand with an empty adjustment set.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

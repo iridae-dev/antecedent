@@ -18,7 +18,7 @@
 //! probability zero contribute nothing to the plug-in variance and are not
 //! differenced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_identify::CounterfactualTransportDerivation;

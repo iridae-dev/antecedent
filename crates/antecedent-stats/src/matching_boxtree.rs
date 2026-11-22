@@ -18,7 +18,7 @@
 //! Memory is leased from the [`ExecutionContext`] before anything is allocated, so a donor set
 //! that does not fit is refused by the caller's budget exactly as the other index is.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

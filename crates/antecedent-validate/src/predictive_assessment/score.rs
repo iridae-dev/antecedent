@@ -30,7 +30,7 @@
 //! unbiased for iid draws from the forecast law but is not a proper score of the empirical
 //! law; it is offered as the estimator of the generating law's CRPS and is labelled as such.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{log_norm_pdf, norm_cdf, norm_pdf};
 

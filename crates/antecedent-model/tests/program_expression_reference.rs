@@ -9,7 +9,7 @@
 //! the shared postfix executor row by row: every finite result must equal the reference value and
 //! every row the reference refuses (a non-finite final value) must be refused by the executor.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ValueExpr, VariableId};
 use antecedent_model::NodeProgram;

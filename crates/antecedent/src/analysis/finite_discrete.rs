@@ -7,7 +7,7 @@
 //! empirical plug-in. Bayesian cells carry a two-draw posterior mixture.
 //! A utility or action change reads the stored laws and does not plan again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     not(test),

@@ -5,7 +5,7 @@
 //! opens them once. A route and the data or query it was classified from can then no
 //! longer disagree, so no executor re-checks for a mismatch it cannot receive.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, ChangeAttributionQuery, ConditionalEffectQuery,

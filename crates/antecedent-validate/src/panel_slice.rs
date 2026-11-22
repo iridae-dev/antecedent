@@ -5,7 +5,7 @@
 //! per unit per replicate is wasted work: unmutated unit buffers can be reused and
 //! only mutated / appended columns need a slice from the stacked table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -6,7 +6,7 @@
 //! policy. The scientific identity of the supplied target is the identity the
 //! caller already computed for it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -30,7 +30,7 @@
 //! This is **generalized adjustment**, not the full ID/IDC algorithm (see roadmap P5.3).
 //! Sets outside the ancestor candidate family are not searched.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

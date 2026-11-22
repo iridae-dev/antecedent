@@ -20,7 +20,7 @@
 //! Unlike the unpenalized logistic MLE, the penalized objective has a finite minimizer under
 //! (quasi-)complete separation, so the learner fits where the plain GLM refuses.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::{sigmoid, softplus};

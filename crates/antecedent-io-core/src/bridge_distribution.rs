@@ -57,7 +57,7 @@
 //! column with another column of the table assumes the mapping's evidence is
 //! independent of the evidence behind that column.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AffineDrawLaw, BridgeContract, BridgeDrawsSource, BridgeRefusal, BridgedDistributionClaim,

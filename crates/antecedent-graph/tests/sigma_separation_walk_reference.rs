@@ -12,7 +12,7 @@
 //! distinct endpoints and every conditioning set drawn from the remaining nodes (and the endpoint
 //! pair itself, which must block). The result must be non-vacuous: both verdicts must occur.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{CyclicMixedGraph, DenseNodeId, SigmaSeparationWorkspace, sigma_separates};
 

@@ -2,7 +2,7 @@
 //! than the full-output route that keeps every draw by world by period, and its receipt
 //! never reports more live draws than the tile.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::unwrap_used, clippy::expect_used, reason = "test file: fixtures unwrap")]
 

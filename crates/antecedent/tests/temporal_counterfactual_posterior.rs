@@ -7,7 +7,7 @@
 //! come from an ordinary least squares fit computed here by hand; the long-run tempering
 //! factor only widens the posterior, so the spread is bracketed by the iid standard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

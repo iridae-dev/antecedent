@@ -17,7 +17,7 @@
 //! (the DR-learner fit takes no replicate count), so a body that publishes an interval, a joint
 //! covariance or a leaf dispersion is outside the operation and is not cleared.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

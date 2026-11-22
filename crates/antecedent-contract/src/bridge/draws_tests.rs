@@ -2,7 +2,7 @@
 //! coefficient law of each mapping, the conditional draw it implies and the
 //! identity of the derived claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

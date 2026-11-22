@@ -19,7 +19,7 @@
 //! predictive; no pointwise frequentist coverage is claimed, and stated choices do not identify
 //! behaviour.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(

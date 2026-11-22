@@ -7,7 +7,7 @@
 //! responds has no observation-model term. The product's influence-function variance, which
 //! subtracts the estimated-probability term, must agree.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::randomized_missing::responder_weighted_itt;
 use serde_json::Value;

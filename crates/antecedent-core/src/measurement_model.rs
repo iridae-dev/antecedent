@@ -35,7 +35,7 @@
 //! Numerics live in `antecedent-stats` and `antecedent-estimate`; contracts
 //! and refusal codes in `antecedent-contract`; the wire in `antecedent-io-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::identity::{CanonicalWriter, SemanticDigest};
 use crate::named_variants;

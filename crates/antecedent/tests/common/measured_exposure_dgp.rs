@@ -5,7 +5,7 @@
 //! confounded graph is `z -> x`, `z -> y`, `x -> y` on variable ids 0, 1, 2. Each scenario
 //! returns the table, the declaration and the planted effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

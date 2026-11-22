@@ -9,7 +9,7 @@
 //! Compiled for tests and under the `test-util` feature only: every error is a panic, which
 //! suits frozen fixtures and not a library API.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 

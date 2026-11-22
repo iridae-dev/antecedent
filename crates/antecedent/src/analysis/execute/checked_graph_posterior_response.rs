@@ -6,7 +6,7 @@
 //! including the unidentified, failed and subsampled-out mass, without
 //! re-identifying or re-reading the procedure from the builder.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::{graph_posterior_response_supported, response_witness_ate};
 use super::{

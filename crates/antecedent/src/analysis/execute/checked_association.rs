@@ -12,7 +12,7 @@
 //! in a coded diagnostic; every other fit is unsupported. The calibration label is
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AssociationQuery, Assumption, AssumptionRecord, AssumptionScope, AssumptionSet,

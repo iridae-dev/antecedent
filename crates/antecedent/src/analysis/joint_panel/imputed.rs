@@ -17,7 +17,7 @@
 //! two rows per unit and is the only departure of the imputation model from the panel's own
 //! within-unit serial law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::compiled::{Entry, enter, require_release_support};
 use super::{
     JointPanelError, JointPanelRequest, JointPanelState, PanelMissingPolicy, PreparedStudy, Study,

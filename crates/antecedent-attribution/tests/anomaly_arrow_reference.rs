@@ -9,7 +9,7 @@
 //! `beta^2 Var(parent)` is checked alongside, and the test records where the normalised form with
 //! the child's whole variance departs from the divergence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

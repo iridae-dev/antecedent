@@ -34,7 +34,7 @@
 //! next attempt rather than cast. Nulls are validity masks; a null float cell is
 //! invalid and holds `NaN`, as the missing-data policies expect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod convert;
 mod error;

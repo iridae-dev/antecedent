@@ -6,7 +6,7 @@
 //! the columns' correlation matrix and does not degrade with the mean-to-sd ratio of a level
 //! series (`[1 | Z]'[1 | Z]` has condition number ~ (mean/sd)^4 when formed raw).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::KernelPolicy;
 use antecedent_kernels::{sanitize_weight, weighted_mean};

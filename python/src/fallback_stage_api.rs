@@ -8,7 +8,7 @@
 //! compiled associational study and result, the verified obligations, the next actions, the
 //! candidate templates and the ranked plan. Python reads those products; it composes none of them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

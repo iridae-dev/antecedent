@@ -2,7 +2,7 @@
 //!
 //! Assignment returns candidates and scores; there is no silent default family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

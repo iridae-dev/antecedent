@@ -8,7 +8,7 @@
 //! coefficients, and issues `point +/- t_{n-p} se`. The reported scalar carries the
 //! calibration status the coverage records give the native construction; a declared
 //! (caller-built) export, a shifted cohort and a level outside `(0, 1)` are refused.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };

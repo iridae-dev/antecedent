@@ -6,7 +6,7 @@
 //! the query it always was; and the posterior pooled across imputations is the hand mixture of
 //! the per-imputation exact posteriors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

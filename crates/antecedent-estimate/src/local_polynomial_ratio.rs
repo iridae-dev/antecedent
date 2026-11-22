@@ -1,5 +1,5 @@
 //! Shared native local-polynomial fuzzy RD and regression-kink kernel.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Bias-corrected local ratio and HC0 delta-method uncertainty.
 #[derive(Clone, Debug, PartialEq)]

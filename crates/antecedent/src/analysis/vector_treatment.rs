@@ -22,7 +22,7 @@
 //! cancellation, [`VectorTreatment::export_within`] under an export byte budget, and
 //! [`VectorTreatment::verify_data`] checks held rows against the digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::effect_constancy::CalibrationStatus;
 pub use antecedent_estimate::vector_treatment::{

@@ -8,7 +8,7 @@
 //! giving a bounded, an unbounded and a two-piece acceptance set, and one design rescaled by
 //! 1e-9 and 1e9 in treatment and outcome (the set must rescale exactly).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

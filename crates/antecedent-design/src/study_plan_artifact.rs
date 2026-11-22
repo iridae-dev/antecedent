@@ -26,7 +26,7 @@
 //! [`StudyPlanProposal::receive`](crate::StudyPlanProposal::receive) requires
 //! the arriving catalog to keep every stored base binding exactly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

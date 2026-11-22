@@ -13,7 +13,7 @@
 //! dependence declaration, point scores are still reported but every standard
 //! error is withheld: independence is never assumed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 

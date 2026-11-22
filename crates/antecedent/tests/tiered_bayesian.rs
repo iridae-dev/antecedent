@@ -2,7 +2,7 @@
 //! linear Gaussian DGPs (derived beside each generator): a posterior for the one
 //! `CoDetermined` closure functional, and one separate posterior per Unknown scenario.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

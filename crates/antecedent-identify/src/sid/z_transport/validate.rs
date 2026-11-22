@@ -1,6 +1,6 @@
 //! Validate items of the parent module.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::IdentificationError;
 use super::search::same_variable_set;

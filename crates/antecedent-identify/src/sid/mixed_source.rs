@@ -101,7 +101,7 @@
 //! Every attempted rule application charges one operation of the shared budget
 //! at its derivation generation, with the cumulative live-state bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

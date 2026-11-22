@@ -11,7 +11,7 @@
 //! enumerated edge marginals within Monte-Carlo error, and floor a screened-out pair at exactly
 //! `min(prior, alpha) / 2` on both cells while a forbidden pair keeps an exact zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

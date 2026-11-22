@@ -6,7 +6,7 @@
 //! `sum over trial rows of (+-1) (1 - s) / (s * arm probability) * y`, divided by the number
 //! of target rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 

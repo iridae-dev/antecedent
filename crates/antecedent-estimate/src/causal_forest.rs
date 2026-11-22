@@ -5,7 +5,7 @@
 //! half of each subsample, then predicts those leaf values in-sample. This is
 //! not GRF local centering. Learners never choose the adjustment set.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

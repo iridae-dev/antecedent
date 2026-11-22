@@ -3,7 +3,7 @@
 //! The expected proof steps and variable sets are the textbook back-door and front-door sets of
 //! each graph, worked out by hand, so a repair that simply asked for every variable fails.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::EvidenceObligationKind;
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};

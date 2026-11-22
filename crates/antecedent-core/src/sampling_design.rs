@@ -13,7 +13,7 @@
 //!
 //! This is not the transport-regime label [`crate::SamplingDesign`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

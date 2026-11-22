@@ -11,7 +11,7 @@
 //! posterior predictive check of the lag-aware reference model). The placebo and control checks
 //! have the exact null 0 and the stability checks the original value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult,

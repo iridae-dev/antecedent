@@ -7,7 +7,7 @@
 //! 4. Reset remaining edges to `o–o`
 //! 5. Zhang FCI orientation ([`crate::rule_scheduling::default_fci_rules`])
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

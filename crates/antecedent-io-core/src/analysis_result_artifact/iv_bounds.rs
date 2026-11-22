@@ -9,7 +9,7 @@
 //! frequentist Imbens-Manski interval, and that the result claims no support and a `not_measured`
 //! calibration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

@@ -4,7 +4,7 @@
 //! the effective sample size of the quantity (a multiple of its theoretical standard
 //! error), never tuned to an observed value. All simulation runs at fixed seeds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{

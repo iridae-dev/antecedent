@@ -4,7 +4,7 @@
 //! [`SlotAvailability::Unavailable`], never empty objects that imply success.
 //! Priors, validation, and successful estimation never upgrade identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

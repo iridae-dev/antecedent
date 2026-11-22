@@ -3,7 +3,7 @@
 //! Hot path: one [`LaggedFrame`] per run; CI tests index columns and reuse
 //! workspace scratch (no per-test sample-plan rebuild).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

@@ -12,7 +12,7 @@
 //! the current scientific-target digest, then loading the carried receipt. A previous-release
 //! route-record artifact is read by [`consume_previous_route_records`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ScientificTarget;
 

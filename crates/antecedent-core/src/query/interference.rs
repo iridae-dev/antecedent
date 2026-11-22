@@ -1,6 +1,6 @@
 //! Randomized interference queries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::InterferenceFault;
 use std::sync::Arc;

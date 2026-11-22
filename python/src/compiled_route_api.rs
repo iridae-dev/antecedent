@@ -6,7 +6,7 @@
 //! unchanged together with a [`PyCompiledRoute`] that states the contract the
 //! execution ran under, the claim sealed over it and the cheap inspection record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

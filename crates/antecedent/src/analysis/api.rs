@@ -6,7 +6,7 @@
 //! uncertainty requirements, claim adapters, robustness verdicts and the durable
 //! artifacts with external-callback receipts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::alpha_selection::{OutcomePriorSelection, ResolvedOutcomePrior};
 pub use super::structure_route::{

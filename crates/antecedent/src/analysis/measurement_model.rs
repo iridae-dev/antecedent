@@ -64,7 +64,7 @@
 //! intervention meaning unless it declares the evidence for it, and the
 //! coordinates of a learned vector representation are not intervenable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 

@@ -1,5 +1,5 @@
 //! Diagnostic lifecycle invariance and prepared-context integration.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::{DataDiagnostics, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;

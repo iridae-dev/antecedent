@@ -5,7 +5,7 @@
 //! conditional on the clamp-experiment recovery. Open means `1.25` and `0.625`,
 //! and the clamp at `2`, are the equilibrium of the declared coefficients.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::{
     CyclicExecutionRequest, CyclicFamilyAnswer, CyclicFamilyRequest, consume_cyclic_artifact,

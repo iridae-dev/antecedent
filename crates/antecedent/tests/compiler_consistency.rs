@@ -4,7 +4,7 @@
 //! a sharp RD design that does not identify names its per-execution identification, and a
 //! transformation preview reports the refusal its apply raises.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{

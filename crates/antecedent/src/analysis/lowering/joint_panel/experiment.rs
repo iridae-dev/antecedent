@@ -1,7 +1,7 @@
 //! Lower an independent experiment that conditions a retained joint panel or design law, and
 //! the constrained decision and next-study value read from the conditioned law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

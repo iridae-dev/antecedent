@@ -28,7 +28,7 @@
 //! Neither construction has a coverage record. Every interval is labelled
 //! `not_measured` by the calibration lookup like any other unsupported construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::RefCell;
 

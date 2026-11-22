@@ -6,7 +6,7 @@
 //! evaluate decisions with their reliability and robustness records. Ranking is advisory: it
 //! runs no analysis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

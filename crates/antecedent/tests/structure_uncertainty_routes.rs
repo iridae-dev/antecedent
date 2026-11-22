@@ -6,7 +6,7 @@
 //! compile to a complete lowered program with a stable identity, the plan view reads that
 //! program, and the answers equal what the engines return on the same fixtures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

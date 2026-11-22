@@ -8,7 +8,7 @@
 //! [`SealedOperation`], reached through the exhaustive projection the
 //! `sealed_executions!` list generates. No call site matches on the variants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::estimate::ClickNotes;
 use super::{CheckedProgramBinding, PreparedExecution, PreparedStudy};

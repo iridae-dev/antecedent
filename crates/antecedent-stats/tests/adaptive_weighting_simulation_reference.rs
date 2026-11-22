@@ -10,7 +10,7 @@
 //! given an estimate exists. The seeded simulation (60,000 replicates) must agree at five Monte
 //! Carlo standard errors; the replay of a seed is bit-identical and another seed differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

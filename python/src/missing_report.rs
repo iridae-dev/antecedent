@@ -1,6 +1,6 @@
 //! JSON view of a result's missing-data report, and parsing of the declared policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::data::{
     ImputationDomain, ImputationModel, ImputationSpec, MissingDeclaration, MissingPolicy,

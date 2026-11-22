@@ -7,7 +7,7 @@
 //! each action with the outcome. Every expected value is enumerated from the
 //! structural model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;

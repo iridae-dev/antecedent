@@ -7,7 +7,7 @@
 //! it is the canonical hash of the whole stored artifact with only its own slot emptied, so a
 //! field added later is bound without anyone remembering to list it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::IdentityDomain;
 use serde::Serialize;

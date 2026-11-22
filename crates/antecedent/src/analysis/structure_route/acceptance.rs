@@ -1,6 +1,6 @@
 //! Acceptance and provenance for discovered structures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AcceptedGraph, Arc, CanonicalWriter, CausalError, CausalQuery, ClaimEnvelope, DiscoverQuery,

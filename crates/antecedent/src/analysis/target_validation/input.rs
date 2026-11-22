@@ -1,6 +1,6 @@
 //! Identity and equality of the executed refutation input.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, DataInput, ExecutionContext, PreparedTargetData, StudyResult, TableView,

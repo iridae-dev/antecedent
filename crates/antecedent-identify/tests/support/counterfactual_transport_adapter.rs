@@ -14,7 +14,7 @@
 //! root; it reaches both as `crate::finite_scm_oracle` and
 //! `crate::counterfactual_transport_cases`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

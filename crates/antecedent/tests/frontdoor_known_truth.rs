@@ -11,7 +11,7 @@
 //! and checks it equals the structural enumeration `0.7 * 0.9 * E[U] = 0.315` that
 //! `conformance/estimate/frontdoor_functional` records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "known_truth_cells/mod.rs"]
 mod support;

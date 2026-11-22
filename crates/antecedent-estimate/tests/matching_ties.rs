@@ -18,7 +18,7 @@
 //! differences divided by the mean of `1 + 1 / (donors of the query)`. The estimate does not
 //! move when the rows are shuffled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

@@ -1,6 +1,6 @@
 //! Shared special functions for stats (PPF, gamma, incomplete beta).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
 /// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.

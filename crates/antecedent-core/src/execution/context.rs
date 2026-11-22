@@ -1,5 +1,5 @@
 //! Execution context: the context type and its policy-carrying constructors.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::admission::{
     AdmissionError, AdmissionLease, AdmissionPool, AdmissionRequest, AdmissionWait, admit,

@@ -31,7 +31,7 @@
 //! refused by the coordinate check, never reinterpreted. The decision is not
 //! refreshed in place.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::{CanonicalWriter, SupportStatus};

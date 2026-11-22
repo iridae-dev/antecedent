@@ -7,7 +7,7 @@
 //! prior, the contrast at the mode and the exact posterior-mean contrast of that Gaussian by
 //! quadrature of each row's scalar linear predictor.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::temporal_link::{
     BayesianTemporalLink, FrequentistTemporalLink, RegimeColumn, TemporalContrastDesign,

@@ -5,7 +5,7 @@
 //! the structural verdicts the transport identifier's own unit tests fix for the same DAGs
 //! with the same query.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

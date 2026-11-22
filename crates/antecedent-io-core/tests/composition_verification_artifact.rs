@@ -9,7 +9,7 @@
 //! `sibling` valid; withdrawing the record `fit` holds withdraws `claim` for
 //! calibration only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

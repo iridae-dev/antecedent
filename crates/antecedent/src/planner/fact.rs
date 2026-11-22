@@ -7,7 +7,7 @@
 //! resolves a variable to its schema name from the node's own type, with no key-name
 //! convention between the producer and the reader.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

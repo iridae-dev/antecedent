@@ -57,7 +57,7 @@
 //!
 //! No scheduler or alerting service is part of this module; a host calls the diagnostic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod assess;
 pub mod implications;

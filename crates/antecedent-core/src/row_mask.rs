@@ -4,7 +4,7 @@
 //! validity bitmap and the target-population keep-mask are both this type, so a selection
 //! built by one is consumed by the other without a per-row conversion.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

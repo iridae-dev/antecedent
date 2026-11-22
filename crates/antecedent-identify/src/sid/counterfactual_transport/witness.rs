@@ -32,7 +32,7 @@
 //! models. The search is a bounded heuristic, never a proof by itself: when no
 //! witness is found the decision stays `not_certified`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

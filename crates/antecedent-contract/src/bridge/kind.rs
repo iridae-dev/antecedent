@@ -1,7 +1,7 @@
 //! The six bridge kinds, the classes of quantity they connect, the assumption
 //! each kind rests on, and the value kinds a bridge never interconverts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::mapping::MappingKind;
 use antecedent_core::named_variants;

@@ -16,7 +16,7 @@
 //! design, at the method's replicate count. A class posterior is the posterior of the
 //! DAG search it collapses, read over Markov equivalence classes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ClaimKind;
 use antecedent_core::{

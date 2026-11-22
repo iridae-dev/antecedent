@@ -7,7 +7,7 @@
 //! callback whose evidence is undeclared overlaps with unknown dependence,
 //! never independence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,6 +1,6 @@
 //! Proper imputation models: chained equations and joint normal data augmentation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

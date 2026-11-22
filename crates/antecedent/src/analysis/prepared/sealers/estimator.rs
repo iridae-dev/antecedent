@@ -10,7 +10,7 @@
 //! that every other `EstimatorId` is served by a specialised sealer, so an estimator
 //! added without a sealer cannot prepare.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::execute::CheckedRouteOperation;

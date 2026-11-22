@@ -1,6 +1,6 @@
 //! Exact point-distribution wire shared by the transport artifacts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_expr::ExactDistribution;
 use serde::{Deserialize, Serialize};

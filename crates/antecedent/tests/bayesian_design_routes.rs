@@ -3,7 +3,7 @@
 //! below compare each posterior with an independent closed form or known truth, read the
 //! retained artifact with an independent loader, and refuse every boundary with its next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

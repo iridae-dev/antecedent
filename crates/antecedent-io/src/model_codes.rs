@@ -1,6 +1,6 @@
 //! Closed model-declaration codes stored as the historical `snake_case` strings.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::joint_bayesian_transport::{
     SourceDependence, SourceSharing, TransportGraphClass, VaryingBlock,

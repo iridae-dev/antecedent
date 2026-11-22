@@ -9,7 +9,7 @@
 //! `crates/antecedent/src/analysis/execute/mod.rs`) shows an atom whose own
 //! refits do not reproduce its reported estimate still fails.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

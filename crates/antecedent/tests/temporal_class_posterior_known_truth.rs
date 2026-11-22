@@ -9,7 +9,7 @@
 //! the retained unidentified posterior mass with those closed forms; no production
 //! estimator is called to produce an expectation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

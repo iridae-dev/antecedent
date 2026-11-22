@@ -6,7 +6,7 @@
 //! table by counting, never by calling the library: a stratified difference when the modifier
 //! closes the back door, and a front-door formula within strata of the modifier when it does not.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

@@ -1,6 +1,6 @@
 //! Exact and approximate Shapley value estimation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;

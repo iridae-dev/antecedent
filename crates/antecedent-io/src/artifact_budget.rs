@@ -5,7 +5,7 @@
 //! its bytes fit the export budget. Each refusal names the quantity that exceeded its bound; the
 //! in-memory fit is unaffected by an export refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

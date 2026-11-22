@@ -16,7 +16,7 @@
 //! whose set is a few standard deviations wide (a critical value above that limit). Both are
 //! far enough inside the instrumental inequality that no resample is left out.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

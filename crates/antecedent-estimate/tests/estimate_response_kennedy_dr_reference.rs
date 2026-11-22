@@ -11,7 +11,7 @@
 //! influence the product exports must equal the separately reviewed local-quadratic influence of
 //! its own pseudo-outcome plus the reference covariate term (`c_i` - mean c) / n.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

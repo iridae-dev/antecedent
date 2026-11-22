@@ -43,7 +43,7 @@
 //! and the effect is refused. A district whose kernel ID cannot identify (a hedge)
 //! refuses the effect for the same reason the total effect would.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

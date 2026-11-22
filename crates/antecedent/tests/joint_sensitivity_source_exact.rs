@@ -13,7 +13,7 @@
 //!            U = 0.7 * 0.548 + 0.3 * 0.60 = 0.5636; D- = (0.12, 0.20),
 //!            L = 0.7 * 0.148 + 0.3 * 0.12 = 0.1396.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

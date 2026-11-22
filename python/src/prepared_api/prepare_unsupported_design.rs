@@ -4,7 +4,7 @@
 //! folds, floor, caliper). Inference selects the sequential contrast's normal interval or its
 //! modular posterior; a Bayesian history match is the typed matching boundary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::Study;
 use antecedent::data::TableView;

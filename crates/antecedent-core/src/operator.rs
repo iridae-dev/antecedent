@@ -18,7 +18,7 @@
 //! Nothing here schedules kernels, solves a system, or lowers an identified
 //! functional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

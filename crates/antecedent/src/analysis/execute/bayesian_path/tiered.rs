@@ -1,6 +1,6 @@
 //! Tiered Bayesian average effects and scenario publication.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AverageEffectQuery, BayesianGcompPointInput, CausalError, CausalPosterior, Diagnostic,

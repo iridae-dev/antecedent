@@ -1,5 +1,5 @@
 //! Repeated-sampling evidence for a known-propensity observational exposure interval.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_possible_truncation,
     reason = "calibration fixtures build small nonnegative cluster labels as u32"

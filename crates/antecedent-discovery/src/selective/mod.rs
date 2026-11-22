@@ -36,7 +36,7 @@
 //! * transport of a discovered structure (refusal; see [`transport`]),
 //! * derived sufficient-statistic updates (a separate row that needs its own validation).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod adapter;
 pub mod claims;

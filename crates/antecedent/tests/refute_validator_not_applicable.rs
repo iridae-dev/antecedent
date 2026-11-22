@@ -2,7 +2,7 @@
 //! interaction-model scalar. Per-run `NotApplicable` skips remain pinned for temporal
 //! overlap in `manufacturing_temporal.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

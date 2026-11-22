@@ -15,7 +15,7 @@
 //! square (needs a joint law), in declaration order. Requiring every action instead refuses the
 //! same three, named in that order.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{ExternalTrustState, QuantityRole, ScientificQuantity};
 use antecedent_core::SupportStatus;

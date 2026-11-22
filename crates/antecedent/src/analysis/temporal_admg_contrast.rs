@@ -12,7 +12,7 @@
 //! estimator resamples (frequentist) or reweights (Bayesian) circular blocks of consecutive rows,
 //! never shorter than the window, which is the declared sampling design of one dependent series.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     Lag, ResponseQuery, TargetPopulation, TemporalEffectQuery, TemporalIndexer, VariableId,

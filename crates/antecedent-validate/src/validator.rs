@@ -3,7 +3,7 @@
 //! Effect refuters (§18.2) implement this trait. The trait is named `Validator`
 //! (not `Refuter`) per DESIGN.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationWorkspace;

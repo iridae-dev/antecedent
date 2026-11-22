@@ -1,6 +1,6 @@
 //! Finite stationary unfolding of temporal mixed graphs without changing marks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{DenseNodeId, Endpoint, GraphError, MarkedEdge, NodeRef, Pag, TemporalPag};
 use antecedent_core::{TemporalIndexer, TemporalNodeKey};
 

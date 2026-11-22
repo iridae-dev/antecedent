@@ -8,7 +8,7 @@
 //! and mean-contrast quantities) run through the joint enumeration; a chain of seventeen binary
 //! exogenous terms (131072 joint states) runs through exact variable elimination.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

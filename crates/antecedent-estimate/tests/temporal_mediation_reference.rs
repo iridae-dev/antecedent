@@ -9,7 +9,7 @@
 //! windows from a lagged scan, so this checks the alignment, the gap handling, two mediators with a
 //! shared outcome regression, a non-unit treatment contrast, large offsets and a tiny sample.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

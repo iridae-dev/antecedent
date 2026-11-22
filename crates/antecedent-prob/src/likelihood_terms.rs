@@ -2,7 +2,7 @@
 //!
 //! One primitive per family so Laplace and HMC share exact derivatives.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{log_norm_cdf, log_norm_pdf, mills_left_tail, softplus};
 

@@ -22,7 +22,7 @@
 //! Every envelope case is returned with the sID outcome that produced it, index-aligned, so a
 //! caller can evaluate the certified formula of each case.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

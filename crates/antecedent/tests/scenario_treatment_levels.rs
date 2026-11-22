@@ -9,7 +9,7 @@
 //! at the two levels is declared, in which case the contrast is exact and the excluded rows are
 //! reported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{CausalError, RefuteSuite, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};

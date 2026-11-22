@@ -9,7 +9,7 @@
 //! clip that binds, both together, an outcome offset of 1e7, a covariate offset of 1e3 at scale
 //! 250 and nearly collinear covariates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

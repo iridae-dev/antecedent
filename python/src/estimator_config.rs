@@ -18,7 +18,7 @@
 //!   the estimator(s) it does belong to. Dropping a config key silently is exactly the bug
 //!   class this module exists to prevent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::EstimatorSpec;
 use antecedent::estimate::{

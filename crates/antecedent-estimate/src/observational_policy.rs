@@ -33,7 +33,7 @@
 //!   `(K - 1) / K` of a large sample. When the learned rule varies materially between folds
 //!   the pooled standard error is only approximate and carries no correction here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

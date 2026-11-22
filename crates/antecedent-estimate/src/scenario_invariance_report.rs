@@ -16,7 +16,7 @@
 //! recomputed from the evaluated numbers), so a refreshed set with the same
 //! decision reports the same invariances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,5 +1,5 @@
 //! Native-issued ordinary Gaussian Bayesian selective adapter.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::NumericColumn;
 use crate::recalc_api::{RunPayload, bounded_context, invalid, parse_json};
 use crate::recalc_bounds::check_columns;

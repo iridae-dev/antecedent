@@ -3,7 +3,7 @@
 //! enables hard, shift, stochastic, soft, and sequenced interventions.
 //! Estimators that only support hard `Set` continue to reject other variants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod capability;
 

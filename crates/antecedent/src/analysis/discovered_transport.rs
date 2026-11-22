@@ -42,7 +42,7 @@
 //! envelope, and its [`DiscoveredTransportReport::identity`], are recomputed from it. The
 //! selection targets are kept only by being passed again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,

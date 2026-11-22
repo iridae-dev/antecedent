@@ -8,7 +8,7 @@
 //! treatment and residual the single-step sustained posterior equals the independent
 //! tempered reference of the same estimand.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -8,7 +8,7 @@
 //! subtree can never hold a donor the scan would have chosen. Resource use is bounded by
 //! the [`ExecutionContext`]: memory against its hard limit, work through cancellation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

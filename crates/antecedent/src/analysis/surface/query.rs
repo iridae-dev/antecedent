@@ -1,7 +1,7 @@
 //! Typed causal queries: what a study is asked to compute, from average effects to transport,
 //! counterfactual and survival questions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_core::IvBoundsQuery;
 pub use antecedent_core::{

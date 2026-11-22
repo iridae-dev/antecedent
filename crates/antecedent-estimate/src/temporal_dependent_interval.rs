@@ -25,7 +25,7 @@
 //! bootstrap-t scores, standard errors, pivots and endpoints are checked against a
 //! multiprecision construction in `temporal_dependent_interval_reference.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

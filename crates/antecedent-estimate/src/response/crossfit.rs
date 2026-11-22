@@ -4,7 +4,7 @@
 //! cross-fit fold, the fold-size guard, and the Gaussian treatment residual
 //! scales used to build the Kennedy conditional density.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     AdditiveDesign, GamOptions, GamWorkspace, RoughnessPenalty, SmoothSpec,

@@ -1,6 +1,6 @@
 //! Tests of the graphless design support rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 

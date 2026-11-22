@@ -6,7 +6,7 @@
 //! posterior is viewed as one mixture over its atoms. `Study::inspect` stays the
 //! non-identifying preflight beside it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "masses are compared to exact sums of the same weights")]
 

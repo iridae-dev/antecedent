@@ -8,7 +8,7 @@
 //! scan, and the payload was admitted against a byte budget. A table prepared
 //! without a budget records its payload as unmetered and proves rows only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

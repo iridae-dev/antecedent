@@ -60,7 +60,7 @@
 //! Percentiles of replicates and of posterior draws are exchangeable-rank quantiles
 //! (`p (D + 1)` among `D` values), which do not shorten an interval at a finite count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

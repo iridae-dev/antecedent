@@ -1,6 +1,6 @@
 //! Evaluate an identified counterfactual functional on one joint law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Assignment, BTreeSet, CausalExprArena, CfTerm, CfValue, CounterfactualFunctional,

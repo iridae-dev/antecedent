@@ -9,7 +9,7 @@
 //! exactly twenty, a remainder, a clip that ties sixty scores into one class, a trim, an
 //! outcome offset of 1e8 and declared sampling weights.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

@@ -1,6 +1,6 @@
 //! estimate-parity noisy multi-estimator conformance (`val` + `se` vs pinned references).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

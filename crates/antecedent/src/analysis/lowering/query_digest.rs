@@ -8,7 +8,7 @@
 //! [`retention_key`] keys the identification a lowered program retains: dispatch
 //! installs a retained product only into a study whose key matches.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalQuery, VariableId};
 use antecedent_data::TableView;

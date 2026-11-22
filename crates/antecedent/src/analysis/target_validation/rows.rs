@@ -1,6 +1,6 @@
 //! Temporal row selection and series reconstruction for refits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::{TableView, ValidityBitmap};
 

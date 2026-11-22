@@ -18,7 +18,7 @@
 //! * a treatment whose edges are all invisible leaves a candidate with a recanting district,
 //!   and the route refuses instead of reporting the functional of one of the models.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -1,6 +1,6 @@
 //! Shared dense materialization for faer-backed learners.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::design::{DesignView, Layout};
 use crate::error::LearnError;

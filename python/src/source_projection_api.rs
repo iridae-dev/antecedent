@@ -1,5 +1,5 @@
 //! Original-source semantic projections and actual checked native operation resolution.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::composition::BundleLimits;
 use antecedent::analysis::source_evidence::SourceResolution;

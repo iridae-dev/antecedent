@@ -17,7 +17,7 @@
 //! row with weight `k` enters the summary `k` times. A fractional weight is not representable
 //! here and is refused rather than rounded.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

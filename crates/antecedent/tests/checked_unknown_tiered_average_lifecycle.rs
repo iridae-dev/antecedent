@@ -1,6 +1,6 @@
 //! Public lifecycle evidence for explicit Unknown-tier average effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "lifecycle pins compare bitwise-identical replayed estimates")]
 

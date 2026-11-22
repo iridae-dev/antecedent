@@ -7,7 +7,7 @@
 //! proposed shape" and "a proposed level lies in its declared domain"; each
 //! planner maps the message into its own typed error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

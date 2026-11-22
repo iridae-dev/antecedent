@@ -12,7 +12,7 @@
 //! draws the resamples, runs the search and passes the structures it returned; a resample
 //! on which the search failed is counted as failed mass, never redrawn.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

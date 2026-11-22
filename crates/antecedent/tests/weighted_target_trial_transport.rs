@@ -9,7 +9,7 @@
 //! the closed form `1 + (1 + c / h^2) / (1 + 1 / h^2)`, which the tests compare against, never
 //! against a number the code under test produced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

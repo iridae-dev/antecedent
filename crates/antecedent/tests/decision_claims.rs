@@ -9,7 +9,7 @@
 //! budget. Two actions read the mean of `y`: `treat` has utility `y - cost` and
 //! `hold` has utility `0.5 * y`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

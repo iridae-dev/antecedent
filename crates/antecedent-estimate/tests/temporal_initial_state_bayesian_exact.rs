@@ -7,7 +7,7 @@
 //! (0.4, 0.6), so the marginalized effect is `0.4 * 0.33 + 0.6 * 0.46 = 0.408`, computed by
 //! hand here and compared with the route run on the updated law and the unit panel.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,

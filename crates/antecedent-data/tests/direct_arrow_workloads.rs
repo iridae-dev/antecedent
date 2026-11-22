@@ -9,7 +9,7 @@
 //! `parity/polars_decision/direct_arrow_workloads.toml`; set
 //! `ANTECEDENT_WORKLOAD_EVIDENCE` to a path to append the measured values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::unwrap_used,

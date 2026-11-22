@@ -7,7 +7,7 @@
 //! planning goal carries the declared request of a future trial analysed as the
 //! route; its identity enters layer four.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -13,7 +13,7 @@
 //! in `learned_continuous_calibration.rs` under `scripts/measure_calibration.sh`.
 //! `scripts/gate_composition_exit.sh` verifies the corresponding coverage records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

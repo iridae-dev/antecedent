@@ -8,7 +8,7 @@
 //! rows relabelled and reordered must give the same standard errors, and dependence that the
 //! estimator cannot read must be refused rather than ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

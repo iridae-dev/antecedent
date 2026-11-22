@@ -33,7 +33,7 @@
 //! interval) is refitted on the same data and seed at the 0.90 level, which changes
 //! only the interval quantile.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

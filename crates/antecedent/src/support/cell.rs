@@ -1,7 +1,7 @@
 //! Support-matrix cell types: the coordinate, its classification and the
 //! structure-source axis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{
     Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,

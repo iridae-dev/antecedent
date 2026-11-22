@@ -11,7 +11,7 @@
 //! 0.05, an adjustment covariate within 1e-3 of the modifier, heteroskedastic noise and the
 //! smallest admitted sample of 8 rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

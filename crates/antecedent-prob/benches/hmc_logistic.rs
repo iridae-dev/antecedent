@@ -6,7 +6,7 @@
 //! without its diagnostics. Every repeat is retained and the median is reported; the fastest run
 //! is never selected. Prints the sample times and the diagnostics of the median fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::time::Instant;
 

@@ -4,7 +4,7 @@
 //! only on `controllable` does not satisfy the unrestricted source-experiment
 //! premise of the classical theorem.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 use super::IdentificationBudget;

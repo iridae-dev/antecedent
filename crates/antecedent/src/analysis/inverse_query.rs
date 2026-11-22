@@ -18,7 +18,7 @@
 //! route; this module's names are reached by path
 //! (`antecedent::analysis::inverse_query`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::IoError;
 

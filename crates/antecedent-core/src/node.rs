@@ -2,7 +2,7 @@
 //!
 //! Shared by sample planning (`antecedent-data`) and graph types (`antecedent-graph`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ids::{EnvironmentId, Lag, VariableId};
 

@@ -6,7 +6,7 @@
 //! diagonal entry it was reduced from. The only caller-chosen policy is the explicit [`Jitter`]:
 //! a retry with a relative diagonal shift, never an implicit absolute tolerance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{chol_inverse, chol_solve_into, cholesky_spd_into};
 

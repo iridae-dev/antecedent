@@ -23,7 +23,7 @@
 //!   that is empty or nearly empty in small samples.
 //! * `rare_evidence`: the conditioning event has probability about 0.03.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(

@@ -1,7 +1,7 @@
 //! Overflow pins for the GAC candidate cap. These live off the calibration
 //! surface so a test-only 16-vs-40 pin cannot owe a coverage remasurement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -15,7 +15,7 @@
 //! * The interval `estimate +- 1.96 se` holds the exact value in at least the nominal share of the
 //!   seeds, less `Z` binomial standard deviations of that share.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

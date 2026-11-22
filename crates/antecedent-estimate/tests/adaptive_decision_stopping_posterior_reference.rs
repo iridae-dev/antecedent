@@ -9,7 +9,7 @@
 //! crosses; the arm named best is the arm with the larger exact probability of being best, with
 //! ties naming the first arm.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::adaptive_inference::{

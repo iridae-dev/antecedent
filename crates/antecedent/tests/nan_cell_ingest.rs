@@ -7,7 +7,7 @@
 //! such a cell stayed valid: a `NaN` treatment or confounder failed the ATE
 //! with a rank-deficiency error and a `NaN` outcome returned a `NaN` effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

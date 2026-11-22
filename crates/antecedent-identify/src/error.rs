@@ -1,6 +1,6 @@
 //! Identification errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{TransportOutcomeKind, VariableId};
 use antecedent_graph::GraphError;

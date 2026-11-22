@@ -1,5 +1,5 @@
 //! Frozen-score doubly robust policy value utility.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod ipw;
 pub use ipw::{

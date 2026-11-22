@@ -23,7 +23,7 @@
 //!
 //! Each simulation also returns a [`ResourceReceipt`] of the work it did.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::{AdmissionError, AdmissionLease};

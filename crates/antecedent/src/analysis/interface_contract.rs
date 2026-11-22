@@ -37,7 +37,7 @@
 //! interval or posterior is supported by declaring one. Cyclic scientific
 //! composition is refused, not unrolled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 

@@ -6,7 +6,7 @@
 //! least-squares derivation for the switchback), the retained artifact is read with an
 //! independent loader, and every boundary is refused with its next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

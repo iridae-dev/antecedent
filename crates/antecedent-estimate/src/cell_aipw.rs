@@ -4,7 +4,7 @@
 //! model, on the common adjustment set already certified. Interaction
 //! contrasts are identified; they are not structurally zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

@@ -6,7 +6,7 @@
 //! preparation; evaluating it never searches. No interval is published on this
 //! route: exact laws carry no sampling uncertainty and the route claims a point.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::transport::{BoundZFormula, compile_exact_z_transport, validate_exact_laws};
 

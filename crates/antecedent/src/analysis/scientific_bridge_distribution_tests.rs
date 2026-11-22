@@ -2,7 +2,7 @@
 //! independently consume, the interval gate, and the bridge as a stage of a
 //! propagation chain that continues into a transport and a utility.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeEndpoint, BridgeMapping, BridgeScope,

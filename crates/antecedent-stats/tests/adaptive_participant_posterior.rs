@@ -6,7 +6,7 @@
 //! numpy/scipy, and the two-arm case is an arbitrary-precision nested quadrature (mpmath, 25
 //! digits). At a zero correlation the posterior is also compared with the conjugate Beta route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

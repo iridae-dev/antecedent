@@ -12,7 +12,7 @@
 //! exponential map is checked against the normal moment-generating function and is refused for a
 //! law known only by two moments.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

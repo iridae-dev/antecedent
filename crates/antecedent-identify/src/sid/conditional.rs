@@ -74,7 +74,7 @@
 //! [`ConditionalNonTransportabilityProof`], which keeps the candidate as its
 //! explanation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::conditional_witness::{
     ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessMeter, WitnessSearch,

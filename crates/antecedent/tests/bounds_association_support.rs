@@ -10,7 +10,7 @@
 //! threshold or under another method is refused; a fit outside the range runs and states no
 //! support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

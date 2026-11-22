@@ -1,6 +1,6 @@
 //! Shared-design diagnostics and joint family inference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, AverageEffectQuery, BatchQuery, CandidateScreen, CellFamilyContrast,

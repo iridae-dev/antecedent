@@ -12,7 +12,7 @@
 //! both types; the type checker keeps the two apart so a comparison cannot be written
 //! into a numeric node without an explicit [`ValueExpr::indicator`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

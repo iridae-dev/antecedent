@@ -23,7 +23,7 @@
 //!   trial and target weight totals stay fixed. Without sampling weights this is the Dirichlet
 //!   law over the trial rows, clusters or blocks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

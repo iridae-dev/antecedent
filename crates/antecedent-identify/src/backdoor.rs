@@ -5,7 +5,7 @@
 //! Textor 2014); the size-ordered subset search then only chooses which sets to return, and
 //! its `max_examinations` budget never turns a decided query into an undecided one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

@@ -1,7 +1,7 @@
 //! The derived claim of a bridge: its own identity, assumptions, provenance
 //! and receipt, with the source claim left separately inspectable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

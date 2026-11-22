@@ -9,7 +9,7 @@
 //! covariances equals the structural effect `2` to rounding error. The homoskedastic standard
 //! error is recomputed here from the raw series by the closed form.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     reason = "deterministic fixture indices are small and exact in f64"

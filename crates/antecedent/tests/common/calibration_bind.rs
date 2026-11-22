@@ -5,7 +5,7 @@
 //! key [`StudyResult::claim`] matches against the registry. A test therefore
 //! cannot record a construction the facade does not report under that key.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

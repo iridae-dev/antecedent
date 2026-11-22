@@ -38,7 +38,7 @@
 //! does not depend on the randomization probabilities (the likelihood principle). Rows of a
 //! sequence must be supplied in period order.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

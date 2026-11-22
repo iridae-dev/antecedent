@@ -9,7 +9,7 @@
 //! against the independent numpy reference committed next to the fixture;
 //! the Bayesian envelope mean and SD are seeded output pins.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

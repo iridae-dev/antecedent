@@ -1,5 +1,5 @@
 //! Independent finite source-state, terminal decision and ranking acceptance.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::composition_bundle::{

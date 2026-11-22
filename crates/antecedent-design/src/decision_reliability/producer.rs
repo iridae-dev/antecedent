@@ -27,7 +27,7 @@
 //! allowed, ranking and the confidence-set and probability intervals that rest on a
 //! joint law are refused `joint_law_required`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, is_blank};
 use serde::{Deserialize, Serialize};

@@ -1,5 +1,5 @@
 //! Kernel-smoothed dose-response transport query.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 //!
 //! The estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]` for
 //! each declared grid dose `a`, one declared bandwidth `h` and the declared kernel `K`.

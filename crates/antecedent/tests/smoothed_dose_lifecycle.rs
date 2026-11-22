@@ -5,7 +5,7 @@
 //! the prepared lifecycle, the independently replayed artifact and the closed interval
 //! route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,

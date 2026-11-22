@@ -4,7 +4,7 @@
 //! matrix-supported route: the prepared handle retains a sealed operation, its plan
 //! view reads the lowered program the handle executes, and the executed result's
 //! contract is accepted as a verified program by the artifact consumer.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::planner::PlanStage;

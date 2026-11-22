@@ -13,7 +13,7 @@
 //! are influence-function standard errors whose calibration is **`not_measured`**, and no interval
 //! is produced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::observational_survival::CensoringAssumption;
 

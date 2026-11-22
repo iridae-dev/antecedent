@@ -18,7 +18,7 @@
 //! standardized, intercept-free ridge of the cross-fitted penalized propensity, and the posterior
 //! mean score is not the penalized-fit score.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

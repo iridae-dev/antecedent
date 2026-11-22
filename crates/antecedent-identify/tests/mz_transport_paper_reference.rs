@@ -23,7 +23,7 @@
 //! one-exchange reference on every fixture, and the cumulative joint regime
 //! `do(Z_cum)` is always the single joint `do(Z_i ∩ X)` of one exchange.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
 use std::sync::Arc;

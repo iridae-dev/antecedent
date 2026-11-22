@@ -18,7 +18,7 @@
 //!
 //! Provenance is descriptive: it changes no number, gate or support status.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;

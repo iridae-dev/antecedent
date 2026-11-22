@@ -1,6 +1,6 @@
 //! Scalar reference kernels (correctness baseline).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "n as f64 for means/variances is intentional")]
 

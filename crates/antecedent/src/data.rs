@@ -1,7 +1,7 @@
 //! Data containers a study reads: tabular, panel, time-series, event and network data, typed
 //! columns, missingness declarations and the Arrow boundary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Data-layer errors.
 pub use antecedent_data::DataError;

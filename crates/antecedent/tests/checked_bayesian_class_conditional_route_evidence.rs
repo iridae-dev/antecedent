@@ -1,7 +1,7 @@
 //! Builder-independent evidence for Bayesian conditional effects on static CPDAG and PAG
 //! classes whose every completion identifies the same adjustment target.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{

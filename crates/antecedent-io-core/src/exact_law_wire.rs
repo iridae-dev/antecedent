@@ -1,6 +1,6 @@
 //! Exact supplied-law records, kept distinct from empirical tables.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{RegimeId, VariableId};
 use antecedent_expr::{

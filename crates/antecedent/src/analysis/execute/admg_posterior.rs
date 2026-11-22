@@ -3,7 +3,7 @@
 //! Atoms are single graphs, not MEC completions. Outer mix uses posterior
 //! weights and [`StructuralAggregationPolicy`]. Unidentified mass is retained.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
     AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,

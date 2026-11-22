@@ -10,7 +10,7 @@
 //! one-vs-rest class probabilities of the categorical slot (binary and three levels), its
 //! `2^-52` floor, and `-inf` outside the support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_learn::PortablePredictor;
 use antecedent_model::batch::MechanismWorkspace;

@@ -25,7 +25,7 @@
 //!   tables under the study's resampling design; every full-sample value must lie in the 95%
 //!   percentile range of its replicates and few replicates may be lost.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

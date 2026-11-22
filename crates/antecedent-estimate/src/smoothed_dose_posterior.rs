@@ -37,7 +37,7 @@
 //! gives every grid dose at once: the covariance across the grid is preserved. With a known
 //! residual variance the exact Gaussian mean and covariance are reported alongside.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

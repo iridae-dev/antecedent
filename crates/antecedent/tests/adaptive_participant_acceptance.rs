@@ -14,7 +14,7 @@
 //! the expected losses and exceedances the readings themselves report, and coverage with the
 //! simulated truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -4,7 +4,7 @@
 //! edges to the intervened nodes removed. The predicate is the measurement;
 //! it does not change identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

@@ -1,6 +1,6 @@
 //! Shared DAG scoring for Bayesian discovery (exact + MCMC).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod signed_uniform;
 pub(crate) use signed_uniform::signed_uniform_local_table;

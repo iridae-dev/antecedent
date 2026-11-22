@@ -18,7 +18,7 @@
 //! - The same mechanisms answered by an intervention law are a replayed point:
 //!   `E[Y | do(X = 1)] = -1 + 0.5 + 3 (0.5 + 2) = 7` and `E[Y | do(X = 0)] = 0.5`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one scenario per test")]
 

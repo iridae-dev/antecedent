@@ -7,7 +7,7 @@
 //! with a missing value is refused rather than averaged over; and a design whose declared arm
 //! has no realized unit is refused rather than extrapolated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

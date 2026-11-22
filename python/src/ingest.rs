@@ -1,6 +1,6 @@
 //! NumPy ingestion: columns of any numeric dtype owned once as library tables, panel windows and the conversion probes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(
     clippy::wildcard_imports,

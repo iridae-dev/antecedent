@@ -7,7 +7,7 @@
 //! must agree to near machine precision. Strict positivity (assignment
 //! probabilities) and closed positivity (partitions allowing zero mass) are
 //! separate predicates and are not merged here.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Absolute bound on `|sum(row) - 1|` for a declared row of mutually exclusive
 /// assignment probabilities. The total is accumulated with compensated

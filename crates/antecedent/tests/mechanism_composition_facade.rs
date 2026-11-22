@@ -16,7 +16,7 @@
 //! Finite chain (X -> M -> Y, X -> Y, binary): P(Y=1)=0.396,
 //!   P(Y=1|do(X=1))=0.72, P(Y=1|do(X=0))=0.18, P(Y=1|do(M=1))=0.66.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

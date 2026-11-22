@@ -12,7 +12,7 @@
 //! The tag path is untouched: nothing here is reached from
 //! [`crate::transport::apply_transport`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::sync::Arc;

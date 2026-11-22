@@ -16,7 +16,7 @@
 //! A prior that sets neither factor never reaches this module's arithmetic: the samplers and the
 //! exact dynamic program keep their global-probability path unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

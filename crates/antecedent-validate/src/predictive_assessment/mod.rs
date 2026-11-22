@@ -42,7 +42,7 @@
 //! * No law callbacks: a law that exists only as a callback is refused by name
 //!   (`predictive_assessment.law_callback_not_built`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod assess;
 mod bayesian;

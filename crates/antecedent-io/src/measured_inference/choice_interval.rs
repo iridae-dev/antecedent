@@ -14,7 +14,7 @@
 //! * repeated choice, one final analysis, uniform share shapes and the measured heterogeneity
 //!   hyperprior: the equal-tailed credible interval of the first option's population share.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };

@@ -26,7 +26,7 @@
 //! difference. The point estimate conditions on the grid: grid selection and interpolation
 //! bias are excluded, as in the cross-fitted cell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::special::normal_ppf;
 use antecedent_stats::{NORMAL_Q975, QuantileRule, quantile_sorted};

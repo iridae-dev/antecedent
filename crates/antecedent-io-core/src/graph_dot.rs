@@ -3,7 +3,7 @@
 //! Supports `digraph [name] { A -> B; ... }` with identifier or quoted node ids.
 //! Attribute lists `[...]` are skipped. Undirected edges and subgraphs are rejected.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::fmt::Write as _;

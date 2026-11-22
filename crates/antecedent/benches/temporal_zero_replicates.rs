@@ -8,7 +8,7 @@
 //! min-of-`ANTECEDENT_BENCH_REPEATS` wall times for `ANTECEDENT_BENCH_CELLS`
 //! (comma-separated `pulse_n2000|B0`-style names; every cell by default).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 

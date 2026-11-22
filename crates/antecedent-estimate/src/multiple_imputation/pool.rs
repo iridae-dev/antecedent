@@ -2,7 +2,7 @@
 //! for estimators that report a point and a variance, and an equal-weight posterior mixture
 //! for Bayesian fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::MultipleImputationError;
 

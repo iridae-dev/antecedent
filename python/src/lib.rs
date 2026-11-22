@@ -5,7 +5,7 @@
 //! prepared-analysis entry points live in the modules below. Unsafe FFI is
 //! confined to [`ffi`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs)]
 #![deny(clippy::disallowed_methods)]

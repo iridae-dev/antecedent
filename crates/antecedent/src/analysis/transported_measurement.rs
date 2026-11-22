@@ -50,7 +50,7 @@
 //! Outcome-only data from the target population carries no validation information; pass it
 //! as a new [`MeasurementInput`] and it is corrected under the same receipt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::measurement::LatentPosteriorTrust;
 use antecedent_contract::{ExternalScientificObject, ExternalTrustState};

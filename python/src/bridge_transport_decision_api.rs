@@ -8,7 +8,7 @@
 //! JSON for the Python layer to raise as a typed exception; corrupt artifact bytes raise a
 //! serialization error and a cancelled run raises the cancellation error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

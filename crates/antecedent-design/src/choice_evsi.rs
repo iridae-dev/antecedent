@@ -12,7 +12,7 @@
 //! The application owns the candidate designs, the acquisition of observations and the
 //! authorization of fieldwork.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::rng::sample_gamma;

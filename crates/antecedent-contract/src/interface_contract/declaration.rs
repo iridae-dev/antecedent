@@ -8,7 +8,7 @@
 //! identity, the composition stage), so a connection can be decided from two
 //! declarations before anything is executed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;

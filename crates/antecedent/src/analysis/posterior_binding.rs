@@ -6,7 +6,7 @@
 //! decides whether the two describe the same sample set. Atom lookups go
 //! through hash sets, so a check is linear in samples plus atoms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 

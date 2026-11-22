@@ -21,7 +21,7 @@
 //! certify, the unidentified mass and the mass whose certified formula the weighting cannot
 //! evaluate. Completion weights are enumeration weights, not posterior probabilities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::TableView;
 use antecedent_estimate::TransportEffectEstimate;

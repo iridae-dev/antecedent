@@ -5,7 +5,7 @@
 //! adjustment for `Y = 1 + 0.5·T + X + e` with three treatment levels, whose target is the
 //! vector of mean outcomes under each level (a world-valued target).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

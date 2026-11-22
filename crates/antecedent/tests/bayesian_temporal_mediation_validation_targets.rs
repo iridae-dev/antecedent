@@ -10,7 +10,7 @@
 //! report, a Bayesian full suite carries the prior sensitivity, and no suite
 //! produces no reports.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{

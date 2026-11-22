@@ -13,7 +13,7 @@
 //! plug-in the Bayesian g-computation applies to such a prior. The prior shapes the fit and
 //! never the identification of an effect: the learner only predicts a nuisance function.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 

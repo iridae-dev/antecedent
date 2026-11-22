@@ -42,7 +42,7 @@
 //! decision probability read from a model fitted to a sample is a point value,
 //! labelled so by the caller; no interval or calibration is produced here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeSet, HashMap};
 

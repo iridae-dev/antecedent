@@ -33,7 +33,7 @@
 //! status that names why not. The record is resolved from the shipped coverage table and
 //! nothing the caller declares sets the status.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::bridge::{

@@ -7,7 +7,7 @@
 //! posterior. A different declaration is a different posterior, so it is part of the study's
 //! inference identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

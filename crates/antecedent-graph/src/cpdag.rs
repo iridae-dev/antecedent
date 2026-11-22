@@ -4,7 +4,7 @@
 //! Orientation conflicts use [`Endpoint::Conflict`](crate::Endpoint::Conflict)–conflict (`x-x`).
 //! [`Endpoint::Circle`](crate::Endpoint::Circle) is rejected (reserved for PAG/LPCMCI).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

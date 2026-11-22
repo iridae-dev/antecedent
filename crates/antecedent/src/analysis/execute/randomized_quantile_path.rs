@@ -8,7 +8,7 @@
 //! treatment must be unconfounded and coded exactly 0/1; an adjusting graph is refused with the
 //! cross-fitted AIPW quantile as the next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AverageEffectQuery, CausalError, CausalQuery, Dag, Diagnostic, DiagnosticKind,

@@ -35,7 +35,7 @@
 //! tests or thresholds, other levels and tables outside five to seven variables are outside
 //! the measured construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CalibrationBasis, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};

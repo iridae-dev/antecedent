@@ -3,7 +3,7 @@
 //! Supports pinned baseline-style:
 //! `graph [ directed 1 node [ id "Z" label "Z" ] edge [ source "Z" target "X" ] ]`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::fmt::Write as _;

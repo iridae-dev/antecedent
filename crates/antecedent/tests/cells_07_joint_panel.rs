@@ -11,7 +11,7 @@
 //! reproduced exactly by every world. A world whose program no group received keeps its fitted
 //! numbers but is withheld from the identified claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

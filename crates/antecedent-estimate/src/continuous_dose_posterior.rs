@@ -21,7 +21,7 @@
 //! value is a paired draw. Windows must lie inside the declared support (no boundary
 //! kernels) and hold at least `min_local_support` observed rows in every group.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

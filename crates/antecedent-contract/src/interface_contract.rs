@@ -43,7 +43,7 @@
 //! producer's, a point-only producer stays point-only, and nothing here
 //! supports an interval or a posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,

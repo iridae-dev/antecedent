@@ -1,6 +1,6 @@
 //! Re-execution and target-preserving readback of refits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CausalError, DataInput, ExecutionContext, LoweredProgram, Modal, PreparedRefit,

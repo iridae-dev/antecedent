@@ -12,7 +12,7 @@
 //! member of the posterior's graph class carries the one design identification, and an atom
 //! that is not a member (a cyclic mask, an unreadable mark) is unidentified mass.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -14,7 +14,7 @@
 //! `E_w[Z] = s`, so the retargeted ATE is `2 + 0.5 s` exactly: 2.0 (uniform weights), 2.2
 //! (`s = 0.4`) and 1.8 (`s = -0.4`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

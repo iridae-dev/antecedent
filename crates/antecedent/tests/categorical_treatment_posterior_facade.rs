@@ -9,7 +9,7 @@
 //! `b_n = b_0 + (y'y - X'y . m_n)/2`, and `w'beta` is Student-t with `2 a_n` degrees of freedom,
 //! location `w'm_n` and squared scale `(b_n/a_n) w' Lambda_n^-1 w`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::categorical_treatment::{
     CategoricalPosteriorDeclaration, CategoricalSpecWire, CategoricalTreatment,

@@ -55,7 +55,7 @@
 //! [`capacity`] holds the resource bounds of all of these routes, one class of
 //! limit per refusal, and the receipt a simulation returns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod beta_bernoulli;
 pub mod capacity;

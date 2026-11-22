@@ -5,7 +5,7 @@
 //! and stages, and [`inspect`] estimates resources and reuse from values the caller already
 //! holds. Read a plan before running when you need to know what a study will do and cost.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod binding;
 pub(crate) mod fact;

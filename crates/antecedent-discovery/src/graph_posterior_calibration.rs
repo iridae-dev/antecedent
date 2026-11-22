@@ -25,7 +25,7 @@
 //!
 //! Each test runs via `scripts/measure_calibration.sh` and is `#[ignore]`d otherwise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::TabularData;

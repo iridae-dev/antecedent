@@ -19,7 +19,7 @@
 //! polynomial reproduction accounts for its zero smoothing bias, with sampling
 //! calibration still `not_measured`. Its artifact binds this additional premise and feature.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::dose_grid_functional::{
     BiasAwareDoseGrid, ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, IntervalCalibration,

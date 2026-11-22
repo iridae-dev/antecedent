@@ -12,7 +12,7 @@
 //! of [`JointCoupling`]. When a coupling is supplied, the action is the
 //! comparison of that coupling's expected acting utility with `0`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Atom `0` of the shared support.
 pub const SUPPORT_ZERO: i64 = 0;

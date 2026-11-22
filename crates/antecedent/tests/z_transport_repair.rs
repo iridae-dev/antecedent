@@ -1,7 +1,7 @@
 //! Surrogate experiments repair a z-transport contract only as a joint law
 //! at the checked population and intervention level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::repair::{
     DurableStudyCandidate, ExpectedEvidence, RepairClassification, RepairConsumeLimits,

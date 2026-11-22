@@ -9,7 +9,7 @@
 //! `0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225`; the utility `4 x - 1.5` has expected
 //! utility `7.4` and `10 x - 25` has `-2.75`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{
     CATE_FUNCTIONAL_ID, CohortBinding, CohortColumn, CohortExpectation, CohortOptions,

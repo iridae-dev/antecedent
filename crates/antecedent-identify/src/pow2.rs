@@ -5,7 +5,7 @@
 //! exponent is `None` instead of a wrapped or panicking shift. An exponent that
 //! fits produces the same value as the shift.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// `2^exp` as `usize`, or `None` when the shift does not fit in `usize`.
 #[must_use]

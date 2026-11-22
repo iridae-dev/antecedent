@@ -7,7 +7,7 @@
 //! the paper's transport formula still applies). Every law is enumerated from
 //! each population's structural model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use std::sync::Arc;

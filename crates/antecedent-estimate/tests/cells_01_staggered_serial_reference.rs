@@ -8,7 +8,7 @@
 //! the product must reproduce the exact effect and standard error on these panels, including an
 //! unbalanced one read as available cases.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::staggered_event_study::{estimate_with, group_time_att};
 use serde_json::Value;

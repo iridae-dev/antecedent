@@ -1,5 +1,5 @@
 //! Checked bindings for finite ADMG response and multi-source transport recalculation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::NumericColumn;
 use std::collections::BTreeMap;
 use std::sync::Arc;

@@ -1,6 +1,6 @@
 //! Checked Bayesian operation for temporal pulse and sustained effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::strategy_table::EstimatorId;

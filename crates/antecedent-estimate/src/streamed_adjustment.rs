@@ -15,7 +15,7 @@
 //! least squares, unit weights, homoskedastic or `HC0` standard error, all-observed
 //! target, numeric columns, no bootstrap, clustering, panel structure or contrasts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_core::physical_choice::PhysicalChoice;

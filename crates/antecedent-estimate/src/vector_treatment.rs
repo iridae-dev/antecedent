@@ -37,7 +37,7 @@
 //! made and no interval is produced. The fit is a regression-coefficient estimate, not an
 //! identification statement: the caller owns that the shared adjustment set is valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;

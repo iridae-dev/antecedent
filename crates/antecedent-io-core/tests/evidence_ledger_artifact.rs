@@ -1,7 +1,7 @@
 //! Evidence ledger artifact: a fresh consumer replays the ledger, recomputes
 //! the syntheses and refuses semantic mutations.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     CombinationRequest, EvidenceLedger, ObservationId, PoolingDependence, ResultId, Revalidation,

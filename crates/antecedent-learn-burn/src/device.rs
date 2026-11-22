@@ -6,7 +6,7 @@
 //! the CPU wheel does not link the device library. Burn's `metal` feature (Candle) and
 //! NVIDIA CUDA / cuDF are not this candidate. Only the staged WGPU fit reads clocks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;

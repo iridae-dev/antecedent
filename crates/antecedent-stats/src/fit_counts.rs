@@ -1,6 +1,6 @@
 //! Scoped observation of successfully completed dense least-squares solves.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 thread_local! {
     static SOLVES: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };

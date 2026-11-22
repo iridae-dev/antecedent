@@ -18,7 +18,7 @@
 //! dependent time series instead of publishing that too-small error, naming the estimator
 //! declaration that reads it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

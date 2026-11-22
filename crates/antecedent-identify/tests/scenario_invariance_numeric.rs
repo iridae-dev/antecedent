@@ -11,7 +11,7 @@
 //! the outcome's mechanism is selected the report carries an obstruction and the source
 //! experiment's answer is demonstrably wrong.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

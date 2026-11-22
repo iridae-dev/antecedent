@@ -11,7 +11,7 @@
 //! - Eight observed units `(x, z, y)` with `y = 1` in rows 2, 5, 6 and 8 and `x = 1` in
 //!   rows 5-8: `P(E) = 1/2`, `P(x = 1) = 1/2`, `P(E | x = 1) = 3/4`, `P(x = 1 | E) = 3/4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

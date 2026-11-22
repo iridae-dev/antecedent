@@ -8,7 +8,7 @@
 //! correlation range, with correlations at 0.95 of the way to the positive-definite limit and at
 //! 1 - 1e-6.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::synthesis::{
     MeanPrior, TauPrior, equicorrelated_gls, fixed_effect_gls, fixed_effect_inverse_variance,

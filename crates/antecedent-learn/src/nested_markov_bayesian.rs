@@ -10,7 +10,7 @@
 //! credible endpoints are Monte Carlo quantile estimates; 5%/95% tail ESS does
 //! not guarantee the precision of their 2.5%/97.5% endpoints.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop, reason = "fixed-size eleven-coordinate algebra")]
 use antecedent_core::{CausalRng, ExecutionContext, RngFactory, StreamDomain};

@@ -8,7 +8,7 @@
 //! coverage record: these tests pin recovery of the known truth within statistical
 //! tolerance, reproducibility across thread budgets, and the admission refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

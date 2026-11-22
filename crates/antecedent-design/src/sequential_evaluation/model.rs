@@ -1,6 +1,6 @@
 //! The dynamic finite model a policy is evaluated in.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

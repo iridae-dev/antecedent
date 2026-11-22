@@ -1,7 +1,7 @@
 //! A release build refuses a `not_supported` route with the reason code `not_supported`.
 //! Compiled only without `--features development`; `development_build.rs` runs the same cell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(not(feature = "development"))]
 

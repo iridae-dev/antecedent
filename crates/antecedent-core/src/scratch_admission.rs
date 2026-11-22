@@ -5,7 +5,7 @@
 //! cannot together exceed it. The lease is released when the returned [`ScratchLease`]
 //! drops.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 

@@ -8,7 +8,7 @@
 //! diagnostics) and the front-door sandwich needs row-level scores, so both keep their existing
 //! treatment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::AnalysisResultContractWire;
 use super::replay::{apply_moment_inverse, close_replay_value, invert_linear_moments};

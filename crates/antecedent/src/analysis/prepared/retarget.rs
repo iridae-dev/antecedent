@@ -1,6 +1,6 @@
 //! Frozen-score or fitted-mean retargeting of a prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{CachedStaticIdentification, ClusterUnits, PreparedStudy, score_table_treatment_col};
 use crate::error::CausalError;

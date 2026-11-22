@@ -12,7 +12,7 @@
 //! Which columns the design holds (treatment interactions, population-varying blocks) and
 //! which estimand is read off the posterior belong to the caller.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

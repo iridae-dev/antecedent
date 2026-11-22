@@ -1,5 +1,5 @@
 //! Native issued-posterior retention and independent Gaussian algebra.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::BayesianConfig;
 use antecedent::analysis::recalc_bayesian::{
     BayesianModel, BayesianRequest, BayesianSession, PosteriorSummarySpec,

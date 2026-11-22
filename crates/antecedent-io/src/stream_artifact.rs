@@ -28,7 +28,7 @@
 //! incremental forms; [`StreamArtifact::open`] borrows stored bytes and refuses it). Any other
 //! codec is refused. The first section is `meta`; an optional second section is `payload`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod metadata;
 

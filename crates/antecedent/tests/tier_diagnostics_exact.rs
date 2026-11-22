@@ -24,7 +24,7 @@
 //! each crossed fully with `(e_m, e_y)` in `{-1, 1}^2`; its two scenario effects are exactly 1
 //! and -1 (derivation in `tiered_average_effect_closed_form.rs`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{EstimatorId, RefuteSuite, Study, TierDesign, tier_diagnostics};
 use antecedent_core::{AverageEffectQuery, ExecutionContext};

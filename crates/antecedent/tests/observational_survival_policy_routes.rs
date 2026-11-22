@@ -1,7 +1,7 @@
 //! The public observational survival and policy-value routes: required declarations,
 //! typed refusals with their own details, and a self-describing wire report.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::multi_level_treatment::AdjustmentColumn;
 use antecedent::analysis::observational_policy::{

@@ -7,7 +7,7 @@
 //! augmented effect is a difference of two independent Student-t variables, so its interval comes
 //! from numerical convolution. The sampler is compared at Monte Carlo tolerances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_panel_did::{
     DidPrior, fit_bayesian_augmented_panel_did, fit_bayesian_cross_section_did,

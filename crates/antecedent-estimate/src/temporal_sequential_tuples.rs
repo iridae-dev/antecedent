@@ -16,7 +16,7 @@
 //! estimate as `estimate_sequence_mechanisms`, but its resampling is driven entirely by
 //! the caller's anchors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

@@ -7,7 +7,7 @@
 //! se`, all written out here from the predictions alone.
 //!
 //! The repeated-sampling coverage test in `longitudinal_regime.rs` is calibration evidence.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::longitudinal_regime::{
     evaluate_g_formula_value, g_formula_fixed_q_pointwise_interval_95,

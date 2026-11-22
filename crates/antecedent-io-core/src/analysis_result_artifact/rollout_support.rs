@@ -6,7 +6,7 @@
 //! pointwise interval wider than the normal interval of its standard error is accepted by the
 //! loader only when it is the Student-t interval of the section's own procedure.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QuasiRolloutWire;
 use crate::CausalQueryWire;

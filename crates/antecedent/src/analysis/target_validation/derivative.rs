@@ -1,6 +1,6 @@
 //! Finite-difference checks for derivative targets.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalQuery, ContinuousDomain, DERIVATIVE_POINTS_PER_COORDINATE, DerivativeCheckPoint,

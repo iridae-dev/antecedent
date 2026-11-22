@@ -15,7 +15,7 @@
 //! [`ConditionalIndependenceTest::p_value_is_frequentist`] with `false`, and callers must not
 //! apply a multiplicity correction to them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{sample_inv_gamma, standard_normal};

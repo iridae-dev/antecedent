@@ -104,6 +104,8 @@ def module_header(ev: Evidence, path: str) -> list[str]:
     elif path.endswith(".rs"):
         lines, fenced = [], False
         for line in body.splitlines():
+            if line.startswith("// SPDX-License-Identifier"):
+                continue
             if not line.startswith("//!"):
                 if lines:
                     break

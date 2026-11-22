@@ -10,7 +10,7 @@
 //! which the pointwise intervals are published (known density) or withheld (density not known).
 //! The refusals of an unmapped or duplicated group and of too little local support are executed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::continuous_dose::{
     DoseRows, DoseRules, DoseWindow, conditional_dose_response, fixed_dose_policy_value,

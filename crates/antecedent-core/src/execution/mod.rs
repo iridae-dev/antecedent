@@ -13,7 +13,7 @@
 //! until release or drop. Byte products and sums that
 //! do not fit in `u64` are refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod admission;
 mod budget;

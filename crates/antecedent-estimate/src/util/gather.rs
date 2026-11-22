@@ -1,6 +1,6 @@
 //! Row gathers for resampled designs and the arm moments of a binary indicator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::arm::TreatmentArm;
 

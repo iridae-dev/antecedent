@@ -1,6 +1,6 @@
 //! Exact Gaussian-process distance correlation (GPDC) conditional independence test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 use crate::ci::residualize::residual_is_uninformative;

@@ -22,7 +22,7 @@
 //! correlation. The result is `NaN` (not `0`) for it, for fewer than two observations, a length
 //! mismatch and a non-finite value; a caller decides what an undefined dependence means.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// The series shifted to its mean. Equal values stay exactly equal.
 fn centred(x: &[f64]) -> Vec<f64> {

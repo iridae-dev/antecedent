@@ -1,6 +1,6 @@
 //! Replicate and batch resampling: per-replicate streams, weight fills and scratch admission.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::indexes::{fill_indexes_prepared, prepare_clusters};
 use super::{

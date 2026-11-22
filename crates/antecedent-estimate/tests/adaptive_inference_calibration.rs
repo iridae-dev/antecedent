@@ -43,7 +43,7 @@
 //! interval method, dependence) is declared here and must be agreed with the
 //! calibration key schema before any measurement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(

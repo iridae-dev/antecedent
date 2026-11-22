@@ -7,7 +7,7 @@
 //! a refusal reports is checked against a value computed independently here. An entry the
 //! failing step never computed must be absent, not zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

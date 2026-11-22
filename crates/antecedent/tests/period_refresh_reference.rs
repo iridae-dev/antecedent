@@ -12,7 +12,7 @@
 //! or snapshot-reusing period and of a restart that leaves no row, and that a refused period
 //! leaves the state unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

@@ -23,7 +23,7 @@
 //! a premise, and a transported or latent-confounded request is refused.
 //! Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

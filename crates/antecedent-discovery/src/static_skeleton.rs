@@ -5,7 +5,7 @@
 //! neighbours of either endpoint separates it. All three algorithms run this identical
 //! phase; they differ only in what they do with the skeleton afterwards.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

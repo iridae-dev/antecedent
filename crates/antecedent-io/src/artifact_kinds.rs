@@ -3,7 +3,7 @@
 //! The words match the manifests already shipped. `antecedent-io-core` lists
 //! the same words in its uniqueness check.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) const ADAPTIVE_INFERENCE_RESULT: &str = "adaptive_inference_result_v1";
 pub(crate) const CATEGORICAL_TREATMENT: &str = "categorical_treatment_v1";

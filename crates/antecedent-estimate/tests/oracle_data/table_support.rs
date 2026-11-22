@@ -1,6 +1,6 @@
 //! A finite continuous table builder shared by the reference tests (no assertions).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "each reference test uses a subset of the helpers")]
 

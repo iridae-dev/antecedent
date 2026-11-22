@@ -5,7 +5,7 @@
 //! identification of that projection is the same functional. A variable that
 //! occupies more than one lag does not have that projection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

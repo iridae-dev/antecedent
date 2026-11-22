@@ -21,7 +21,7 @@
 //! Lowering does not fit, sample, solve or encode an artifact, and grants no
 //! scientific support: a specified model stays model-conditional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

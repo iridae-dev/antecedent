@@ -13,7 +13,7 @@
 //! draws, so the stated Monte Carlo bound is five standard errors of that mean plus the
 //! ridge shrinkage `|b| / (1e6 Sxx)` of the prior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     reason = "deterministic fixture indices are small and exact in f64"

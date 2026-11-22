@@ -11,7 +11,7 @@
 //! set of classes with their PAGs and their weights, including on eight rows, on a nearly
 //! collinear pair and on four variables with a latent confounder and a collider.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

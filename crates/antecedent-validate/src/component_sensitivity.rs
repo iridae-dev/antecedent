@@ -28,7 +28,7 @@
 //! Every range binds to its [`RefutationTarget`]. The confounding structure is an assumption of
 //! the analysis, not something the data certify.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::quantile_type7_sorted as quantile_sorted;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, student_t_ppf};

@@ -1,6 +1,6 @@
 //! Design judgement and coefficient recovery from declared and assembled blocks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     BTreeSet, CLAMP_EXPERIMENT_RECIPE, CLAMP_EXPERIMENT_RECIPE_ATTEMPT, ClampExogeneity,

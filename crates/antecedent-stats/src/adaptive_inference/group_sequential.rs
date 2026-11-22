@@ -29,7 +29,7 @@
 //! model: a design whose assignment adapts to outcomes does not have
 //! independent increments, and this module claims nothing for it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{norm_cdf, norm_inv, norm_pdf, norm_sf};
 

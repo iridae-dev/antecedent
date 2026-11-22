@@ -22,7 +22,7 @@
 //! scope does not spawn threads. `Par::Rayon` here is a degree for the caller
 //! to pass down; this module does not run a `faer` kernel.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::num::{NonZeroU32, NonZeroUsize};
 

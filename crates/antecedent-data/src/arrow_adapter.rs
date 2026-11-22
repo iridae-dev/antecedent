@@ -1,6 +1,6 @@
 //! Arrow-backed adapters. Arrow types stay inside this module (ADR 0004).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::num::NonZeroU32;
 use std::sync::Arc;

@@ -18,7 +18,7 @@
 //! The generators are the planted-structure families used throughout the wide-posterior tests;
 //! expected values are the generating structure and the exact route, never the samplers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

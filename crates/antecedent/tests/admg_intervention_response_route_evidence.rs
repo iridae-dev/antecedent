@@ -1,5 +1,5 @@
 //! Lifecycle evidence for sealed explicit/accepted ADMG scalar response routes.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 #![allow(clippy::float_cmp, reason = "grid members are pinned to their exact literal levels")]

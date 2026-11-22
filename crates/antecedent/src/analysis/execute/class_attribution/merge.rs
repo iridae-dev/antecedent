@@ -1,6 +1,6 @@
 //! Merging class-attribution payloads and disclosing posterior envelopes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ResultPayload, StudyResult,

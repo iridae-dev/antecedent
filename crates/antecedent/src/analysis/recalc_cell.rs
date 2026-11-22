@@ -32,7 +32,7 @@
 //! there), and it runs for real: the declared-adjustment descendant screen over the requested
 //! graph, counted once.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

@@ -47,7 +47,7 @@
 //! The artifact makes no statistical claim. It carries no interval, posterior
 //! or coverage statement; the guarantee routes of every cell are not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 use antecedent_contract::adaptive_design::{

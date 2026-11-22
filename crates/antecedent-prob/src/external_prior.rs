@@ -17,7 +17,7 @@
 //! Conflating any of the three misreports how much evidence a posterior or
 //! prior actually carries; keep them in separate fields with separate names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

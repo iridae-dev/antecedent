@@ -37,7 +37,7 @@
 //! no behavioural reading of stated choices: the choice routes claim none of these. A prior chosen
 //! after seeing outcomes, or a source that conflicts with the truth, is outside these designs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

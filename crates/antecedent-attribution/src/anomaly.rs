@@ -34,7 +34,7 @@
 //! A non-finite target or reconstructed coalition value is an error, never a score of `0`
 //! ("perfectly ordinary").
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

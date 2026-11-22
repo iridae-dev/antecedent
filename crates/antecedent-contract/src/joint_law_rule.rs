@@ -52,7 +52,7 @@
 //! `joint_law_propagation.*` detail and a remedy that names the dependence
 //! information that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod composed_interval;
 

@@ -30,7 +30,7 @@
 //! enumeration in exact rational arithmetic
 //! (`tests/joint_uncertainty_reference.rs`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     ExecutionContext, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop, reason_code,

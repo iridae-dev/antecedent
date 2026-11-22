@@ -1,6 +1,6 @@
 //! A sampling design declared once on the study is held by every estimator that resamples.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{CausalError, EstimatorId, RefuteSuite, Study};
 use antecedent_core::{DeclaredSamplingDesign, ExecutionContext};

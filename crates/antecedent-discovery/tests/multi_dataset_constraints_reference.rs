@@ -7,7 +7,7 @@
 //! pooled search does not read (a cross-environment link assumption, the lagged-pooling switch)
 //! must be refused by the search rather than accepted and ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

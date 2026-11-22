@@ -10,7 +10,7 @@
 //! intersection of the closed-form mixture radius; and the whole-procedure simulation with an
 //! exhaustive enumeration of a small procedure's terminal states.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

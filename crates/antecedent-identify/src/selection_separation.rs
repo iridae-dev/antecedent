@@ -20,7 +20,7 @@
 //! agreement of independent encodings is the evidence. Everything else in this crate
 //! (closures, edge lists, node iteration) goes through the graph crate's owners.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId};
 

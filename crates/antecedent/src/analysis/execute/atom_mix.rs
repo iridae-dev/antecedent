@@ -4,7 +4,7 @@
 //! mediation) accumulate the same weighted mixture. Route-specific bounds,
 //! standard errors, and refusal text stay on [`AtomEvalView`] and the call.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 

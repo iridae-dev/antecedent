@@ -14,7 +14,7 @@
 //! stored one. A digest guards the stored request; a changed array, setting or stored value is
 //! refused even when the digest is re-sealed, because the replayed result then differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::EstimationError;

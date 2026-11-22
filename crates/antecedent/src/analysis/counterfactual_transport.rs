@@ -28,7 +28,7 @@
 //! a counted, empirical or posterior law is refused with `not_supported`;
 //! sampled counterfactual transport is a separate route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits};
 use antecedent_estimate::{

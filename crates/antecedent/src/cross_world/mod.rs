@@ -20,7 +20,7 @@
 //!    evaluator, plus a separate closed-form recomputation (ordinary least
 //!    squares, or the basis regression by QR) for both mechanism families.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

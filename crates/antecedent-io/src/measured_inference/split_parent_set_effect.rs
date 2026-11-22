@@ -36,7 +36,7 @@
 //! sample sizes and variable counts it measured. It is a statement about the method, never
 //! about one dataset: faithfulness and causal sufficiency of a table are untestable, so a given
 //! discovered graph is never certified.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::split_effect::{
     ALPHA, AdjustedEffect, CI_TEST, LEVEL, SPLIT_DEPENDENCE, adjusted_effect, discovery_refusal,
 };

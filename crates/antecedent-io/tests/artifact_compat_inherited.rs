@@ -16,7 +16,7 @@
 //! Regeneration of the second: bind the provider response again against the checked
 //! contract and write it with `ExternalClaimArtifact::from_bound_claim(..).to_bytes(..)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{

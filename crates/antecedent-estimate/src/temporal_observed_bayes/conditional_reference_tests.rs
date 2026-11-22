@@ -7,7 +7,7 @@
 //! `oracle_data/temporal_observed_bayes_reference.py` derives the conditional moments in closed
 //! form; each check allows five Monte Carlo standard errors of independent draws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use antecedent_core::Lag;

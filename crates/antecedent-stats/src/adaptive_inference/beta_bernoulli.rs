@@ -23,7 +23,7 @@
 //! They are not frequentist statements: no coverage or error-rate claim is
 //! made about intervals or decisions built from them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{AdaptiveInferenceError as Error, graded_rule, panel_rule};
 use crate::special::ln_gamma;

@@ -1,6 +1,6 @@
 //! Symbolic conditional mutual information test on discrete symbols.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ci::block_shuffle::{
     add_one_pvalue, null_reaches_observed, permutation_null_exceedances, query_stream_salt,

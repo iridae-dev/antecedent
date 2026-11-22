@@ -5,7 +5,7 @@
 //! what preparation retained; the refusal reads the same on estimate and on
 //! refresh up to the entry point it names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, SeriesCall, SeriesRefusal};
 use crate::analysis::execute::{

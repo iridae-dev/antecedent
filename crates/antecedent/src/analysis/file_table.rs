@@ -24,7 +24,7 @@
 //! Calibrated intervals for large tables are a separate claim; reading a large
 //! table does not extend a route's calibrated scope.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::rewrite_legality::{
     FrameFingerprint, FrameLedger, Rewrite, RewriteRefusal, check_executed, value_row_id,

@@ -4,7 +4,7 @@
 //! as attested evidence; it is not re-run, not an `EconML` wrapper, and not a
 //! native calibrated point claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CanonicalWriter, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT,

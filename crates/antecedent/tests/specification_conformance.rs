@@ -19,7 +19,7 @@
 //! `ANTECEDENT_REGENERATE_CONFORMANCE=1 cargo test -p antecedent --test
 //! specification_conformance -- --test-threads=1`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

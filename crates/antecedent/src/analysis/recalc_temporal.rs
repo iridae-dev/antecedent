@@ -1,5 +1,5 @@
 //! Shared-plan point execution of checked binary whole-history functionals over any number of steps.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "recalc_temporal_studentized.rs"]
 mod studentized;

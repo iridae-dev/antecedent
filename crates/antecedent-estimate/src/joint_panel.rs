@@ -7,7 +7,7 @@
 //! scientific target binding, artifact authority and support belong to the caller's
 //! checked compiler, never to the existence of a fit or a finite response.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Aligned four-component reference-world decompositions of panel responses.
 pub mod decomposition;

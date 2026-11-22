@@ -29,7 +29,7 @@
 //! discovered graph needs a calibration of the complete discovery-plus-analysis method
 //! (including reuse of the discovery rows and any sample split), which is not measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::ops::Range;

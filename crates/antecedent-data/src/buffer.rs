@@ -4,7 +4,7 @@
 //! Unsafe code here is limited to pointer→slice projection under an owner
 //! lifetime contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     unsafe_code,

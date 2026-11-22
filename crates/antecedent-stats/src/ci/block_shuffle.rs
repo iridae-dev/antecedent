@@ -1,7 +1,7 @@
 //! Shared permutation machinery for the CI family: block permutations, query-keyed RNG
 //! streams, and the residual block null used by every partial-correlation variant.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, KernelPolicy};
 use antecedent_kernels::{shuffle, unbiased_index};

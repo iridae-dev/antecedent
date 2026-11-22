@@ -12,7 +12,7 @@
 //! missing and which regime factors are absent. Neither a transported mean nor a source
 //! counterfactual alone supports their composition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::convert::Infallible;

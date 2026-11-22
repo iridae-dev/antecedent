@@ -14,7 +14,7 @@
 //!    asymptotic variance `sigma2_{Y|T,Z} / sigma2_{T|Z}` of that coefficient is never smaller
 //!    than the reported set's. The reported set must also be valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

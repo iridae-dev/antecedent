@@ -13,7 +13,7 @@
 //! graphs are swept on a stride. Every pair, every conditioning set and both argument orders are
 //! compared, and the set form of the query is compared against the oracle applied pairwise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId};
 

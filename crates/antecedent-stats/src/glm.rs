@@ -1,6 +1,6 @@
 //! GLM fitting: logistic, probit, multinomial logit, Gaussian, Poisson, and NB2 IRLS.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

@@ -15,7 +15,7 @@
 //! on a target and omitted from [`ScientificTarget::identity`]. A history-indexed
 //! target law is optional and enters the identity only when it is attached.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod composition_quote;
 mod contrast;

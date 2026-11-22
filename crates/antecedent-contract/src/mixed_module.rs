@@ -26,7 +26,7 @@
 //! * [`SharedParameterModel::pooling_envelope`] is a robust envelope over a
 //!   range of pooling weights, distinct from both the melded and the cut fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{error::Error, fmt, sync::Arc};
 

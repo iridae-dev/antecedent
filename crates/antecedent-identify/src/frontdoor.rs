@@ -14,7 +14,7 @@
 //! Enumeration is still bounded by `max_mediator_set_size` and `max_results`.
 //! A `NotIdentified` result means no candidate within those bounds qualifies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

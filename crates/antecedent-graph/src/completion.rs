@@ -14,7 +14,7 @@
 //! but no class-wide property may be concluded from them
 //! ([`CompletionSampler::class_audit_incomplete`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop};
 

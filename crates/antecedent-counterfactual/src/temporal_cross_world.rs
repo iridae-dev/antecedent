@@ -34,7 +34,7 @@
 //! abduction an exact residual); an optional per-node `noise_halfwidth` declares a
 //! bounded noise support so a factual history outside it is a *refuting witness*.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod general;
 pub mod staged;

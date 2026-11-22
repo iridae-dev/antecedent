@@ -69,7 +69,7 @@
 //! copied from the producing result. A typed route's transport identities must
 //! be 32-byte digests; only the `declared` route carries free text.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

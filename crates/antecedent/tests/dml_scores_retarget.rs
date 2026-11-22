@@ -9,7 +9,7 @@
 //! refuses `score_table_unavailable` instead of reweighting another construction. DR-Learner
 //! and `CausalForest` keep the marginal AIPW score table of the ATE they report.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     BatchRetargetReport, BatchRetargetRequest, BatchScores, BatchStudy, EstimatorSpec, RefuteSuite,

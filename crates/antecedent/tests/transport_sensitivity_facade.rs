@@ -7,7 +7,7 @@
 //! `[1.75, 2.25]`, `[1.5, 2.5]`. A proportional bound of `0.25` of `2.0` is a shift of
 //! `0.5` at the bound: `[1.5, 2.5]`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::sensitivity_decision::{consume, export};
 use antecedent::analysis::transport_sensitivity::{

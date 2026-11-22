@@ -5,7 +5,7 @@
 //! with the inverse Fisher information) and forms the response-scale contrast over the target law
 //! with its gradient and standard error; the product's fit and contrast are compared to it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::adjustment_resume::AdjustedFit;
 use antecedent_estimate::vector_treatment::{

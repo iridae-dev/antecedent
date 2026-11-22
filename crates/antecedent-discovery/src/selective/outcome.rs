@@ -8,7 +8,7 @@
 //! identity are an algorithmic match; the identity says nothing about whether either result
 //! is close to a true graph.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 

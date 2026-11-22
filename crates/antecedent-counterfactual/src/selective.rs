@@ -26,7 +26,7 @@
 //! which keep their own theorem-scoped route, and which are closed with the
 //! prerequisites that would open them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod factorized;
 pub mod finite_executor;

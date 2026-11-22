@@ -1,7 +1,7 @@
 //! Identification results, estimands and the transport and recovery identifiers, for reading
 //! why a query is or is not identified under a declared structure.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_identify::{
     BinaryIvLaw, GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,

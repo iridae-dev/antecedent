@@ -35,7 +35,7 @@
 //! refits the mechanisms, when data are supplied and the budget allows). A component that
 //! was not measured is reported as unquantified, never as zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

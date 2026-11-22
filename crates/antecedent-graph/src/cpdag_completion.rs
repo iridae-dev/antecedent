@@ -15,7 +15,7 @@
 //! ([`CpdagCompletionSampler::search_stop`]) and counted by [`CpdagCompletionSampler::hit_cap`].
 //! The search itself is shared with the temporal sampler (`crate::mec_search`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
 

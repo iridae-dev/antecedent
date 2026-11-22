@@ -16,7 +16,7 @@
 //!   law has closed-form CDF means at the grid, `(prior + cumulative count) / total mass`,
 //!   which the test computes from the raw outcomes and compares at 1e-12 (no draws involved).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "known_truth_cells/mod.rs"]
 mod support;

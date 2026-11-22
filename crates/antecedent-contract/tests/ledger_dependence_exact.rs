@@ -3,7 +3,7 @@
 //! Four sources hold the rows a = {1,2,3}, b = {3,4}, c = {7,8}, d = {4,9}. By hand the only
 //! pairs that share a row are (a, b) on row 3 and (b, d) on row 4; c shares nothing with anyone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     EvidenceLedger, ObservationId, SourceDeclaration, SourceId, SourceKind,

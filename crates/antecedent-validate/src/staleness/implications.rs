@@ -16,7 +16,7 @@
 //! A CPDAG or a PAG stands for a class of graphs. A statement is listed for one only when it
 //! holds in every member examined (at most [`MAX_CLASS_MEMBERS`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 

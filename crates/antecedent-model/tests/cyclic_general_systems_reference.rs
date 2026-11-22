@@ -7,7 +7,7 @@
 //! tableau against the rooted-tree order conditions, and recomputes every library noise stream
 //! in Python big integers.  Nothing in it reads product code and no paper was retrieved.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_model::continuous_cyclic::{OdePolicy, OdeSystem, TimedClamp};

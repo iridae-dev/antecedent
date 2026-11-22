@@ -8,7 +8,7 @@
 //! re-checked on the rows a replicate keeps, and a replicate whose weights fail it is reported
 //! as a failed refuter with that reason, never dropped.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

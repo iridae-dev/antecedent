@@ -1,6 +1,6 @@
 //! CPDAG/PAG graph-posterior `AverageEffect`: policy, mass, and weight basis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

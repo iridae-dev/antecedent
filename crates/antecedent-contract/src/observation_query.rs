@@ -24,7 +24,7 @@
 //!   value that is reachable;
 //! - an interval or a calibrated-probability claim, both not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

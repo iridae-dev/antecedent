@@ -13,7 +13,7 @@
 //! standard deviation to `8 / sqrt(draws)` relative, an interval end to 3 percent of the
 //! posterior standard deviation, and the correlation of two horizons to `0.015`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

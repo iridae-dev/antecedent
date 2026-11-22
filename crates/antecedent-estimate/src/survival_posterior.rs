@@ -22,7 +22,7 @@
 //! posterior draws of the hazards. Only the all-cause survival endpoint is supported:
 //! cumulative incidence needs cause-specific hazards with a competing-risk likelihood.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::sample_gamma;

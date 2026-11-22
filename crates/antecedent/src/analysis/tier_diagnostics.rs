@@ -32,7 +32,7 @@
 //! The E-value is a sensitivity summary of the stated no-latent-path premise, never a
 //! test of it and never a tier-identification certificate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -10,7 +10,7 @@
 //! below the row, another procedure) is refused by the loader, and that the same route below
 //! its row runs and states no support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::too_many_lines,
     clippy::cast_possible_wrap,

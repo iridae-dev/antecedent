@@ -29,7 +29,7 @@
 //! With a known residual variance the posterior mean and covariance of every functional are
 //! also reported in closed form, from the exact Gaussian posterior of the coefficients.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
 

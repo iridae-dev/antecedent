@@ -94,7 +94,7 @@
 //! `n`. Each combination then adds O(p²) quadratic forms and, only while it can
 //! still drive `κ̂`, the O(n) score HAC bound.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

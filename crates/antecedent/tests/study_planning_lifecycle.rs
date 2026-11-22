@@ -6,7 +6,7 @@
 //! Fixtures: R-443 Figure 1(c,d) (shared with the estimate-crate tests) and
 //! the front-door surrogate-trial model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;

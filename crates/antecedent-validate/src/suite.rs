@@ -3,7 +3,7 @@
 //! Runs requested validators, returning explicit [`ValidationOutcome::NotApplicable`] when a
 //! check is incompatible with the estimator/estimand (rather than failing the whole suite).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! Panel class sequential effect fitting and validation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, CausalQuery, Diagnostic,

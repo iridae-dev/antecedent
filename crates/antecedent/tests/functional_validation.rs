@@ -7,7 +7,7 @@
 //! the unvalidated run of the same study (the validation never moves the answer) and the
 //! Shapley efficiency identity (contributions add to the score).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

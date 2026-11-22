@@ -4,7 +4,7 @@
 //! standing of the reported uncertainty, and whether the published interval meets its graphless
 //! support row. The runtime calibration slot stays `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use pyo3::prelude::*;
 

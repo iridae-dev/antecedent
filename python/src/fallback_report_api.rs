@@ -6,7 +6,7 @@
 //! of the parts it holds, as JSON, and receives Markdown or one self-contained HTML document. No
 //! figure is computed here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::report::{
     FallbackAssociationInput, FallbackEvidenceInput, FallbackFigures, FallbackObligationInput,

@@ -8,7 +8,7 @@
 //! Bayesian fit, the one-shot route admits them), never how an admitted fit is
 //! computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::SequentialValidation;
 use super::series_weights::{SeriesWeightReading, admit_series_weights};

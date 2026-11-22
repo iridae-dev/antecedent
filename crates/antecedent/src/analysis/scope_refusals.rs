@@ -11,7 +11,7 @@
 //! These functions return the refusal as plain data; a binding raises it. They read the
 //! engines' own bounds, details and refusals, and never run a fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::joint_bayesian_transport as joint;
 use antecedent_estimate::nested_markov_binary as nested;

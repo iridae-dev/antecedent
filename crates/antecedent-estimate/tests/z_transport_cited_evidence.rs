@@ -2,7 +2,7 @@
 //!
 //! Truth is enumerated from structural equations. These tests do not call the
 //! identifier to compute a probability.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

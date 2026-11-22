@@ -6,7 +6,7 @@
 //! decision contract, the claim; the distribution, the transformation and the unrelated data link
 //! share no ancestor with the contract and keep their digests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

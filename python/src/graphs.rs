@@ -1,6 +1,6 @@
 //! PyO3 typed graph wrappers (`Dag`, `Cpdag`, `Pag`, `Admg`, `TemporalDag`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::graph::{
     Dag as RustDag, DenseNodeId, Endpoint, Lag, MarkedEdge, MiddleMark, NodeRef,

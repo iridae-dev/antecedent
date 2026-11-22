@@ -11,7 +11,7 @@
 //! The tolerances cover the Monte Carlo error of the sampled root means, which common random
 //! numbers keep identical across coalitions but do not remove.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

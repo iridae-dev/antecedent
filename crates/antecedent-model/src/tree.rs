@@ -10,7 +10,7 @@
 //! *class score* (categorical slot). The sampling distribution, noise semantics
 //! and log density live with the slot kernels in [`crate::mechanism`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

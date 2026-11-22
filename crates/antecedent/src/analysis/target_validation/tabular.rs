@@ -1,6 +1,6 @@
 //! Tabular perturbation and refitting.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalQuery, CausalRng, ExecutionContext, Modal, OwnedColumn, PreparedRefit, TableView,

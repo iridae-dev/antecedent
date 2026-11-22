@@ -3,7 +3,7 @@
 //! and the reported scalar is bound to a currently attesting coverage record or refused
 //! for want of one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::cohort_linear_effect::{NativeCohortFit, fit_cohort_linear_effect};

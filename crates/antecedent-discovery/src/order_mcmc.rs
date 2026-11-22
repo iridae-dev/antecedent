@@ -7,7 +7,7 @@
 //! joint: each candidate score is corrected by `log|# topological orders|` so
 //! DAGs with more linear extensions are not over-weighted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;

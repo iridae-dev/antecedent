@@ -22,7 +22,7 @@
 //!   build and carries the entries on the study, which copies them onto its results); entries
 //!   that nothing drains are dropped with the thread and never reach a result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::execution::ExecutionContext;
 use std::collections::BTreeSet;

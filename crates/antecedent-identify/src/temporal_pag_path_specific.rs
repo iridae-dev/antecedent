@@ -27,7 +27,7 @@
 //! outcome (an ancestral set of a MAG induces the MAG of its marginal model); the other
 //! window nodes stay isolated so that every node keeps the dense id its table column has.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

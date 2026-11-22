@@ -3,7 +3,7 @@
 //! Each variable appears once, at lag 0. Identification is general.id on that
 //! contemporaneous projection, so the functional is the static ADMG functional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 

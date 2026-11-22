@@ -2,7 +2,7 @@
 //!
 //! Sepset remapping and result-finishing used by PCMCI+, LPCMCI, and J-PCMCI+.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::hash::BuildHasher;

@@ -11,7 +11,7 @@
 //! at-random censoring, ties between events and censoring, a covariate offset of 50 and a horizon
 //! before most events.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use serde_json::Value;

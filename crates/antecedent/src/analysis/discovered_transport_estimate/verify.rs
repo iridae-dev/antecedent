@@ -1,6 +1,6 @@
 //! Replay and verify exported discovered-transport estimates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     ESTIMATE_FORMAT, EstimateWire, ExactEvaluationLimits, ExecutionContext, IoError,

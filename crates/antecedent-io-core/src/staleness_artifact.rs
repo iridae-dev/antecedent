@@ -13,7 +13,7 @@
 //! whose seal, marker, version, feature or kind does not verify, so a tampered or truncated
 //! baseline is never read as a valid one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use serde::{Deserialize, Serialize};

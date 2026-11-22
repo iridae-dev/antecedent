@@ -12,7 +12,7 @@
 //! unit step at `t@1` on `y` is `β`. [`confounded_unit`] makes `z@1` a
 //! confounder of `t@1 → y` so the two completions of [`cpdag_two`] disagree.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

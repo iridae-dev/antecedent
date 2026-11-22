@@ -9,7 +9,7 @@
 //! thresholds, leaf values), per-row effects and leaf dispersion equal the reference, and that
 //! the marginal effect is exactly the cross-fitted AIPW estimate of the DML estimator it names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

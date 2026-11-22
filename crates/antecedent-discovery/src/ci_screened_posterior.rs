@@ -26,7 +26,7 @@
 //! documented conservative approximation `min(caller_prior, screen_alpha)`,
 //! not a principled Bayesian update.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

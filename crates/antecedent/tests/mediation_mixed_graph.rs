@@ -6,7 +6,7 @@
 //! `NIE = sum_m E(Y|0,m) [P(m|1) - P(m|0)]` (the pure natural indirect effect) and
 //! `TE = E(Y|1) - E(Y|0)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

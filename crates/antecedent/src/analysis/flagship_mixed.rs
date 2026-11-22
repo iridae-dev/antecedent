@@ -18,7 +18,7 @@
 //! temporal mechanisms. Withdrawing the trial withdraws the margin and the
 //! decision and leaves the temporal and cost claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "flagship_authority.rs"]
 mod authority;

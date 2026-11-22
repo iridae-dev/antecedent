@@ -7,7 +7,7 @@
 //! distribution function) and the finite-population contrast, which is published under additive
 //! unit effects and so has the same law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::randomized_posterior::{
     ArmBetaPrior, ArmContrastRequest, ArmNormalPrior, ArmOutcomeModel, RandomizedEstimand,

@@ -9,7 +9,7 @@
 //! point; an edge that may hide a confounder the effect is sensitive to is refused, since
 //! no functional is right for every model the PAG represents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -16,7 +16,7 @@
 //! counted from complete rows. Conditioning events of small probability and sparse
 //! parent configurations are named boundaries of the measured coverage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

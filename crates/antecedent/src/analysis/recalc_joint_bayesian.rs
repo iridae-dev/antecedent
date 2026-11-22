@@ -1,6 +1,6 @@
 //! Checked joint transport recalculation with a native aligned candidate posterior.
 //! No calibrated public posterior or interval is issued: calibration stays `not_measured`.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_bayesian::{BayesianLaw, PosteriorSummarySpec};
 use super::recalc_common::{Fields, literal};
 use super::recalc_receipt::{DecisionValue, RecalcReceipt, UtilitySpec};

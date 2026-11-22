@@ -5,7 +5,7 @@
 //! every fold. Both are free of estimator types, so any layer that must replay a cross-fitted
 //! estimate derives the same folds from the same inputs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, INDEX_GAMMA};
 

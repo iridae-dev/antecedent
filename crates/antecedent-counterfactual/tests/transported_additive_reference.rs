@@ -12,7 +12,7 @@
 //! selection-on-mediator cases check the refusal witness: its node, parent and perturbed
 //! coefficient and the two target contrasts it reports.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

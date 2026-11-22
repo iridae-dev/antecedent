@@ -12,7 +12,7 @@
 //! - The Bayesian synthetic control, staggered event study and augmented panel contrasts are
 //!   refused on a table with no second period or with one row per subject, with a next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

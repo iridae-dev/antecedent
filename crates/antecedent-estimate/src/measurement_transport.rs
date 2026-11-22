@@ -43,7 +43,7 @@
 //! from the target's own replicates, and an external latent posterior is bound to its
 //! source snapshot.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

@@ -9,7 +9,7 @@
 //! anywhere. The product's `treatment_parent_set` and `effect_on_structure` must agree on every
 //! pattern, and the adjustment set of an accepted effect must be exactly the expected parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{NodeRef, VariableId};
 use antecedent_data::TabularData;

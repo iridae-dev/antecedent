@@ -4,7 +4,7 @@
 //! query under `Bayesian` inference. The fixtures carry hand scores, and the retained artifact is
 //! decoded by the independent loader and recomputed from the draws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "the pinned scores are exact small integers")]
 

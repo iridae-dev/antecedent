@@ -3,7 +3,7 @@
 //! These point estimators consume an already identified randomized contrast.
 //! Independent censoring and entry are scientific assumptions supplied by the
 //! query; this module cannot verify them from observed follow-up.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

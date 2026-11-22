@@ -1,6 +1,6 @@
 //! Column projection: narrow a table to the variables needed after identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 

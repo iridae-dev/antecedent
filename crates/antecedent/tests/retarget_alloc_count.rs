@@ -11,7 +11,7 @@
 //! the calling thread keeps the assertion at full strength while making it
 //! immune to background allocations from the test harness.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

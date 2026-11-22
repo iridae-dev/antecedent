@@ -6,7 +6,7 @@
 //! regression-discontinuity average effect answers the same jump with a different local fit,
 //! and the difference is pinned from the closed-form uniform-window fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use antecedent::IdentifierId;

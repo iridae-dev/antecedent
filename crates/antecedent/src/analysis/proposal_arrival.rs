@@ -1,6 +1,6 @@
 //! Actual finite arrived-study estimation through the original checked transport evaluator.
 //! The structural proposal receipt remains hypothetical; this result is empirical point only.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_core::{EvidenceCatalog, ExecutionContext, VariableId, reason_code};
 use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, DesignRankingArtifactWire, consume_wire,

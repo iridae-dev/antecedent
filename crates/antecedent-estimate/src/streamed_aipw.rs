@@ -21,7 +21,7 @@
 //! assignment is the only `O(n)` structure and holds four bytes per kept row. Per-row scores,
 //! influence values and the retargetable score table are not retained.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

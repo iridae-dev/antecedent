@@ -1,6 +1,6 @@
 //! Treatment-propensity nuisance product of a prepared study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::array_fits::{
     TemporalScoreModel, TemporalTreatmentScoreSpec, TreatmentScoreSpec,

@@ -7,7 +7,7 @@
 //! refused. Parquet is written uncompressed, one row group per `rows_per_group`
 //! rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::Path;
 use std::sync::Arc;

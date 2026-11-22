@@ -9,7 +9,7 @@
 //! compile, before any buffer is copied. The facts a result carries keep measured
 //! counts, admission reservations and plan estimates apart.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "masses are compared to exact sums of the same weights")]
 

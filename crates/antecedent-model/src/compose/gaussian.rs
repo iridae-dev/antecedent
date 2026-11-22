@@ -10,7 +10,7 @@
 //! `do(X_v = x)` removes the mechanism of `X_v` (Pearl 2009, ch. 3); the same
 //! recursion then gives the interventional law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

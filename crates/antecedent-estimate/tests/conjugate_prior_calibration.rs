@@ -30,7 +30,7 @@
 //!   diagnostics. The count model is scored the same way against truths near and far from
 //!   the source proportion.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

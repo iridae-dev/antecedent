@@ -8,7 +8,7 @@
 //! Bayesian fit; the one-shot route does), never how an admitted fit is
 //! computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::{SequentialValidation, SequentialValidationAtom};
 use super::temporal_effect_core::{FitFinishMeta, mixture_read_variables, shared_gap_report};

@@ -2,7 +2,7 @@
 //! multi-outcome shared-abduction contrasts, simultaneous counterfactuals, the three
 //! do-samplers and the model evaluation report.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

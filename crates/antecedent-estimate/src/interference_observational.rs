@@ -1,6 +1,6 @@
 //! Supplied-propensity observational exposure contrasts on a fixed network.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

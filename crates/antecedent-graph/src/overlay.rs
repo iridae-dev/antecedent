@@ -1,6 +1,6 @@
 //! Intervention / mutilation overlays on an immutable [`Dag`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::dag::Dag;
 use crate::dsep::{DSeparationWorkspace, SeparationResult};

@@ -11,7 +11,7 @@
 //! requires agreement to 1e-12, including the zero-evidence and unreachable refusals and a
 //! threshold that equals an attained conditional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_model::compose::{

@@ -14,7 +14,7 @@
 //! whose identity is recomputed from the new content, so a lazy view or an
 //! incremental digest taken of the earlier source no longer matches it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 use std::sync::Arc;

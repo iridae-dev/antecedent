@@ -3,7 +3,7 @@
 //! Both use the two-pass shape (`mean`, then `Σ(v − mean)²`), not a streaming
 //! update, so values pinned against the call sites they replace do not move.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Sample mean and the standard error of the mean, `sqrt(s² / n)` with
 /// `s² = Σ(v − mean)² / (n − 1)`.

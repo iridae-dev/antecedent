@@ -7,7 +7,7 @@
 //! baseline it replaces clones the compiled model and starts from empty scratch for every
 //! draw. Replay must cost no more than the baseline plus the regression margin.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

@@ -2,7 +2,7 @@
 //!
 //! Chain layout: `samples[(chain * n_draws + draw) * n_params + param]`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{median_sorted, midranks_into, norm_inv, quantile_type7_sorted};
 

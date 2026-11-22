@@ -11,7 +11,7 @@
 //! bootstrap over every design the route reads) and its Gaussian-likelihood
 //! posterior can be drawn ([`TemporalSlopeDesign::posterior`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

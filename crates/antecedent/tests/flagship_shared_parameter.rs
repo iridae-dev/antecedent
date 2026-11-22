@@ -10,7 +10,7 @@
 //! variance read back from the exported artifact is the diagonal minus twice
 //! that correlation times the routes' published standard deviations.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::{FlagshipDependence, FlagshipError, FlagshipWorkflow, load_decision};
 use antecedent_contract::mixed_module::{

@@ -10,7 +10,7 @@
 //! Both goldens are written by ignored generators (`write_predictive_assessment_golden`,
 //! `write_adaptive_inference_result_golden`); a changed golden is a compatibility decision.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

@@ -12,7 +12,7 @@
 //! unconfounded (an empty adjustment set): the Dirichlet law carries no covariates. The result
 //! is an unsupported, uncalibrated posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_specialist_path::BayesianSpecialistInputs;
 use super::{

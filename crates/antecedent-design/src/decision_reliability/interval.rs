@@ -35,7 +35,7 @@
 //! attaches the calibration slot: `calibrated` where such a record covers the coordinate,
 //! otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;

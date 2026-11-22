@@ -1,6 +1,6 @@
 //! Public learner specification. Provider resolution is internal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::LearnError;
 #[cfg(not(all(feature = "ml-gbdt", feature = "ml-forest", feature = "ml-neural")))]

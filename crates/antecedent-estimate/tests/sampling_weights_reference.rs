@@ -6,7 +6,7 @@
 //! scales of 1e308 (the sum overflows binary64) and 5e-320 (the reciprocal of the sum overflows)
 //! and a spread of 1e300 between the largest and smallest weight.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::sampling_weights::SamplingWeights;
 use serde_json::Value;

@@ -15,7 +15,7 @@
 //! fits, conditional effects, cross-world contrasts, association) has no weighted construction
 //! and refuses.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::TimeSeriesData;
 

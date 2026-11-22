@@ -13,7 +13,7 @@
 //! absolute floor relative to the total variance for sources whose truth is zero), the total
 //! variance to match, and the efficiency identity to hold within estimation error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

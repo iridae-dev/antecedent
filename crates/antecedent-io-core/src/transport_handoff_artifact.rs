@@ -44,7 +44,7 @@
 //! statement of its own. A consumer that holds the callback declaration can
 //! additionally call [`TransportHandoffArtifact::verify_against_callback`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::callback_protocol::CallbackDeclaration;
 use antecedent_contract::evidence_ledger::{TransportIdentity, parse_digest_hex};

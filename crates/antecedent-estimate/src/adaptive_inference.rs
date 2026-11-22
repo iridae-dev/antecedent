@@ -35,7 +35,7 @@
 //! with `estimator_inference_mismatch`. The numerics are in
 //! [`antecedent_stats::adaptive_inference`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference as numerics;

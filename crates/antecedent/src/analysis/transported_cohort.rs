@@ -55,7 +55,7 @@
 //! hence a new analysis result, parent claim and value. Target-population outcomes cannot
 //! move the issued value (the cohort carries covariates and weights, not outcomes).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_learn::transported_effect::{

@@ -11,7 +11,7 @@
 //! generating edges and their coefficients too. The distance correlation behind the score is
 //! also compared with its O(n^2) definition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_stats::dcor::DistanceY;

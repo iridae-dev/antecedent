@@ -26,7 +26,7 @@
 //! `not_measured` outside the measured scope, and no coverage claim is made. The digests
 //! are fingerprints (FNV-based), not cryptographic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt;

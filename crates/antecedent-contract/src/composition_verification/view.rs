@@ -7,7 +7,7 @@
 //! introduced, and what happened to calibration (inherited, lost, newly
 //! required). It reads a [`GraphRevalidation`]; it computes no statistic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt;

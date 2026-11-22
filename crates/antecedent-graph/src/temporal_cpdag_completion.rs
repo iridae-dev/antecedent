@@ -10,7 +10,7 @@
 //! visited states, and a stop is typed and counted by `hit_cap`. The search itself is
 //! shared with the static sampler (`crate::mec_search`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop};
 

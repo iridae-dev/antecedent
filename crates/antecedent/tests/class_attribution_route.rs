@@ -3,7 +3,7 @@
 //! identified set when they disagree, the noise-block route against known truth, and the typed
 //! refusal of a hedge.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{

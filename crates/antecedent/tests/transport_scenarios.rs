@@ -6,7 +6,7 @@
 //! `direct` (no selection) gives `P_s(y | do(x))`; `outcome_shift` (selection on
 //! `y`) is not transportable. Expected values are computed here from the laws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

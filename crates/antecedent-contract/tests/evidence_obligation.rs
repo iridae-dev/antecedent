@@ -2,7 +2,7 @@
 //! joint-regime rule, order-independent identity, and the rule that a study
 //! never establishes an assumption.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

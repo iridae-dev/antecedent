@@ -7,7 +7,7 @@
 //! sibling numeric-pin tests validate against closed forms; here the same pins must be
 //! reproduced from the retained checked plan after the builder is gone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{

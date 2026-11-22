@@ -10,7 +10,7 @@
 //! moments are compared tightly; the retained draws, which carry the interval and the joint
 //! covariance, are compared with the same moments to Monte Carlo accuracy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::dose_basis_regression::ResidualPrior;
 use antecedent_estimate::dose_grid_functional::{DoseDesign, DoseFunctional};

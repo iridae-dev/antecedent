@@ -6,7 +6,7 @@
 //! inverses), [`gather`] (resampled row gathers and arm moments) and [`refusal`] (overlap
 //! and structured refusals). The scalar kernels and the small numeric helpers live below.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

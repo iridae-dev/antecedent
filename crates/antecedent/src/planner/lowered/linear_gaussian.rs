@@ -6,7 +6,7 @@
 //! byte estimates already on the physical plan `Study::compile` returns.
 //! Nothing here identifies, prepares, or compiles a second plan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ByteEstimates, CancellationPoint, Conditioning,

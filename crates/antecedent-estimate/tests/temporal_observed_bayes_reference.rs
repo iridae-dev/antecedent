@@ -21,7 +21,7 @@
 //! seeds and also bounds the seed average. The quadrature's own error (coarse and fine grid
 //! difference, frozen with the reference) is added to every bound.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     ContinuousDomain, ExecutionContext, GridSpec, ObservationAssumption, ObservationSpec,

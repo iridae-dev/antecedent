@@ -90,7 +90,7 @@
 //! theorem under its premise; it is not a measured coverage of the whole
 //! procedure, and every number carries [`DERIVED_NOT_MEASURED`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod borrowing;
 

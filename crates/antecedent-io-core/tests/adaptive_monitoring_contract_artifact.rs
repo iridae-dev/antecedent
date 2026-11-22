@@ -4,7 +4,7 @@
 //! Every edit below is *resealed*: the stored identity is recomputed after the
 //! edit, so only the consumer's replay of the contract can refuse it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,

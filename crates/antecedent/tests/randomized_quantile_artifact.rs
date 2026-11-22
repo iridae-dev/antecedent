@@ -8,7 +8,7 @@
 //! The published effect is the hand-derived 2 to `1e-9` (the derivation is in the known-truth
 //! module documentation).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{EstimatorId, RefuteSuite, Study};
 use antecedent_core::{

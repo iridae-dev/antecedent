@@ -20,7 +20,7 @@
 //! the growth of the history lattice, charged per state with the live bytes
 //! retained. A stop is a receipt; it is never a non-identification verdict.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

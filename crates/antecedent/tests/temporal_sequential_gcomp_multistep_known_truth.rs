@@ -16,7 +16,7 @@
 //!   error of the posterior mean near `3e-4`, so the stated bound `0.02` is several posterior
 //!   standard deviations wide.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

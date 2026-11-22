@@ -18,7 +18,7 @@
 //! machine, or has no coefficients for the estimator. The file is read from the path in
 //! `ANTECEDENT_COST_MODEL`, else `parity/cost_model.toml` relative to the working directory.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::OnceLock;

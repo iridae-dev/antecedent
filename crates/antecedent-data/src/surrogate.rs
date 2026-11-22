@@ -1,6 +1,6 @@
 //! Surrogate null transforms for discovery false-positive checks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::f64::consts::PI;
 use std::sync::Arc;

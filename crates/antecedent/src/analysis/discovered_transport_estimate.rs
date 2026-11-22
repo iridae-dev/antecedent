@@ -37,7 +37,7 @@
 //! claim until a complete-procedure calibration record is bound to it; its calibration status
 //! is `not_bound_to_this_execution`. A structural range has no interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,

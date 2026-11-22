@@ -13,7 +13,7 @@
 //! * Normal quantiles: `z(0.975) = 1.959964`; the Bonferroni quantile for three
 //!   candidates at the 95% level, `z(1 - 0.05 / 6) = 2.39398`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::decision_reliability::{
     CandidateCoupling, CandidateDraws, CandidateOrigin, CohortUtilityDraws, ConfidenceSetBasis,

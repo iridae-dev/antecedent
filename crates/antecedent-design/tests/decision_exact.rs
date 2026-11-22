@@ -1,7 +1,7 @@
 //! Decision evaluation, admissibility and structural robustness on weighted finite laws whose
 //! expected utilities, regrets and ranges are worked out by hand from the rows written here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{

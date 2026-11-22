@@ -23,7 +23,7 @@
 //! strictly growing sample sizes, and the unset variable to be exactly the
 //! base point (so the base point's data is the data measured before the grid).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

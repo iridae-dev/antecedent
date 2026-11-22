@@ -4,7 +4,7 @@
 //! (deterministic from a fixed seed) — independent of any `pinned baseline` install or CSV fixture. Each
 //! test checks `|estimate.ate - expected.true_effect| < expected.tolerance`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::Arc;

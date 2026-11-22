@@ -12,7 +12,7 @@
 //!   the claim is `withdrawn` for calibration with its point value left as it was;
 //! - the target outside its support: every transported claim is `withdrawn`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

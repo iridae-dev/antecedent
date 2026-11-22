@@ -1,5 +1,5 @@
 //! Public lifecycle evidence for bounded DAG joint-cell AIPW response routes.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

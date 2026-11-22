@@ -16,7 +16,7 @@
 //! with its own detail. Nothing is defaulted, and an element taken from the
 //! retained data is listed by [`AdaptiveProcedure::taken_from_contract`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AssignmentFamily, DelayMechanism as ContractDelay, MonitoringStrategy,

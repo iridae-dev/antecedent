@@ -6,7 +6,7 @@
 //! narrow for a small arm. Below [`CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS`] clusters in either arm
 //! the posterior is the Student-t reference law of the same contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::InterferenceQuery;
 use antecedent_data::{NetworkData, TableView};

@@ -3,7 +3,7 @@
 //! The estimate conversions need the estimators and are joined to this path by
 //! `antecedent-io`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

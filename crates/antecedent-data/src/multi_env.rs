@@ -3,7 +3,7 @@
 //! Typed list of series sharing one schema. J-PCMCI+ discovery constraints
 //! are wired in discovery.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -7,7 +7,7 @@
 //! the efficient adjustment set); these tests read every case from the fixture, build the graph
 //! from its edge strings, run the shipped identifier and compare with the stored value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

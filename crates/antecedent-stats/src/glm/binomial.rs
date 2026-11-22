@@ -1,6 +1,6 @@
 //! Logistic and probit GLM fits, separation diagnostics and the ridge-penalized binomial fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MEAN_FLOOR, PROB_CLIP, SATURATION_MARGIN,

@@ -14,7 +14,7 @@
 //! (`run_br`, measured over the sample-size grid); its coverage is `not_measured`, so the
 //! published interval stays closed (`not_supported`) and no coverage record exists. The evaluator is `BatchRetargetReport::simultaneous_interval`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

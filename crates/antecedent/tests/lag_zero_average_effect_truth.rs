@@ -11,7 +11,7 @@
 //! run, with the placebo treatment and the dummy outcome at the exact null 0 and the random
 //! common cause, subset and bootstrap refuters at the original value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult,

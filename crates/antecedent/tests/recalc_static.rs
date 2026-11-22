@@ -1,5 +1,5 @@
 //! Actual-work and independent finite-law oracles for static recalculation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;
 use antecedent::analysis::recalc_receipt::{RecalcRequestCode, RecalcRunError, UtilitySpec};

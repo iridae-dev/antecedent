@@ -1,6 +1,6 @@
 //! Joint recovery draws and the sampling law of a recovery.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AssembledCoefficientRecovery, BTreeMap, DirectCoefficient, UnresolvedDirection,

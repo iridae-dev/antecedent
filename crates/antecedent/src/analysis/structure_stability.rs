@@ -13,7 +13,7 @@
 //! one structure, so it carries no review gate. It executes unsupported and its coverage is
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalRng, DeclaredSamplingDesign, DiscoverQuery, ExecutionContext, StreamDomain, VariableId,

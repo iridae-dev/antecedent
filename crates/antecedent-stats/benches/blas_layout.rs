@@ -22,7 +22,7 @@
 //! same for every worker count. Sixteen workers oversubscribe a host with fewer hardware
 //! threads, which is recorded as measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "benchmark crate root")]
 #![allow(

@@ -3,7 +3,7 @@
 //! handle, decoded by the consumer, and the consumer's view of the query and the estimate is
 //! the one the route published.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, InferenceMode, IntoGraphInput, RefuteSuite, Study};
 use antecedent_core::{

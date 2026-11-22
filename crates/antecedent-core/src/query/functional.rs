@@ -4,7 +4,7 @@
 //! transform of `Y` (`Y` itself, or `1{Y > c}`). Quantile treatment effects
 //! invert an estimated `F_a` on a disclosed grid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

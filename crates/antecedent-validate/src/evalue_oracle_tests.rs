@@ -1,6 +1,6 @@
 //! The E-value against its defining minimum and the standardized-difference conversion.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{e_value_from_risk_ratio, smd_to_risk_ratio};
 

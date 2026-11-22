@@ -1,6 +1,6 @@
 //! Lag-aligned `TemporalDag` attribution: known truth, checked execution, typed refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

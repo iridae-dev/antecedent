@@ -6,7 +6,7 @@
 //! cumulative baseline at the covariate means, its left and right limits, and the conditional
 //! censoring survival just before each time; and weighs observed rows by its inverse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{cox_breslow, cox_ipcw};
 use serde_json::Value;

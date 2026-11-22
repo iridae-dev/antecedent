@@ -14,7 +14,7 @@
 //! A declared node (a measured signal with known sensitivity and specificity) is a
 //! table that is fixed and not redrawn.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_io::measured_inference::MeasuredInference;

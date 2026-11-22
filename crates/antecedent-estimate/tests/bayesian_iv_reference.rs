@@ -8,7 +8,7 @@
 //! exogenous covariates) and a tight prior are compared, as is the first-stage F statistic that
 //! screens a weak instrument, and the weak-instrument refusal threshold is pinned.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_iv::{
     IvDesignSample, IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,

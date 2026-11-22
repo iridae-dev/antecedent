@@ -16,7 +16,7 @@
 //! its own tests also register in this binary: run with
 //! `--exact estimator_support_enumeration`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

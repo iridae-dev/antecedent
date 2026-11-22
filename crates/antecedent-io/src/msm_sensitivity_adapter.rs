@@ -16,7 +16,7 @@
 //! No sampling composition is expressible: a composed interval is refused by the
 //! artifact (`composition_not_supported`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 pub use antecedent_validate::{

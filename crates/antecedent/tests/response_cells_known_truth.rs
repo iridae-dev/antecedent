@@ -23,7 +23,7 @@
 //!   its 4x4 normal equations by Gaussian elimination and holds the draw mean to six Monte-Carlo
 //!   standard errors of that closed-form posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

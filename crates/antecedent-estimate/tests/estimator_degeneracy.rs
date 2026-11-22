@@ -8,7 +8,7 @@
 //! no effect: the contrast and its standard error are exactly zero. The control runs the same
 //! rows with the informative covariate against the exact arm-mean contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

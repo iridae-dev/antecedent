@@ -8,7 +8,7 @@
 //! the closed form `sqrt(2 (1 - rho) (1/n1 + 1/n0))` that the correlation implies for the
 //! change-score variance `2 (1 - rho)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

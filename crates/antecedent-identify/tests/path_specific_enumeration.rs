@@ -11,7 +11,7 @@
 //! no witness exists (an empty selection is zero by structure, hence identified). The product
 //! decides the same question from reachability of the treatment's children and shares no code with the enumeration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery, VariableId,

@@ -29,7 +29,7 @@
 //! effects are exposed so transport diagnostics, prior transfer and policy generalization can
 //! consume them directly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;

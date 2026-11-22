@@ -4,7 +4,7 @@
 //! [`Pag`] from a declared tier order and certifies the tier-closure
 //! adjustment set in `O(p)` when same-tier nodes are [`WithinTier::CoDetermined`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

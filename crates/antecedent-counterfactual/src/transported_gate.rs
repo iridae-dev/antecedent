@@ -5,7 +5,7 @@
 //! has no method. This module only reports exactly which prerequisite gate is
 //! missing, retains the missing regime factors, and returns the live refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

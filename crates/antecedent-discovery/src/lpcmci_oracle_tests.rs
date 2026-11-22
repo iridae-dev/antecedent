@@ -16,7 +16,7 @@
 //!
 //! Orientation completeness is not asserted; that is a separate claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

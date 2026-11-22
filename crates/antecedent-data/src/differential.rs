@@ -5,7 +5,7 @@
 //! identity. A different `NaN`, weight, order, or panel/environment boundary
 //! has a different snapshot identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

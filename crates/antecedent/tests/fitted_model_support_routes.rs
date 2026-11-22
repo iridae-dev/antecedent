@@ -6,7 +6,7 @@
 //! conditions the coverage harness ran under the result says so, and outside them (too few
 //! draws, replicates, rows or blocks) it states that the interval has no coverage measurement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StudyResult};

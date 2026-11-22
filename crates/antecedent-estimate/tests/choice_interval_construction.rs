@@ -4,7 +4,7 @@
 //! `Beta(a_j, sum(a) - a_j)`. With a remaining mass of one the CDF is `x^a`, so the equal-tailed
 //! interval is explicit: the `p` quantile is `p^(1/a)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::choice_inference::dirichlet_share_interval;
 

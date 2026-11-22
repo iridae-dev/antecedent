@@ -1,7 +1,7 @@
 //! Execution plumbing shared by every route: callbacks, cancellation, budgets, deterministic
 //! randomness, recorded execution facts, recalculation plans and admission.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// The one gate a `not_supported` route passes through.
 pub use antecedent_core::BUILD_FLAVOR;

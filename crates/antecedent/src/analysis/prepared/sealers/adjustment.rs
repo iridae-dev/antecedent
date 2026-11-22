@@ -1,7 +1,7 @@
 //! Sealers of the adjustment-estimator routes: linear, GLM, RD, propensity,
 //! conditional, AIPW, front-door, IV, and the Unknown-tier average.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::accepted::GraphClass;

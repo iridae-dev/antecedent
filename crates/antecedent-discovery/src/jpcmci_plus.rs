@@ -7,7 +7,7 @@
 //! Reference: Günther, Ninad, Runge — *Causal discovery for time series from multiple
 //! datasets with latent contexts*, UAI 2023 (arXiv:2306.12896); pinned baseline `JPCMCIplus`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

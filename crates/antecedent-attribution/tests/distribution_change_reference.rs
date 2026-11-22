@@ -7,7 +7,7 @@
 //! (regression-hybrid) path must agree to rounding; the sampling path must agree within the
 //! sampling error of its declared budget, for the mean, the variance and the Gaussian KL measures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

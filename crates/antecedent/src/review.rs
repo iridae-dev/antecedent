@@ -5,7 +5,7 @@
 //! `accept_all`) callers use to resolve a review artifact before handing it to
 //! [`AcceptedGraph::accept`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

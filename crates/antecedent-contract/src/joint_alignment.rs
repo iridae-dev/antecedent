@@ -22,7 +22,7 @@
 //! Every refusal is a [`JointAlignmentError`] and names the next attempt.
 //! Library paths do not panic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{collections::BTreeSet, error::Error, fmt, sync::Arc};
 

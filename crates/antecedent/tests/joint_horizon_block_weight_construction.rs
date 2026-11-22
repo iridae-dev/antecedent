@@ -23,7 +23,7 @@
 //! the deviation (themselves of order 10^-1) leaves five orders of margin, and any construction
 //! difference moves a deviation at the 10^-2 level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

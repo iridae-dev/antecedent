@@ -3,7 +3,7 @@
 //! Arrow C Data Interface capsules and read-only numeric buffer protocols. Every
 //! other module in this crate stays safe.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(unsafe_code)]
 

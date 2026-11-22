@@ -14,7 +14,7 @@
 //! the stated Monte Carlo bound is six posterior standard errors of the route's mean plus five
 //! of the reference mean.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::many_single_char_names,

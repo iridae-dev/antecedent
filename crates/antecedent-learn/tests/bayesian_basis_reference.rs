@@ -7,7 +7,7 @@
 //! row-level control outcomes. The estimator's shared draws must reproduce them, which checks the
 //! basis layout, the prior scale convention and the per-row pushforward.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_learn::{

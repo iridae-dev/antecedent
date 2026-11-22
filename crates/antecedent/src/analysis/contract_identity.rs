@@ -4,7 +4,7 @@
 //! [`PayloadDigestWire`] here, never through `Debug` or `Display`. Data-sized
 //! vectors are digested once, when the study is built.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CanonicalWriter, CausalQuery, ObservationAssumption, ObservationSpec, VariableId, to_hex,

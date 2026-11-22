@@ -14,7 +14,7 @@
 //! draws is recomputed from those draws (maximum standardized deviation, the `ceil(level (B + 1))`-th
 //! smallest, floored at the pointwise interval).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

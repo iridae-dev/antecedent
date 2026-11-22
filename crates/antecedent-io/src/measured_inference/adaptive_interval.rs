@@ -22,7 +22,7 @@
 //! * Fixed randomization with group-sequential monitoring: the repeated
 //!   confidence interval of the effect at the last performed look.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };

@@ -1,6 +1,6 @@
 //! Markov-equivalence-class membership of a DAG in a CPDAG.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::graph::{Dag as RustDag, is_mec_member};
 use pyo3::prelude::*;

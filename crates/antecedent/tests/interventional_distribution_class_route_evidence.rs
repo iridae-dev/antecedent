@@ -6,7 +6,7 @@
 //! evaluates the outcome equation under the intervention (no identification formula is involved);
 //! the retained tables are the exact observed law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
 use antecedent::{

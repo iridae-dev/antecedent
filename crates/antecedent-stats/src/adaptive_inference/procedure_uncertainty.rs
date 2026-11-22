@@ -38,7 +38,7 @@
 //! procedure and its law is exact under the stated model, but no coverage of
 //! the method has been measured, so none is claimed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::AdaptiveInferenceError as Error;
 use super::beta_bernoulli::{BetaPosterior, best_arm_probabilities, expected_losses};

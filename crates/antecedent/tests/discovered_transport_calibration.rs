@@ -10,7 +10,7 @@
 //! Ignored tests run via `scripts/measure_calibration.sh` (release build). The interval stays
 //! unbound to any record until this design is measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

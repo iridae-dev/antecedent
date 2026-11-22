@@ -21,7 +21,7 @@
 //! through the search record's count; the unseen candidates are assumed to carry the
 //! largest supplied standard error, an assumption that is stated in the output.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

@@ -13,7 +13,7 @@
 //! batches share one dictionary keeps that dictionary as its domain, unused
 //! levels included. An ordered dictionary must be the same in every batch.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

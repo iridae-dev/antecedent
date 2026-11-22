@@ -10,7 +10,7 @@
 //! the square root of draws per effective draw, the tail effective sample size its own
 //! publication gate measures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -11,7 +11,7 @@
 //! unselected path that is not a recanting witness (`t -> a -> w -> y`
 //! selected, `t -> b -> w -> y` not): path effect 0.125, total effect 0.0625.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -6,7 +6,7 @@
 //! ordered containers, so declaration order never changes an identity, a
 //! topological order or a classification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;

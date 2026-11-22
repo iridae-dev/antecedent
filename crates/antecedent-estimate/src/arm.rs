@@ -5,7 +5,7 @@
 //! scatters the binarization rule over the crate; [`TreatmentArm`] is the one place that rule
 //! lives, so a row's arm is a typed value and the two spellings cannot disagree.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// The arm a binary treatment indicator places a row in.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

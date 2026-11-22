@@ -86,7 +86,7 @@
 //! reported with a calibration annotation; no posterior draws are produced
 //! (a posterior request is not part of this route).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::{EstimationError, ExactF64, RefusalFields};
 use antecedent_core::ExecutionContext;

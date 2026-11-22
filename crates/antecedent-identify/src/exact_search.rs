@@ -9,7 +9,7 @@
 //! is a resource outcome, never a scientific one. The context's cancellation token is
 //! observed at every test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 

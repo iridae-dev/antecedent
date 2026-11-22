@@ -8,7 +8,7 @@
 //! unequal counts is a ratio of exponentials whose distribution function is the partial-fraction
 //! formula of a weighted sum of exponentials.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

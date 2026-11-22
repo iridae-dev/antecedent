@@ -1,6 +1,6 @@
 //! Reference-point policies for temporal sample alignment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// How lag-aligned samples choose their contemporaneous origin row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]

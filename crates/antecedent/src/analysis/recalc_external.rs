@@ -1,6 +1,6 @@
 //! Executed, attested finite mean callbacks under the original shared planner.
 //! Planning never invokes a provider. Metadata establishes no native causal proof or coupling.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::Fields;
 use super::recalc_receipt::{Columns, Counter, RecalcReceipt, ReceiptRecorder};
 use antecedent_contract::{

@@ -26,7 +26,7 @@
 //! consistently, and that the declared graph describes the world; the graph and its
 //! identification standing are declared premises bound into the premises digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use antecedent_core::{ExecutionContext, IdentityDomain};

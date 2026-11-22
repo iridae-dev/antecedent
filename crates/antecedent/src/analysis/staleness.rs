@@ -13,7 +13,7 @@
 //! by calling [`PreparedStudy::refresh`] or by preparing again; no scheduler or alerting
 //! service is part of this module. See `docs/guides/staleness.md`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalEncode, CanonicalWriter, CausalQuery, ExecutionContext};
 use antecedent_data::TabularData;

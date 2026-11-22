@@ -1,6 +1,6 @@
 //! Fitted GCM OO surface and typed attribution / design result pyclasses.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod fit_cache;
 mod prepared_policy;

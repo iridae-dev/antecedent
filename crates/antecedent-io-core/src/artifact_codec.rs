@@ -5,7 +5,7 @@
 //! map [`CodecError`] into it, so the on-wire bytes and the refusal text stay
 //! those of the artifact that owns the payload.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::io::Cursor;
 

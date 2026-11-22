@@ -8,7 +8,7 @@
 //! * Bayesian prior sensitivity under a prior-scale grid compiled from the study;
 //! * derivative diagnostics on the study's own fitted response curve.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

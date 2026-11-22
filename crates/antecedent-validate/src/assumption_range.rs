@@ -15,7 +15,7 @@
 //! computed for one target cannot be cited by a claim on another
 //! ([`AssumptionRange::bound_to`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

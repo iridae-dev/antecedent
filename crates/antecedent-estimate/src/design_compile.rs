@@ -3,7 +3,7 @@
 //! Contrast generation lives in `antecedent-data`; provenance records live on
 //! [`antecedent_stats::CompiledDesign`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 use std::sync::Arc;

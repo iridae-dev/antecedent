@@ -10,7 +10,7 @@
 //! descriptive comparison. A tripping token (`cancel_after_checks`) observes cancellation at
 //! its `k + 1`-th poll, so each cell is stopped after `k` clean polls.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

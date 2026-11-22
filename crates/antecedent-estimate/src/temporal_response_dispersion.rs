@@ -18,7 +18,7 @@
 //! ([`crate::temporal_block::score_effective_rows`]), read against
 //! [`RESPONSE_SHORT_SERIES_ROWS`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ar_kernel::kernel_bias_factor;
 use crate::temporal_block::score_effective_rows;

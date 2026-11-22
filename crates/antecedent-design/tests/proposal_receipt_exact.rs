@@ -10,7 +10,7 @@
 //! first on net value yet is insufficient, so the proposal rank puts the sufficient study first
 //! (rank 0) and the insufficient one second (rank 1): sufficiency before net value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -6,7 +6,7 @@
 //! both classify through [`classify_graphless`] / [`graphless_admits`], so the
 //! two cannot drift apart.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support_graphless_data.rs"]
 mod data;

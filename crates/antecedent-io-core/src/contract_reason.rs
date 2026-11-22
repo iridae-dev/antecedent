@@ -3,7 +3,7 @@
 //! The spelling returned to callers is [`ContractReason::as_str`]. Control flow
 //! matches the enum, not the string.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

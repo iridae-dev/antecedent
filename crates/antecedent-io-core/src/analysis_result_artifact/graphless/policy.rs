@@ -1,6 +1,6 @@
 //! Graphless artifact checks for this family of results.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AnalysisResultWire, GraphlessAssignmentSupport, GraphlessSupportKey, INTERVAL_BOUND_RELATIVE,

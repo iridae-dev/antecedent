@@ -8,7 +8,7 @@
 //! solution verified by definition rather than with themselves. Offsets of 1e2, 1e3 and 1e4 are
 //! covered, as is a weighted fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     FaerBackend, GlmOptions, LeastSquaresWorkspace, MultinomialDesignRef, MultinomialFit,

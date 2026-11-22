@@ -1,6 +1,6 @@
 //! J-PCMCI+ two-env black-box edge-set equality vs discovery-parity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

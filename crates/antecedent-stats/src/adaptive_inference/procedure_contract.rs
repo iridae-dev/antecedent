@@ -30,7 +30,7 @@
 //! procedure the enumeration cannot reach is simulated under a work budget
 //! ([`super::capacity`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::capacity::CapacityError;
 use super::group_sequential::Sidedness;

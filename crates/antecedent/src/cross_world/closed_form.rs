@@ -7,7 +7,7 @@
 //! with the replayed point is evidence rather than tautology. Do not merge it
 //! with the estimate code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CrossWorldQuery, VariableId};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};

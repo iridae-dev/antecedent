@@ -25,7 +25,7 @@
 //! [`invert_square`] and [`gauss_jordan_solve`] on the same equilibrated
 //! entries share this accept/reject predicate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Pivot floor on a matrix whose diagonal is order 1.
 ///

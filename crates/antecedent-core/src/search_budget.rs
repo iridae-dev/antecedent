@@ -17,7 +17,7 @@
 //! admitting an exact estimate does not run the approximation, and an exact
 //! refusal cannot be converted into one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

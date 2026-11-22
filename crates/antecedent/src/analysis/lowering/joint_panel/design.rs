@@ -1,7 +1,7 @@
 //! Lower a design-native joint functional: a compiled joint design and its retained design
 //! proof, independent of the nonlinear panel fitter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

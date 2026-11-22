@@ -20,7 +20,7 @@
 //! `crates/antecedent/tests/randomized_precision_intervals.rs` and
 //! `crates/antecedent/tests/randomized_trial_route.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

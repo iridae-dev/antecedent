@@ -11,7 +11,7 @@
 //! nominal share. The cases include a ratio that decreases in the weight, a sign change, an
 //! 8 to 1 cluster-count imbalance and a heavy cluster.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::temporal_design::{ClusterScores, bayesian_bootstrap};

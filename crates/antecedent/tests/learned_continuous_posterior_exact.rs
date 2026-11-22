@@ -6,7 +6,7 @@
 //! mean is `(n / s^2) / (n / s^2 + 1 / scale^2) * mean` with `s^2` the sample variance of the
 //! scores, at prior scales that visibly shrink the mean.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "learned_continuous_dgp/mod.rs"]
 mod dgp;

@@ -14,7 +14,7 @@
 //! [`StudyCandidate`](crate::StudyCandidate) of [`crate::study_planner`] is the
 //! older, planner-specific declaration and is left untouched.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
 

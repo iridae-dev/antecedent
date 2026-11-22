@@ -7,7 +7,7 @@
 //! chose, after the batch's message sizes are read from metadata so the caller
 //! can lease them first ([`BatchProvider::next_decode_need`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs::File;
 use std::path::{Path, PathBuf};

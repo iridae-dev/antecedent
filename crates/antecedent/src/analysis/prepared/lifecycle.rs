@@ -1,6 +1,6 @@
 //! Refresh, refute and modality-specific entry points of a prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::estimate::{ClickNotes, ClickScores, Rebound};
 use super::sealed::{SeriesCall, SeriesEntry};

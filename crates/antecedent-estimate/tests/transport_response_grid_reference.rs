@@ -8,7 +8,7 @@
 //! correction weights all vanish, and target rows whose outcomes and weights must not enter.
 //! The refusal tests execute the declared input contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,7 +1,7 @@
 //! `SplitMix64` (Steele, Lea & Flood 2014): the crate's one owner of the seed
 //! scrambler and the small deterministic streams used for seeding and fixtures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // The mixer, its increment and the stepper are owned by `antecedent_core`; this module
 // re-exports them under the crate-local path and keeps the seed scrambler and fixtures.

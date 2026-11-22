@@ -11,7 +11,7 @@
 //! size is far below the bound's floor of 0.004, so the replicate average must be within four
 //! standard errors of the closed-form truth plus that floor. A single seeded draw is not used.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::observational_survival::{

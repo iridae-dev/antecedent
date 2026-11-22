@@ -11,7 +11,7 @@
 //! tables are read by `file_source` into the same library-owned columns.
 //! Nothing here selects a default backend.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

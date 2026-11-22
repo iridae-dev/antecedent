@@ -1,7 +1,7 @@
 //! Shared assertions of the estimator-level interval-procedure tests: a request whose tolerances
 //! are never met reproduces the fixed-count bootstrap, and one met early stops on a wave boundary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::IntervalRequest;
 use crate::adaptive_resample_waves::StopReason;

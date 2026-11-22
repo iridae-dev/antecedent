@@ -10,7 +10,7 @@
 //! support check (a residual equal to the half-width is accepted, one slightly larger refuses),
 //! and must not depend on the order in which units are supplied.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use TemporalNode::{Action0, Action1, Covariate0, Covariate1, Outcome};
 use antecedent_core::ExecutionContext;

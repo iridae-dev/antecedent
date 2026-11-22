@@ -8,7 +8,7 @@
 //! target population to the rows at the two declared levels, and the exclusion is counted on
 //! the result. Nothing is dropped silently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 

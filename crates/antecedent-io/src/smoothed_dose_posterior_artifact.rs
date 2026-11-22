@@ -15,7 +15,7 @@
 //! identical, bit for bit, to the stored one. Premises and data digests guard the stored
 //! values against unsealed edits; a re-sealed edit is caught by the replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::bayesian_posterior_row_artifact::{
     POSTERIOR_ROW_ARTIFACT_VERSION, POSTERIOR_ROW_CALIBRATION, POSTERIOR_ROW_UNCERTAINTY,

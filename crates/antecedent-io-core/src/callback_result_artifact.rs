@@ -35,7 +35,7 @@
 //! No interval, posterior guarantee, joint law or identification evidence is
 //! carried.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

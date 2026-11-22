@@ -50,7 +50,7 @@
 //! record, which the artifact does not hold and the rule's interval reading
 //! refuses without.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod wire;
 

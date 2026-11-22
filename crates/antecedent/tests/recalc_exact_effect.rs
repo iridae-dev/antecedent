@@ -8,7 +8,7 @@
 //! sets = 10 fold fits on a first fit, none on a reweight or a utility change) and what number
 //! comes out; none of it is read back from the production path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_cell::{
     ScoreQuantity, ScoreResumeRequest, ScoreResumeSession, execute_resumed_retarget,

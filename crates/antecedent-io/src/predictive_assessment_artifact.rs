@@ -37,7 +37,7 @@
 //! (diagnostics are labelled and `not_measured`), no causal validity (a score is
 //! not a causal claim) and no probability that a claim holds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_io_core::byte_cursor::RealCursor;

@@ -1,7 +1,7 @@
 //! Antecedent-owned design interchange. Adapters translate; foreign matrix
 //! types never appear here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::CompiledDesign;
 

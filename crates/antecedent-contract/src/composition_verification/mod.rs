@@ -24,7 +24,7 @@
 //! interval: a claim whose calibration no longer holds is withdrawn for
 //! calibration, and its point value is left as it was.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod graph;
 mod revalidate;

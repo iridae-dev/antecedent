@@ -1,7 +1,7 @@
 //! The Bayesian outcome likelihood: which routes fit it, which refuse it, and
 //! the disclosure of a Gaussian fit to a binary or count outcome.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

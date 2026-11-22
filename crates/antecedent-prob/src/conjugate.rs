@@ -3,7 +3,7 @@
 //! Normal–Inv-Gamma (or known-σ² Normal) posterior with diagonal Gaussian
 //! coefficient prior. Draws are columnar; no object-per-draw storage.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

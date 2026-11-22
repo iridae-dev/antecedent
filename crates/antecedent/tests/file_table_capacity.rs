@@ -2,7 +2,7 @@
 //! with its quote before reading, and the bounded weighted Gaussian capacity
 //! route streams the same file to the summary a resident run returns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::unwrap_used,

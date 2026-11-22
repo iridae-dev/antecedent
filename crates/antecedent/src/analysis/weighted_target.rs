@@ -12,7 +12,7 @@
 //! The same declaration weights a trial-to-target transport ([`transport_trial_to_weighted_target`]):
 //! the target is then the non-participant rows reweighted by it, behind the same gate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

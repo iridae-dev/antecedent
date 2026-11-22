@@ -6,7 +6,7 @@
 //! 3. Majority collider orientation (sepset subset re-tests) with out-of-band conflicts.
 //! 4. Meek R1–R3 restricted to contemporaneous undirected links.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

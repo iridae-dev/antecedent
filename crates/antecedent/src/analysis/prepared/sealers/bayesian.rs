@@ -1,7 +1,7 @@
 //! Sealers of the Bayesian DAG routes: basis ATE and CATE, robust ATE,
 //! g-computation, and the conditional effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::builder::RefuteSuite;

@@ -139,7 +139,7 @@
 //! function), so `scripts/measure_calibration.sh` can recheck only that test of a
 //! whole-file group.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

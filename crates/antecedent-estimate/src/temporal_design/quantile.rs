@@ -25,7 +25,7 @@
 //! distribution functions and their quantiles. The Bayesian posterior reweights units with
 //! Dirichlet weights and recomputes the same functional. Neither is calibrated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

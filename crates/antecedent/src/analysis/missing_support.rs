@@ -7,7 +7,7 @@
 //! estimators whose fits it pools. The builder refuses every declaration the registry does
 //! not list for the study's cell; nothing is accepted and then ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::OnceLock;
 

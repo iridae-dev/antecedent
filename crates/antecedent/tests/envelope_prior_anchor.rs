@@ -1,7 +1,7 @@
 //! Interactive envelope prior must anchor to the first identified atom in
 //! original order — before stratified subsample can drop that atom.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! Ridge and lasso utilities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
 use crate::gram::{column_is_constant, form_xtx, invert_square, solve_spd};

@@ -14,7 +14,7 @@
 //! - E is stored unverified with its `exact` calibration claim unused; N keeps `exact`.
 //! - a record for another snapshot, or with a blank execution id, proves nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::SupportStatus;

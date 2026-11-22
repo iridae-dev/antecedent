@@ -10,7 +10,7 @@
 //! scored on the rows it was learned from is refused, that selection inflates an in-sample
 //! plug-in where cross-fitting does not, and that every refusal carries its own detail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

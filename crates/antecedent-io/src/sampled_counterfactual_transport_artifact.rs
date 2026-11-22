@@ -30,7 +30,7 @@
 //! produce. It does not protect against a producer that seals a wrong model or
 //! false counts on purpose; the digests bind what was sealed, not what is true.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

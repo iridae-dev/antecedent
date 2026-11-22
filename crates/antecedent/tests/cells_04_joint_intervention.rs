@@ -22,7 +22,7 @@
 //!   or Newey-West influence variance (exact-rational reference); it runs under independent
 //!   subject trajectories.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 

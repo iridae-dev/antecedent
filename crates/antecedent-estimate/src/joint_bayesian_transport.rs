@@ -71,7 +71,7 @@
 //! * Calibration is **`not_measured`**. No coverage is claimed and the public interval route
 //!   is reported with its calibration annotation, never refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::splitmix::{seed_mix, splitmix64};
 use crate::{EstimationError, RefusalFields};

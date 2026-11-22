@@ -5,7 +5,7 @@
 //! retained proposal, with its calibration annotation. On point means there is no law to
 //! carry it and the search says so.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]
 mod fixture;

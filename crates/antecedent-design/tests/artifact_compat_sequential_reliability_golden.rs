@@ -15,7 +15,7 @@
 //! single commit action `ship` paying +10 if sound and -10 if faulty, so shipping now is
 //! worth 0.75 * 10 - 0.25 * 10 = 5.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

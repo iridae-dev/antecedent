@@ -4,7 +4,7 @@
 //! builds an inspectable contract from existing products. `inspect` is cheap
 //! structural classification; `contract` includes cached identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::sync::Arc;

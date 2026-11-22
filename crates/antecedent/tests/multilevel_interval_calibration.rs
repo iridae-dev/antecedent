@@ -13,7 +13,7 @@
 //! `multilevel_generalized_propensity_interval` is registered in `parity/calibration_groups.toml`
 //! (`run_ml`) and its coverage is `not_measured`: the coverage record is the only missing piece.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

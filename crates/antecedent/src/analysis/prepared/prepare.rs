@@ -1,6 +1,6 @@
 //! `Study::prepare`: compile once and seal the execution route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sealers::{SealContext, seal_deferred_execution, seal_execution};
 use super::{

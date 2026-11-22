@@ -6,7 +6,7 @@
 //! The route's interval is then compared with hand percentiles of the replicate estimates it
 //! retained.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent/tests/learned_continuous_dgp/mod.rs"]
 mod dgp;

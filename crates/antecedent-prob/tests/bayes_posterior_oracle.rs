@@ -13,7 +13,7 @@
 //!   from `oracle_data/laplace_glm_reference.py` (derivatives by numerical differentiation of
 //!   the log-likelihood, separate Newton iteration).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

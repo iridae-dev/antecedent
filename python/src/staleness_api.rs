@@ -5,7 +5,7 @@
 //! ([`antecedent::analysis::staleness`]). A diagnostic that could not run raises the ordinary
 //! causal error; data the plan cannot be applied to is a `refuse` report, not an exception.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::staleness::{
     StalenessPolicy, assess_artifact_staleness, staleness_policy_from_json, staleness_policy_json,

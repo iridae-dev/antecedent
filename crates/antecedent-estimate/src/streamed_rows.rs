@@ -11,7 +11,7 @@
 //! `μ(1−μ)` and working response `η + (t−μ)/(μ(1−μ))` at a fixed coefficient vector, so one
 //! pass of the engine is exactly one IRLS step of the logistic propensity model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -15,7 +15,7 @@
 //! arriving catalog against the proposal and re-identifies it through the
 //! public mz-transport or mixed-source route; a planning preview is never turned into a result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

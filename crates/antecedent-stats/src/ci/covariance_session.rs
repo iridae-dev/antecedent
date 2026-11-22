@@ -1,6 +1,6 @@
 //! Borrow-scoped analytic partial correlation for repeated discovery queries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

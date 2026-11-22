@@ -10,7 +10,7 @@
 //! source's rates and the target's observed positives: `(0.52 + 0.8 - 1) / 0.7 = 0.32 / 0.7`
 //! for `Se = 0.9`, `Sp = 0.8`, 520 of 1000; a model established for the target is used as is.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::transported_measurement::{
     DETAIL_TRANSPORT_RECEIPT_MISMATCH, ErrorParameter, InvarianceDeclaration,

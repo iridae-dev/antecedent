@@ -14,7 +14,7 @@
 //! [`super::calibration::gaussian`], so a caller passing the same replicate
 //! seed gets the same data it got when these bodies lived in the suites.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `m`, `c`, `u` are the variable names of the laws themselves,
 // the same ones the suites that used to carry these bodies allowed.

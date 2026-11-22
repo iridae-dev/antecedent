@@ -1,6 +1,6 @@
 //! Class-aware temporal response execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, BayesianGComputationAte, BayesianResponseFit, CausalError, CausalPosterior,

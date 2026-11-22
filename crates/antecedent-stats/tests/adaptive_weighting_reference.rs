@@ -9,7 +9,7 @@
 //! the weighted score sum has expectation zero at the true arm means, for the uniform and the
 //! variance-stabilizing weights, which is what makes the plug-in variance a martingale variance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     Estimand, OutcomeModelPrior, WeightScheme, adaptive_scores, weighted_estimate,

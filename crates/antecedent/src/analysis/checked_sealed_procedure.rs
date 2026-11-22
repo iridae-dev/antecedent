@@ -2,7 +2,7 @@
 //! payload: the selected procedure, inference mode, bootstrap budget,
 //! validation suite, completion cap and the sealed physical plan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

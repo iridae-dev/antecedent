@@ -14,7 +14,7 @@
 //! binary treatment cycling `0, 0, 1`, so ordinary least squares is exact. The pulse at lag 1 has
 //! effect `2`; the sustained policy over lags `-2..-1` has effect `2 + 3`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "retained_run/mod.rs"]
 mod retained;

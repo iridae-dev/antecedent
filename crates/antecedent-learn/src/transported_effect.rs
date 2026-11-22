@@ -36,7 +36,7 @@
 //! populations or the selection structure (`transport_not_certified`), no overlap or rows
 //! outside the support contract (`transport_support_failure`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

@@ -1,6 +1,6 @@
 //! Candidate selection and estimation-row ownership.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CandidateProcedure, CandidateScreen, CandidateSelection, CausalError, StudyResult, TableView,

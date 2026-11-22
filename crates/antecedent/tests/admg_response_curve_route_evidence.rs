@@ -1,6 +1,6 @@
 //! Coordinate-specific closure evidence for ADMG functional-effect response curves.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

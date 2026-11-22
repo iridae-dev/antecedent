@@ -11,7 +11,7 @@
 //! the packed `(horizon, mechanism)` index, the same discipline
 //! `completion_fit_seed` uses for completions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{RngFactory, StreamDomain, derive_stream};
 

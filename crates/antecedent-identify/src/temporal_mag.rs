@@ -1,6 +1,6 @@
 //! Query-window certificates for stationary temporal MAGs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::generalized::{AdjustmentBudget, MagTarget, identify_on_mag_completion, not_identified};
 use crate::{IdentificationError, IdentificationResult};
 

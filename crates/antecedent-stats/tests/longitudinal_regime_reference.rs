@@ -9,7 +9,7 @@
 //! cover static, alternating and history-dependent regimes, probabilities at 0.02 with
 //! cumulative weights near 2.5e4, and an outcome offset of 1e8.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::longitudinal_regime::{
     SequentialDrInputs, SubjectHistories, evaluate_g_formula_value, evaluate_regime_value,

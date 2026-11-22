@@ -21,7 +21,7 @@
 //! statistical program publishes no parameter posterior and a Monte Carlo store the
 //! admission pool cannot hold, and the evaluation carries that program's identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

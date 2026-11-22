@@ -4,7 +4,7 @@
 //! [`crate::reader::MappedArtifactReader::from_mmap`] are the other `unsafe`
 //! entry points; they call this wrapper and keep the same immutability contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs::File;
 

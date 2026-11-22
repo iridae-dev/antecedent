@@ -6,7 +6,7 @@
 //! shared by every declaration that binds units (participant labels, a network's unit table)
 //! and carried beside the data, never inside its content digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::fmt::Write as _;

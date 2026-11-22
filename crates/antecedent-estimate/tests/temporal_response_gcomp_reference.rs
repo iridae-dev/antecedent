@@ -10,7 +10,7 @@
 //! 0.9995, a nine-row series and 400 rows. The recorded adjustment set of each horizon is checked
 //! against the one derived by hand for the graph (the identifier itself is reviewed elsewhere).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

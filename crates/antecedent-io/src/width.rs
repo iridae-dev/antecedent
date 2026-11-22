@@ -1,7 +1,7 @@
 //! Lossless `usize` counts and little-endian word blocks for artifact builders that do not
 //! return [`Result`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // The word conversions are the ones `antecedent_io_core` owns; there is one copy.
 pub(crate) use antecedent_io_core::artifact_codec::{

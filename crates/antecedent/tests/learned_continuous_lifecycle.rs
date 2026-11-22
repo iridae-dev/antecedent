@@ -2,7 +2,7 @@
 //! both sampling designs, overlap refusals, the estimator menu, thread-budget invariance,
 //! the prepared lifecycle, the independently consumed artifact and the closed interval route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "learned_continuous_dgp/mod.rs"]
 mod dgp;

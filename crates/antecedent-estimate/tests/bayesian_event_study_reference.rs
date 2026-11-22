@@ -7,7 +7,7 @@
 //! arithmetic. Rows are passed in reverse order to show that subjects and periods are keyed, not
 //! positional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_panel_did::DidPrior;
 use antecedent_estimate::bayesian_staggered_event_study::fit_bayesian_event_study;

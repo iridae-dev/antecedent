@@ -20,7 +20,7 @@
 //! [`CONTAINER_VERSION`](crate::CONTAINER_VERSION) is the framing word (`1`),
 //! not a feature version and not format `0.5`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

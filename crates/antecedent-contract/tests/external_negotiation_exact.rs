@@ -8,7 +8,7 @@
 //! operation, a posterior no CDF/quantile/log-probability, a signal its observation law plus an
 //! update, an evidence factor only a factor, a deterministic utility only a utility evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     DistributionMeaning, EvidenceProviderContract, ExternalCapability as C,

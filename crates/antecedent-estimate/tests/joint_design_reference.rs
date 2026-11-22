@@ -14,7 +14,7 @@
 //! only; the longitudinal, instrumental, rollout and synthetic owners of the module are not
 //! covered here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::joint_design::randomized::{

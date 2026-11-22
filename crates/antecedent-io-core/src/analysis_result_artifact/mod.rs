@@ -4,7 +4,7 @@
 //! structural-mixture axes together without extending the exhaustive legacy
 //! `CausalPayloadKind` enum.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

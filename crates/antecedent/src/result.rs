@@ -7,7 +7,7 @@
 //! method. Read the support status and the interval's calibration status before using a
 //! number.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod bindings;
 mod missing_data;

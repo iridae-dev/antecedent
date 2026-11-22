@@ -21,7 +21,7 @@
 //! it must reproduce. A producer that
 //! wants every receipt checked recomputes from the raw data with an empty store.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

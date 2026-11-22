@@ -26,7 +26,7 @@
 //! and the consumer (the same derivation code runs twice; the independent
 //! evaluator re-checks the arithmetic of the functional, not its derivation).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CounterfactualEvent, CounterfactualEventQuery, EdgeRoute, ExogenousCoupling, IdentityDomain,

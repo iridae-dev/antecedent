@@ -21,7 +21,7 @@
 //! `antecedent_stats::synthesis`; the ledger decides whether a pooling or
 //! borrowing request may be made at all and records what it counted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod ids;
 mod ledger;

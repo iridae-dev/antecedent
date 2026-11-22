@@ -6,7 +6,7 @@
 //! design whose operating characteristics cannot be established, each with the
 //! next attempt named.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

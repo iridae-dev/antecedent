@@ -4,7 +4,7 @@
 //! decision side ([`antecedent_design::decision_evidence`]) are separate layers; this module is
 //! the one place they meet, so the design crate stays independent of the estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod adaptive;
 mod designs;

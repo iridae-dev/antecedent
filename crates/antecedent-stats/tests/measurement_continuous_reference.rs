@@ -10,7 +10,7 @@
 //! independent replicate study, from a validation sample and declared; mixed replicate counts of
 //! one to three; and Rubin's rules over five posterior draws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::measurement_error::{
     ErrorVariance, LinearErrorData, LinearMoments, MeasurementErrorError,

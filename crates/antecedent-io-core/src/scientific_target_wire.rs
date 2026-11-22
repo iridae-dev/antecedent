@@ -3,7 +3,7 @@
 //! Decoding rebuilds the validated domain constructors and checks the complete target
 //! identity. This transports a question; it grants no identification or execution support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::query_wire::OutcomeFunctionalWire;
 use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};

@@ -1,7 +1,7 @@
 //! Lower a multiple imputation over a joint panel source: completed panels drawn under the
 //! declared imputation model, each fitted as an observed panel, and their responses pooled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

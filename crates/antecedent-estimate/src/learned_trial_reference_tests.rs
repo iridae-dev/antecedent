@@ -12,7 +12,7 @@
 //! per-row score and out-of-fold nuisance, every replicate estimate and the interval equal the
 //! reference, for a nested cohort and for independent samples at a covariate offset of 100.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_identify::{PopulationFactor, TransportCertificate};
 use serde_json::Value;

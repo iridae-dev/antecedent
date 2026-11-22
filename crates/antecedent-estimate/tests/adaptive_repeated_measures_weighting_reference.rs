@@ -11,7 +11,7 @@
 //! checks the two identities the multiplier must satisfy: a constant multiplier changes nothing and
 //! a multiplier of ones is the unweighted route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::adaptive_inference::{

@@ -24,7 +24,7 @@
 //! separate the endpoints. It is not a proof of dependence. σ-faithfulness and
 //! simplicity of the SCM are not assumed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::algo::{closure_into, insert_sorted};
 use crate::cyclic::CyclicMixedGraph;

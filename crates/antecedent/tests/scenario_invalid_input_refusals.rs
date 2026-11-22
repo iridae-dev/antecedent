@@ -8,7 +8,7 @@
 //! an average effect on an ADMG with an unmeasured treatment-outcome confounder and no
 //! instrument are each refused with the registered detail rather than estimated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{LocalPolynomialRatioQuery, RefuteSuite, Study};
 use antecedent_core::{

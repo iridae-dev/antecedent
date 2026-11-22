@@ -14,7 +14,7 @@
 //! * the shipped verifier accepts a node-set pair exactly when the definition has an edge
 //!   subset realising it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalQuery, Intervention, InterventionalDistributionQuery, Value, VariableId,

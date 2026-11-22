@@ -6,7 +6,7 @@
 //! layer reads into typed results. Every refusal is the native one, with its
 //! reason code and next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::planning::compile_planning;
 use antecedent::design::{

@@ -19,7 +19,7 @@
 //! None of these routes is a geometric support-matrix cell. They execute and
 //! carry calibration status `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -41,7 +41,7 @@
 //! recruitment cap that fixes the stopping look and the sample used, a truth with an
 //! unmistakable best arm, and the summary arithmetic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

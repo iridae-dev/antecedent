@@ -8,7 +8,7 @@
 //! overlay or replay code. The engine must agree to rounding for single, double and nested
 //! interventions, for unit subsets and for the individual treatment effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

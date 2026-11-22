@@ -37,7 +37,7 @@
 //! the terminal outcome or a modifier, is refused (the premise is named);
 //! the premise stays an unresolved obligation of the rebuilt claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,

@@ -6,7 +6,7 @@
 //! beside that one copy. A path that held a second design-sized buffer would exceed the bound
 //! asserted here by the size of the design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "integration test crate root")]
 

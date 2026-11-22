@@ -11,7 +11,7 @@
 //! to 20, a lag offset by 100 at scale 0.5, an unbalanced treatment arm, a probit link and the
 //! draw-level standard deviation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::temporal_link::{
     BayesianTemporalLink, FrequentistTemporalLink, RegimeColumn, TemporalContrastDesign,

@@ -7,7 +7,7 @@
 //! the production kernel, at a prior scale that moves the answer visibly off the least-squares
 //! fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale,

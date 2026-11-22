@@ -9,7 +9,7 @@
 //! for the working linear model of the table, the counted decomposition, and the structural
 //! effects of the processes that generated the series.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

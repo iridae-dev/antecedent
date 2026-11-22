@@ -24,7 +24,7 @@
 //!
 //! No interval, coverage statement or posterior-calibration claim is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 

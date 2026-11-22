@@ -10,7 +10,7 @@
 //! with singletons, weights composed with clusters, the smallest admissible clustered samples (three
 //! clusters, and two clusters whose joint test does not exist) and serial lags 1 and 3.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale,

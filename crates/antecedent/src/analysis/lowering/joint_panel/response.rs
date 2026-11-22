@@ -1,7 +1,7 @@
 //! Lower a fitted joint panel response: the reviewed multi-channel panel mechanism evaluated
 //! over the request's program worlds, invariant or time-varying.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

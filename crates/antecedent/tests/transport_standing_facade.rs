@@ -19,7 +19,7 @@
 //!   `withdrawn` for calibration, the point value untouched, and a heir of that record is
 //!   refused the record it inherited.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

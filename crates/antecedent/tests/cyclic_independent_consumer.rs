@@ -12,7 +12,7 @@
 //! Generate the fixtures with
 //! `cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

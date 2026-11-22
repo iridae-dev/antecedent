@@ -6,7 +6,7 @@
 //! outside the estimated CDF range or the span-normalized density is too small
 //! to invert.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 

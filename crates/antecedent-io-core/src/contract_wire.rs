@@ -7,7 +7,7 @@
 //!
 //! [`contract_section`]: https://docs.rs/antecedent-io
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_learn::{ElasticNetSpec, LearnerSpec, LinearSpec, LogisticSpec, RidgeSpec};
 use serde::{Deserialize, Serialize};

@@ -12,7 +12,7 @@
 //! of `y[t] = B·x[t-1] + u[t]` (OLS slope with intercept) on its lag-aligned
 //! `(x[t-1], y[t])` rows, `t = 1..n`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

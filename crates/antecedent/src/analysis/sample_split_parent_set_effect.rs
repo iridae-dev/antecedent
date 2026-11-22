@@ -43,7 +43,7 @@
 //! None of these is testable from the table that discovery runs on, so no per-dataset statement
 //! about the discovered graph is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CalibrationBasis, ExecutionContext, VariableId};
 use antecedent_data::TabularData;

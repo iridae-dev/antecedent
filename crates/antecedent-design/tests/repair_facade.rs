@@ -3,7 +3,7 @@
 //! back-door adjustment. Expected outcomes are derived by hand from the
 //! theorems, not from the code under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

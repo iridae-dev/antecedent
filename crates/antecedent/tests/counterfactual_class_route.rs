@@ -9,7 +9,7 @@
 //! the per-unit route on every DAG completion; its references are the known slopes of the
 //! generating equations in each completion.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

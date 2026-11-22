@@ -1,7 +1,7 @@
 //! Lowered programs of the static average-effect, conditional-effect,
 //! interventional-distribution and path-specific cells.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

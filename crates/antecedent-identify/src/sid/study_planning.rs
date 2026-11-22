@@ -46,7 +46,7 @@
 //! strictly cheaper and is evaluated first; ties rank by sample budget, subset
 //! size and sorted candidate ids ([`STUDY_PLAN_RANKING`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod preview;
 mod subsets;

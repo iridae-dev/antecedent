@@ -1,6 +1,6 @@
 //! CPDAG/PAG graph-posterior Response: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::append_unidentified_atoms;
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};

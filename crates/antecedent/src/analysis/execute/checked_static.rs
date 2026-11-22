@@ -3,7 +3,7 @@
 //! The block is behind an [`Arc`] so rebind replaces a data binding without
 //! cloning the plan, registry, or validator names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -14,7 +14,7 @@
 //! effect, the first-stage diagnostics and the Anderson–Rubin set, and never a Wald or
 //! bootstrap standard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_core::physical_choice::PhysicalChoice;

@@ -1,6 +1,6 @@
 //! Shared PCMCI-family builder helpers (SOLID/DRY).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Fluent builders shared by PCMCI / PCMCI+ / LPCMCI / J-PCMCI+.
 ///

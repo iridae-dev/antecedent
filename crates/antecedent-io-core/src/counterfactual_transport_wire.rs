@@ -31,7 +31,7 @@
 //! oracle lives in the test suites). The artifact is point-only: no interval, no
 //! posterior and no sampling uncertainty exist in it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! Prepared ADMG with §10.5 identification caches.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

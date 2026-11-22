@@ -41,7 +41,7 @@
 //! it. The pooled estimates carry the within-, between- and total variance (or covariance),
 //! the degrees of freedom and the fraction of missing information.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod impute;
 mod pool;

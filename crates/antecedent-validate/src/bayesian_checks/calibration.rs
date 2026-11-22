@@ -1,6 +1,6 @@
 //! Monte Carlo summaries shared by the predictive checks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::KernelPolicy;
 use antecedent_kernels::{PosteriorReduceOp, reduce_posterior_draws};

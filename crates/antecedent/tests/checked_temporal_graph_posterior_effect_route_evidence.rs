@@ -1,6 +1,6 @@
 //! Builder independent evidence for temporal graph-posterior pulse and sustained effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every supported coordinate")]
 

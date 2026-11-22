@@ -25,7 +25,7 @@
 //! model whose graph is [`Network`]; the global Markov property of that graph is
 //! used by [`separated`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

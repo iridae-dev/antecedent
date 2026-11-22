@@ -15,7 +15,7 @@
 //! (for example a Gaussian/AR panel) realizes this functional only under its own
 //! restrictions, so the functional here is never an identification of that fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalQuery, Intervention, InterventionalDistributionQuery, Value, VariableId,

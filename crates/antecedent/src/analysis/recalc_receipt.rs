@@ -33,7 +33,7 @@
 //! [`RecalcReceipt`] refuses to build when a count contradicts a status: a reused stage that
 //! did work, or a recomputed computation that did none.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;

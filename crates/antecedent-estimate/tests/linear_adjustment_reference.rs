@@ -8,7 +8,7 @@
 //! `n delta [(X'X)^-1 x_i]_t e_i` and, for two penalties, the ridge effect with the unpenalised
 //! intercept and the ridge influence. Ridge publishes no analytic standard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

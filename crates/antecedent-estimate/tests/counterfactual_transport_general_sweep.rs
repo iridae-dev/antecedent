@@ -11,7 +11,7 @@
 //! only ever sees the supplied regime laws. Identification must not depend on the numbers: every
 //! parameter set must identify, and agree with the enumerated truth to 1e-12.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

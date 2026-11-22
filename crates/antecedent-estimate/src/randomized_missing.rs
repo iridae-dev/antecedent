@@ -13,7 +13,7 @@
 //! observation model, so estimating the observation probabilities is accounted for rather
 //! than treated as known. No interval is published from it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::fit_observation_logistic;
 

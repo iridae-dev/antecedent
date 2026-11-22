@@ -1,6 +1,6 @@
 //! estimate-parity linear-Gaussian ATE conformance (`StableFloat`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

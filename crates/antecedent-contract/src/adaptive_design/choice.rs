@@ -23,7 +23,7 @@
 //! The matrix ([`super::procedure_status`]) is the one authority on what is supported for the
 //! cell, through the same gate as the assigned-arm contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::declaration_refusal as refusal;
 use std::collections::BTreeSet;

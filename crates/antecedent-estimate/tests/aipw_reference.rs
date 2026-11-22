@@ -9,7 +9,7 @@
 //! cross-fitted score; its recorded-fold references are the AIPW rows of `dml_reference.json`
 //! (per-fold least-squares arms and unpenalised logistic propensity at 60 digits).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

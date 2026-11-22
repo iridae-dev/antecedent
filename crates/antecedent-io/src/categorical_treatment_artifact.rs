@@ -59,7 +59,7 @@
 //! one with them is refused by a reader that does not know the section. The Gaussian posterior
 //! section is refused for declared rows: its likelihood is independent homoskedastic errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod declaration;
 mod posterior;

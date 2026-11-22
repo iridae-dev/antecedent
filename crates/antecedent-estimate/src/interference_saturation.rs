@@ -1,6 +1,6 @@
 //! Exact exposure probabilities under two-stage cluster saturation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

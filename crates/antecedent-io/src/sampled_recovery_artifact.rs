@@ -30,7 +30,7 @@
 //! consistently, and the m-graph's untestable premises, which are declared and bound into
 //! the premises digest, never verified from data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire,

@@ -9,7 +9,7 @@
 //! its lag-zero cluster convention. The product dispatcher must agree, refuse HC2 and HC3, and
 //! refuse a materially negative two-way variance rather than report it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::AnalyticSeKind;
 use antecedent_estimate::se::influence_se_under;

@@ -7,7 +7,7 @@
 //! identified" from budgets, cancellations and invalid arguments. Component-crate errors are
 //! wrapped in their own variants so the original cause stays inspectable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_attribution::AttributionError;
 use antecedent_core::{QueryError, SchemaError, TemporalIndexError};

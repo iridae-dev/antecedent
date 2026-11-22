@@ -1,6 +1,6 @@
 //! Match key and scope facts of one reported interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

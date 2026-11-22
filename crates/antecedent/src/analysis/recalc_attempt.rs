@@ -1,6 +1,6 @@
 //! Failure-work observation around the original native recalculation operation.
 //! No successful receipt, scientific claim or resumable state is created by this observer.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_core::execution_attempt::{
     AttemptReport, ExecutionAttempt, Operation, OperationCounts,

@@ -5,7 +5,7 @@
 //! evaluates the fitted line with both lags of `x` set to a level while `z(t-1)` keeps its
 //! observed value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

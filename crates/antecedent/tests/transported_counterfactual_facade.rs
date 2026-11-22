@@ -8,7 +8,7 @@
 //! `15.09375`; source law `{0: 0.4, 1: 0.4, 2: 0.2}`: NDE `5.4`. Shifting the target law to
 //! `{0: 0.5, 1: 0.5}` moves the NDE by exactly `-0.28125`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::float_cmp, reason = "exact dyadic hand values")]
 
 use antecedent::CausalError;

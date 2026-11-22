@@ -3,7 +3,7 @@
 //! These routines deliberately contain no causal semantics.  They provide the
 //! local-polynomial and Gaussian-density calculations used by response estimators.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::StatsError;
 

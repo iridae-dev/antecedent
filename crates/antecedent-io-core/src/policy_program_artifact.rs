@@ -23,7 +23,7 @@
 //! replay; [`decode_policy_program`] has no implementations to offer and refuses a
 //! program that needs them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

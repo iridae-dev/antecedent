@@ -7,7 +7,7 @@
 //! transformations, about 106 bits). That is a different algorithm from the
 //! kernels' accumulation, so a shared drift is visible.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

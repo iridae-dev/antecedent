@@ -15,7 +15,7 @@
 //! - against an earlier state that declared the same request, moving only the calibration
 //!   record recomputes the law and the decision and reuses the fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::BayesianConfig;
 use antecedent::analysis::recalc_bayesian::{

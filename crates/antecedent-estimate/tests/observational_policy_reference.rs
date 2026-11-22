@@ -12,7 +12,7 @@
 //! a policy learned on held-out rows, cross-fitted learning (minimising and maximising), a known
 //! constant propensity, and an outcome offset of 1e6 with a covariate offset of 1e3.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

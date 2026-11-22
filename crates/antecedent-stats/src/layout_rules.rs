@@ -15,7 +15,7 @@
 //! Nothing here reads the process pool or spawns threads. A rule moves only when a new
 //! measurement moves the matching `[[selection]]`; a test compares this table with that file.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use faer::Par;
 use faer::Spec;

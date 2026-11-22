@@ -5,7 +5,7 @@
 //! Inserting a column, changing a row weight, or evicting a summarized row is
 //! refused; the next attempt is to recompute from the retained rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::similar_names, reason = "xtx / xty")]
 

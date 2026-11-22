@@ -4,7 +4,7 @@
 //! typed, length-delimited field: never through `Debug` or `Display`, whose output is not a
 //! stability contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::recalc_receipt::{RecalcRequestCode, RecalcRunError};
 use crate::graph::{Dag, DenseNodeId};

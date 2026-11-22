@@ -8,7 +8,7 @@
 //! never change the theorem-specific identifiers: factor ids, expression
 //! leaves, rule names and regime ids are carried as provenance, not rewritten.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

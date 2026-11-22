@@ -2,7 +2,7 @@
 //!
 //! Distinct from `antecedent_counterfactual::AbductionMissingPolicy` (abduction).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

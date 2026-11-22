@@ -29,7 +29,7 @@
 //! in the declared directed or bidirected graph together with the query's declared effect
 //! modifiers (the declared modifiers alone when the graph is of another class).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::fmt;

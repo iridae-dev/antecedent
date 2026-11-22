@@ -4,7 +4,7 @@
 //! recalculation over any other number of steps is format version 2 under its own
 //! feature marker; the two layouts share every type, and version 1 stays the only
 //! accepted layout of a two-step request.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use crate::expr_wire::ExprArenaWire;

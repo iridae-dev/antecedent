@@ -1,7 +1,7 @@
 //! Bounded finite source-state, terminal-decision and ranking artifact bridge.
 //! Historical numerical replay preserves source standing and issues no native authority.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::bridge::{
     MAX_DECLARED_ARTIFACT_BYTES, check_declared_len, check_declared_size, serialization,
 };

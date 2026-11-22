@@ -8,7 +8,7 @@
 //! is bounded by [`MAX_FINITE_STATES`]; parameter uncertainty is not propagated
 //! for this family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

@@ -11,7 +11,7 @@
 //! no `Lambda` moves. The test also checks the refusals of the contract, including a requested
 //! sampling composition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_validate::msm_sensitivity::{
     MsmOutcomeLaw, MsmStratum, MsmTippingDirection, msm_ate_bounds_at, msm_ate_sensitivity,

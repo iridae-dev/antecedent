@@ -1,6 +1,6 @@
 //! The target form, the packaged [`ScientificTarget`], and its semantic identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::canonical_encode::CanonicalEncode;
 use crate::identity::{CanonicalWriter, SemanticDigest};

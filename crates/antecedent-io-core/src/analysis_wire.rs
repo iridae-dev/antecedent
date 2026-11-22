@@ -4,7 +4,7 @@
 //! estimators, live in `antecedent-io` and join this module's public path
 //! there.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

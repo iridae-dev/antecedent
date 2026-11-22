@@ -7,7 +7,7 @@
 //! the status resolves to graph-dependent. Each atom runs its own refuter suite against its own
 //! estimate and the reports mix by posterior weight.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::too_many_lines,

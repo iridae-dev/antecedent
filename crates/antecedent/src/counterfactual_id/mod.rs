@@ -36,7 +36,7 @@
 //! identically. The direct sum checks the functional's arithmetic, not its
 //! derivation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::GraphRef;
 use crate::error::{CausalError, REASON_PREFIX};

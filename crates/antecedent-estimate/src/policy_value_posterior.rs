@@ -21,7 +21,7 @@
 //! Observational sequential data, where the probabilities are fitted, is a different object
 //! ([`crate::sequential_aipw_inference`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::longitudinal_regime::{

@@ -2,7 +2,7 @@
 //! truth with valid coverage on missing-at-random data where complete-case analysis is biased,
 //! the stacked posterior, refusals, determinism and admission.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "imputed binary cells and bitwise replays compare exactly")]
 

@@ -4,7 +4,7 @@
 //! assumption itself reuse the existing records. Obligations add a stable
 //! id, a finer scope, a required check, and how the obligation entered.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -9,7 +9,7 @@
 //! within a tolerance set from its own effective sample size, for a uniform and a concentrated
 //! Dirichlet prior. Independent errors only: the AR(1) continuation is not covered here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_synthetic_control::{
     BayesianSyntheticControlSpec, fit_bayesian_synthetic_control,

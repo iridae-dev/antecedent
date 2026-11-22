@@ -27,7 +27,7 @@
 //!   (gap 0.2), largest atom 2 (gap 1), variance `7/3 - 16/9 = 5/9` (gap 4/9), top-atom
 //!   mass 0 (gap 0.4): outside every probe.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalScientificObject, ExternalVerificationError,

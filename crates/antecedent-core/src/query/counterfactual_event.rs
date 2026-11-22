@@ -13,7 +13,7 @@
 //! shapes it answers. The effect of treatment on the treated,
 //! `P(Y_x = y | X = x')`, is [`CounterfactualEventQuery::effect_on_treated`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::cross_world::{ExogenousCoupling, WorldId, WorldSpec};
 use super::error::QueryError;

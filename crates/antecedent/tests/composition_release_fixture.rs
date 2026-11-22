@@ -20,7 +20,7 @@
 //! `not_supported`. Nothing below reaches into an internal constructor,
 //! a test-only hook or a `calibration-internal` item.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "each test is one scenario read top to bottom")]
 

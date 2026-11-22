@@ -6,7 +6,7 @@
 //! matrix into its own crate moves every sibling file and leaves this one in
 //! the facade.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, CausalQueryKind};
 

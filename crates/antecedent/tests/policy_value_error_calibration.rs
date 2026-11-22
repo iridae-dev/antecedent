@@ -19,7 +19,7 @@
 //! are measured by `simulate_policy_value_dag_frequentist_bootstrap_coverage` and
 //! `simulate_policy_value_dag_bayesian_dirichlet_coverage` in `fitted_model_calibration`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::gcm::{FittedGcm, fit_gcm, policy_value};
 use antecedent_core::{ExecutionContext, Intervention, Value, VariableId};

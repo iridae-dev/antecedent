@@ -22,7 +22,7 @@
 //! when a treatment, outcome or effect modifier is involved. The plan is a record; no
 //! estimator is re-run on the reduced design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 

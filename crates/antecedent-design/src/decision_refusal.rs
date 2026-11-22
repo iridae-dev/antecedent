@@ -5,7 +5,7 @@
 //! match it against the declared refusals; nothing is parsed out of a message.
 //! The existing reason codes are unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ExternalRefusal;
 

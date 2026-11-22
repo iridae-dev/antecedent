@@ -5,7 +5,7 @@
 //! The data are the linear Gaussian SCM `bayesian_linear_scm` (1,000 rows, effect 0.4) at
 //! the seed each acceptance case names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

@@ -12,7 +12,7 @@
 //! Nothing here executes or estimates anything. It checks coordinates and
 //! identities only, and it never converts, rescales or reinterprets a value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::num::FpCategory;
 

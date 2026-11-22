@@ -13,7 +13,7 @@
 //! per-atom refuter reports are mixed by posterior weight, and a planted evaluation point beyond
 //! the observed treatment range must be detected.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -19,7 +19,7 @@
 //! in general: the general ID algorithm may identify it through a functional that is not
 //! an adjustment (front-door), and the caller decides what to do with that case.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

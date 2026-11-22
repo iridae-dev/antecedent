@@ -7,7 +7,7 @@
 //! keeps the envelope executor's treatment: the envelope executor still withholds a scalar
 //! or refuses when no completion identifies the response.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::class_aware_response_supported;
 use super::{

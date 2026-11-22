@@ -39,7 +39,7 @@
 //! interval, posterior or calibration record: a calibration declaration names
 //! a record identity and coordinate, and the artifact never measures one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

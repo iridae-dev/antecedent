@@ -12,7 +12,7 @@
 //! probability is deterministic and held to 1e-6. Its subject bootstrap is exercised only for
 //! shape because its draws come from a seeded stream.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::temporal_design::survival::{

@@ -8,7 +8,7 @@
 //! error must reproduce them, and the treatment coefficient (a link-scale quantity) must not be
 //! reported as the effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

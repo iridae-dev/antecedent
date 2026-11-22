@@ -21,7 +21,7 @@
 //! posterior mass of the denominator within a declared floor of zero is reported, and the interval
 //! is withheld when that mass exceeds the tail mass of the interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
 

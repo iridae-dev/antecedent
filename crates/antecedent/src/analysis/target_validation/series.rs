@@ -1,6 +1,6 @@
 //! Series and multi-environment perturbation refits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalRng, ExecutionContext, JoinFreeRows, Modal, OwnedColumn, PreparedRefit,

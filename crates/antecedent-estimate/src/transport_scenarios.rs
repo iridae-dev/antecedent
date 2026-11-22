@@ -16,7 +16,7 @@
 //! conditional set (`not_supported`, `admg_transport.counted_laws_unsupported`; a development
 //! build runs them), as the standalone route does: it publishes exact-law points only.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::sync::Arc;

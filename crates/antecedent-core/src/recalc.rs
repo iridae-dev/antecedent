@@ -34,7 +34,7 @@
 //!   supported ([`RetargetSupport::Supported`]); otherwise a target change recomputes the
 //!   score artifact, and an incompatible target is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt;

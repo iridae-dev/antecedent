@@ -6,7 +6,7 @@
 //! sanitising: callers that treat non-finite input as "no mass" or "ties" say so
 //! at the call site.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::posterior_reduce::quantile_type7_sorted;
 use crate::view::ViewError;

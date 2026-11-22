@@ -27,7 +27,7 @@
 //! causal or behavioural effect. No coverage or calibration claim is made about any interval or
 //! decision built from them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{AdaptiveInferenceError as Error, graded_rule, panel_rule};
 use crate::special::{gamma_q, ln_gamma};

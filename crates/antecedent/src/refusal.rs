@@ -1,7 +1,7 @@
 //! Registered scientific refusals a host raises itself: typed constructors that carry the
 //! reason code, structured detail and message the library would have produced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::EstimationError;
 

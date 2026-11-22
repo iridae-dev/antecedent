@@ -4,7 +4,7 @@
 //! work — parse `options`, load columns or a frame, leave the `GIL`, then build
 //! and `prepare` — lives here once.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::prelude::{TabularData, TimeSeriesData};
 use pyo3::prelude::*;

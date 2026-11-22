@@ -8,7 +8,7 @@
 //! decision-evaluation run that kept its simulated utilities may supply them with its
 //! own producer label. Each producer declares the dependence; nothing is inferred.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

@@ -8,7 +8,7 @@
 //! each exogenous term as the residual that regenerates the observed value), so
 //! no test claims to detect its violation; what is tested is well-posed
 //! abduction (invertibility) and everything else the operation enforces.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::cross_world::{
     CROSS_WORLD_MAX_ROWS, CrossWorldOptions, check, consume_cross_world_artifact,

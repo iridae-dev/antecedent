@@ -22,7 +22,7 @@
 //! set. Member weights are enumeration weights, not posterior probabilities; a refused member is
 //! unidentified mass, and a member whose fit failed is unevaluable mass.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

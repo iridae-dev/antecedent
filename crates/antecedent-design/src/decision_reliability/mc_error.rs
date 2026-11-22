@@ -22,7 +22,7 @@
 //!   series, so shared noise cancels exactly as far as it is correlated; across
 //!   independent streams the variances add.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::kish_ess;
 use antecedent_stats::ln_gamma;

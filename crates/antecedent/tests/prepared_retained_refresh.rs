@@ -8,7 +8,7 @@
 //! serve with the next attempt, and a disk-backed result is admitted against the operation's
 //! pool, evicted under the registry's budget and reloaded to the same answer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

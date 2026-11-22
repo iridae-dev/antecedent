@@ -8,7 +8,7 @@
 //! treatments, which is exactly the law, so the joint level `E[y | do(t1 = 1, t2 = 1)]` is
 //! `0.2 + 0.4 + 0.3 + 0.2 mean(z)` with `mean(z)` taken from the exact counts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

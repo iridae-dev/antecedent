@@ -1,6 +1,6 @@
 //! Typed accessors over the sealed [`PreparedExecution`] route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAdmgResponseCurveOperation, CheckedAipwOperation, CheckedBayesianGcompOperation,

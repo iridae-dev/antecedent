@@ -1,5 +1,5 @@
 //! Multiplier simultaneous band for a G×n influence matrix.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

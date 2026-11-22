@@ -4,7 +4,7 @@
 //! declares a clustered panel or a dependent series, or asks for bootstrap replicates, must not
 //! receive that interval as though the declaration had been read.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

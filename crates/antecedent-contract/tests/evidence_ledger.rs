@@ -1,7 +1,7 @@
 //! Evidence ledger: overlap, mass accounting, double-counting refusals,
 //! distinct operations, transport provenance and downstream revalidation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 

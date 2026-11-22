@@ -1,7 +1,7 @@
 //! Sealed estimator routes: Bayesian g-computation, basis, robust, and
 //! conditional effects, and GLM, RD, propensity, and conditional adjustment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, stamp_tabular};
 use crate::analysis::CheckedConditionalOperation;

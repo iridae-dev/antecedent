@@ -36,7 +36,7 @@
 //! declared on the template variable and applies at every slice, the stationarity assumption
 //! the declaration carries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,

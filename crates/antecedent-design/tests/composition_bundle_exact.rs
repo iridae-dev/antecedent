@@ -19,7 +19,7 @@
 //! - Values are readable only from verified nodes: meanA = 3 and jointB = 5, not jointC.
 //! - Changing meanA's bytes changes exactly meanA and its descendants `r_mean`, `r_mix` and `r_strict`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

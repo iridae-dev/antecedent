@@ -12,7 +12,7 @@
 //! Closed-form prior-only references for the proposal kernels are unit tests in
 //! `structure_mcmc.rs` and `order_mcmc.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -9,7 +9,7 @@
 //! record's identity (declaration, draws, future-study draws and changes) is
 //! part of the lowered identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

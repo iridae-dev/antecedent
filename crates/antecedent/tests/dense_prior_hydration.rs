@@ -1,7 +1,7 @@
 //! Sequential prior hydration from posterior artifacts carries the full
 //! coefficient covariance (dense `V0`); summary-only artifacts stay diagonal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

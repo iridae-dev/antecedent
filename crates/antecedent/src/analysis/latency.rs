@@ -3,7 +3,7 @@
 //! Mapping is known-equivalent and never silently changes science defaults when
 //! unset. Explicit builder knobs always win over a mode's mapped values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::BayesianBackendKind;
 

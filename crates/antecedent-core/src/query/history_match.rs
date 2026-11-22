@@ -1,5 +1,5 @@
 //! Declared nearest-neighbor contrast on pre-outcome histories within calendar periods.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::HistoryMatchFault;
 use std::sync::Arc;

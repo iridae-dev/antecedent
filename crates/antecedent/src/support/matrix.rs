@@ -1,7 +1,7 @@
 //! Matrix lookup: classification of a cell against the generated rules and
 //! supported rows, refusal reasons, coordinates and supported neighbors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{PremiseChange, SupportedNeighbor};
 use antecedent_core::ExecutionContext;

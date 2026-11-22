@@ -1,6 +1,6 @@
 //! Shared-plan execution of checked finite ADMG responses and multi-source transport.
 //! Reused numerical factors carry no new uncertainty or causal identification evidence.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{Fields, float_bytes, identity, literal, table_from_columns};
 use super::recalc_receipt::{
     Columns, Counter, DecisionValue, LawValue, NonFinite, RecalcReceipt, RecalcRequestCode,

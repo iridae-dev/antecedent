@@ -23,7 +23,7 @@
 //! Both are diagnostics at a stated level with a Bonferroni split over the tests run; failing
 //! to flag is not proof that the restriction holds, and no calibration is measured here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::likelihood::{CompiledPanel, exposure, observed_response};
 use super::{PanelData, PanelDraw, PanelError, invalid};

@@ -4,7 +4,7 @@
 //! the refusals of what is not a posterior or a predictive law, and the bridge as a
 //! stage of a propagation chain.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,

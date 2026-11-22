@@ -5,7 +5,7 @@
 //!   rational-arithmetic reference (`oracle_data/synthetic_dependence_reference.py`), and is
 //!   refused only where the route cannot carry the interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

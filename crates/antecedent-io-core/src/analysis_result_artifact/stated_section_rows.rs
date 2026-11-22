@@ -8,7 +8,7 @@
 //! the stored query and section for every such diagnostic and refuses a statement the section
 //! does not meet, so a statement is never taken from the producer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AnalysisResultWire, AssociationWire, HistoryMatchWire, IV_BOUNDS_BAYESIAN_METHOD,

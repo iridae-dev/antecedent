@@ -8,7 +8,7 @@
 //! recomputes every stored reading. Every edit below is *resealed* (the stored identity is
 //! recomputed after the edit), so only the replay can refuse it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession, InferenceParadigm,

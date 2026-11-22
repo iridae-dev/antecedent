@@ -1,6 +1,6 @@
 //! Shared absolute comparisons and coded-refusal unpacking for estimate integration tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::EstimationError;
 

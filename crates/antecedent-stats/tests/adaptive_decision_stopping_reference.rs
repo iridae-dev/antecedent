@@ -7,7 +7,7 @@
 //! The posterior probabilities and expected losses that the rules threshold are checked in
 //! `crates/antecedent-estimate/tests/adaptive_decision_stopping_posterior_reference.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

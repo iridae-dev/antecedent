@@ -11,7 +11,7 @@
 //! ladder are those of every other graph-posterior route, so the result says what the
 //! posterior did and did not change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::TableView;
 

@@ -30,7 +30,7 @@
 //! retain their proof step, and reports a budget stop as a resource outcome, not
 //! as impossibility.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
 

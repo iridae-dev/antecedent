@@ -1,7 +1,7 @@
 //! Temporal family lowering: every cell lowers completely, and the program reads
 //! the study's target, estimator, inference and resampling.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

@@ -6,7 +6,7 @@
 //! encoded in the canonical case order, and a sample's draws sorted, so listing
 //! the cases or the draws in another order leaves every digest unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 

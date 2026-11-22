@@ -1,7 +1,7 @@
 //! Fold-aware preprocessing contract. Learned transforms fit inside each
 //! nuisance-training fold.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

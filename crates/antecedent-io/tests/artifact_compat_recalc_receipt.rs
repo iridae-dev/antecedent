@@ -7,7 +7,7 @@
 //! receipt written before they existed is consumed unchanged; a decision whose own digest
 //! moved is an ordinary recomputation, not a refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

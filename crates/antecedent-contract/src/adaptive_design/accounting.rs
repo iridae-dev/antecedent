@@ -7,7 +7,7 @@
 //! repeated use as one ledger result. The ledger then counts each observation
 //! once, and refuses to pool the looks as independent evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::declaration::AdaptiveDesignContract;
 use crate::ExternalRefusal;

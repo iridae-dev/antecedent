@@ -1,5 +1,5 @@
 //! Independent observed-data references and six-variable development studies.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 

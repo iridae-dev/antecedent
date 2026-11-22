@@ -6,7 +6,7 @@
 //! of the posterior-weight implementation. Exact binomial and conjugate oracles
 //! are frozen rational/normal-integral values. Every seed runs original full scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic grid dimensions")]
 #[path = "../../antecedent/tests/common/calibration.rs"]
 mod calibration;

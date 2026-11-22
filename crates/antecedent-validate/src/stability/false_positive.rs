@@ -1,6 +1,6 @@
 //! False-positive checks via permute / phase-randomize surrogates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};

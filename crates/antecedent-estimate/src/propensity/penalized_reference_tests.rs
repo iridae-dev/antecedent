@@ -13,7 +13,7 @@
 //! ridge grid, a lasso with a constant column and a near-collinear pair, a weighted ridge, and a
 //! ridge at a covariate offset of 1000 at scale 50.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde_json::Value;
 

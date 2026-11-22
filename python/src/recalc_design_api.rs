@@ -1,5 +1,5 @@
 //! Checked public adapter for IV, sharp RD and linear front-door recalculation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::NumericColumn;
 use std::collections::BTreeMap;
 

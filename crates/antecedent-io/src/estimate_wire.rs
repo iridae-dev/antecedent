@@ -6,7 +6,7 @@
 //! Older readers that deny unknown fields may refuse records containing the optional
 //! uncertainty and provenance metadata added to this wire.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod refutation;
 

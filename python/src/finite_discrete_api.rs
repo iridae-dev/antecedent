@@ -4,7 +4,7 @@
 //! adjuster `z` and outcome `y`) and weighted posterior draws of the same joint. The exact plan,
 //! the plug-in and posterior cells and every refusal are Rust's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::finite_discrete_contrast;
 use pyo3::prelude::*;

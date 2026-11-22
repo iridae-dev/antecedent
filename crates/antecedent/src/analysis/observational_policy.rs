@@ -17,7 +17,7 @@
 //! standard error is an influence-function standard error whose calibration is **`not_measured`**,
 //! so no interval is produced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

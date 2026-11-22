@@ -11,7 +11,7 @@
 //! its coverage is `not_measured`: the coverage record is the only missing piece. A fixed-seed test of the same construction without a record is
 //! `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

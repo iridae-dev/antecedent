@@ -1,7 +1,7 @@
 //! Original checked IV recalculation: finite-F AR diagnostics and full run accounting.
 //! Independent observed-confounder SCM and finite-F pins; unions are never replaced
 //! with a finite scalar confidence interval. Public standing remains unchanged.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic sample dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;

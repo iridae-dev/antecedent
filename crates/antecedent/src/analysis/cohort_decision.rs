@@ -24,7 +24,7 @@
 //! ([`CovariateShiftDeclaration`]) with every row inside the support contract; the result
 //! is point-only evidence under that assumption, labelled `Extrapolative`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::cohort_decision_input::{
     cohort_decision_input, cohort_forward_claim, cohort_mean_source, cohort_trust_evidence,

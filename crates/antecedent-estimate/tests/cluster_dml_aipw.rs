@@ -6,7 +6,7 @@
 //! Cameron-Gelbach-Miller variance, checked against sums and a closed form written here;
 //! the structures it does not cover stay typed refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

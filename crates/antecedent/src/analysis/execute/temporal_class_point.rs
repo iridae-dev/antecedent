@@ -14,7 +14,7 @@
 //! (enumeration weights are not posterior mass, so the completion posteriors are
 //! not mixed).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::series_weights::refuse_unread_series_weights;
 use super::temporal_path::CrossWorldContrast;

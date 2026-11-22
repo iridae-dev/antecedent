@@ -2,7 +2,7 @@
 //! bound to its target: E-values, omitted-variable bias with robustness values, Rosenbaum
 //! bounds and the mediation correlation curve.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionPool;

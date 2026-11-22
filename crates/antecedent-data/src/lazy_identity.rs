@@ -10,7 +10,7 @@
 //!
 //! This is not another owned snapshot. Callers keep [`OwnedSource`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 

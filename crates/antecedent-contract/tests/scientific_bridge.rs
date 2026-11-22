@@ -17,7 +17,7 @@
 //!   `P(X=1|Z) = 0.2 + 0.6 Z`, `P(Y=1|X,Z) = 0.1 + 0.3 X + 0.4 Z`) whose
 //!   association is `0.54` and whose interventional effect is `0.30`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

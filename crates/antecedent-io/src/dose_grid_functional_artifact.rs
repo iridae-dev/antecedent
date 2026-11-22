@@ -42,7 +42,7 @@
 //! `lag + 1` rows. The weights, cluster ids and lag are bound by the premises and data digests,
 //! and a request that declares none of them keeps the historical format and digests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{IdentityDomain, SupportReport, SupportStatus};
 use antecedent_estimate::EstimationError;

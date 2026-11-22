@@ -20,7 +20,7 @@
 //! which case the standard error is labelled **`not_measured`**. Only the full-population target
 //! has a measurement design; the pairwise subpopulation target is reported `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::{LevelMean, LevelRows, MultiLevelPopulation, MultiLevelTarget};
 

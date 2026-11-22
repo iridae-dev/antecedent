@@ -8,7 +8,7 @@
 //! and evaluates the exact distribution function of the ratio `gamma / pi` of two jointly Normal
 //! coefficients by quadrature. The sorted ratio draws must reproduce that distribution function.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::lagged_instrument::{
     LaggedInstrumentSample, fit_lagged_instrument, fit_lagged_instrument_posterior,

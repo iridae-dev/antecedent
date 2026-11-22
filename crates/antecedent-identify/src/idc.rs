@@ -1,6 +1,6 @@
 //! Shpitser & Pearl (2006) IDC for conditional interventional distributions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

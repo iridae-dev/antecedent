@@ -1,6 +1,6 @@
 //! conformance: batch multi-query shares one table (BACKLOG E).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

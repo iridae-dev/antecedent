@@ -4,7 +4,7 @@
 //! Every helper here is a pure restatement of a fragment that several routes
 //! spelled out inline; none widens or narrows what any route admits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

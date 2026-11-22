@@ -34,7 +34,7 @@
 //! carries no interval: the covariance between the raw and the adjusted estimate is not part of what
 //! an estimate carries, and neither is it assumed zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 #[cfg(test)]

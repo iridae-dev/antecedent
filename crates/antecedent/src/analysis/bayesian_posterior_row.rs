@@ -15,7 +15,7 @@
 //! row; [`BayesianPosteriorRow::consume`] recomputes the posterior from the exported table and
 //! refuses any resealed change of premise, table or value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io::bayesian_posterior_row_artifact::{
     DOSE_GRID_POSTERIOR_ESTIMATOR, DoseGridPosteriorWire, POSTERIOR_ROW_ARTIFACT_FEATURE,

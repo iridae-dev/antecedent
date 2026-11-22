@@ -17,7 +17,7 @@
 //! covariance, source identity and ledger from the retained observations alone and compares
 //! each with the cached value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

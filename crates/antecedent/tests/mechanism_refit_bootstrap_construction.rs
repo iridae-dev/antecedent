@@ -18,7 +18,7 @@
 //! leaves five orders of margin without admitting any construction difference, which would move the
 //! standard error at the 10^-3 relative level or more.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

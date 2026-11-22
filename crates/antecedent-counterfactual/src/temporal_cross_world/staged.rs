@@ -9,7 +9,7 @@
 //! changed snapshot, graph, fit coefficient or factual value is a different
 //! key and abduces again. Results are bit-identical to the one-shot function.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

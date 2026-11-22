@@ -9,7 +9,7 @@
 //! active level and the homoskedastic standard error, under large offsets, nearly collinear lags
 //! and a tiny sample.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

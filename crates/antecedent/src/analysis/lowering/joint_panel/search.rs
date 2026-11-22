@@ -1,7 +1,7 @@
 //! Lower a program search over a fitted joint panel response, or a held-out selection among
 //! randomized or instrumented candidate programs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

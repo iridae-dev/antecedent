@@ -19,7 +19,7 @@
 //! drawn given the others at the same step and every variable at the neighbouring steps, with
 //! the parameter draw resampling contiguous blocks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

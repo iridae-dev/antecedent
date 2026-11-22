@@ -36,7 +36,7 @@
 //! steps); the bounds coincide for a single step. A point value would need the joint
 //! multivariate-t probability of an orthant, which is not computed here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use antecedent_stats::invert_square;

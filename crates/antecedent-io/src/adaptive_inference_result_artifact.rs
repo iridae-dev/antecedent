@@ -24,7 +24,7 @@
 //! `not_supported`), and no claim that the result transfers to another
 //! assignment policy, outcome structure, monitoring strategy or stopping rule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, BoundarySidedness, InferenceParadigm, SpendingKind, StoppingSpec,

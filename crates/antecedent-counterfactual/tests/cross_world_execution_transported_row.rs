@@ -9,7 +9,7 @@
 //! abduction row), and checks the executor's use of the row: a target population other than
 //! the declared one refuses before any work, while the declared population itself executes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

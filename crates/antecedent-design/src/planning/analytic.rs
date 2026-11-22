@@ -1,7 +1,7 @@
 //! Analytic operating characteristics of each planned design, and the solves
 //! in both directions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;

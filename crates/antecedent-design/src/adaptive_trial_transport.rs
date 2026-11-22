@@ -57,7 +57,7 @@
 //! `diagram_binding_mismatch`); an outcome mechanism that the new data no
 //! longer supports as invariant must be re-declared, never inherited.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, InferenceParadigm,

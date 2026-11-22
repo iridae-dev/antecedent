@@ -22,7 +22,7 @@
 //! different construction (a population variance, a Student-t quantile, an unweighted mean)
 //! moves a limit by at least `1e-2`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 use antecedent_core::ExecutionContext;

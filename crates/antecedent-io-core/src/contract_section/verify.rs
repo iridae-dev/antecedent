@@ -1,6 +1,6 @@
 //! Contract verification against an analysis-result body.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::consume::{
     claim_domains_of_section, claim_id_matches, claim_kind_name_of_section,

@@ -10,7 +10,7 @@
 //! all agree. Every defect is reported, each as a coded refusal with the
 //! declaration that would support the connection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

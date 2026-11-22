@@ -10,7 +10,7 @@
 //! * The linear target's composed power-path prior scores equal the oracle's direct
 //!   multivariate normal (known σ²) and multivariate t (Inv-Gamma σ²) log densities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

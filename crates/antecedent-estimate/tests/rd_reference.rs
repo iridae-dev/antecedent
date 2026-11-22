@@ -7,7 +7,7 @@
 //! on both window edges, rows outside the window with extreme outcomes, unequal sides,
 //! heteroskedastic noise, a cutoff of 2^20 and a saturated window.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

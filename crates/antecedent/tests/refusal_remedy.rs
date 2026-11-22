@@ -2,7 +2,7 @@
 //! frequentist conditional effect over several modifiers is fitted as the vector interaction
 //! model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

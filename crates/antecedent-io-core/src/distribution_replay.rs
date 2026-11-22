@@ -1,6 +1,6 @@
 //! Detached finite-discrete replay for checked functional artifacts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{RegimeId, Value, VariableId};
 use antecedent_expr::{

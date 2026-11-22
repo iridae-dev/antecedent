@@ -68,7 +68,7 @@
 //! (`sampling interval: not reported`). A requested sampling composition refuses with
 //! `msm_sensitivity.composition_not_supported`. Calibration is `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 

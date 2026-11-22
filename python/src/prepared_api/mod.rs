@@ -3,7 +3,7 @@
 //! The Python class is [`PyPreparedAnalysis`] (`PreparedAnalysis`). Method names
 //! registered with PyO3 are the Rust function names in the sibling modules.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

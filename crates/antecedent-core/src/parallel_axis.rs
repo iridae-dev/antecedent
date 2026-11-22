@@ -3,7 +3,7 @@
 //! Worker ceilings live on [`crate::AdmissionPool`]. This module names the axis
 //! and does not reserve workers, spawn threads, or keep a second cap.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

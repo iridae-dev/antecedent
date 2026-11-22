@@ -18,7 +18,7 @@
 //! nothing (its work depends on the worlds and the quantity) and records its plan
 //! in [`FiniteExecutionResult::elimination`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

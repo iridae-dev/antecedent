@@ -12,7 +12,7 @@
 //! world. A path-specific effect, the natural direct effect and the natural
 //! indirect effect are all special cases; none needs a separate query type.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::error::QueryError;
 use super::fault::InterventionFault;

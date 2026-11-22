@@ -7,7 +7,7 @@
 //! mean of the contrast score `phi_r` and `S_g = sum_{r in g} a_r (phi_r - theta)`, the claim's
 //! variance is `G/(G-1) sum_g S_g^2` and two claims' covariance is `G/(G-1) sum_g S_gk S_gl`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

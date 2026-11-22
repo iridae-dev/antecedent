@@ -2,7 +2,7 @@
 //! mediation atoms fitted on one series (graph-posterior atoms, each with its
 //! own horizon-specific adjustment set).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     ContrastFit, EstimationError, ExecutionContext, IdentifiedEstimand, LaggedColumn,

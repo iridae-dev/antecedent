@@ -1,7 +1,7 @@
 //! The streaming summaries are bounded end to end: the bytes an append holds above its
 //! start do not grow with the number of rows streamed through it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::unwrap_used,

@@ -30,7 +30,7 @@
 //! bootstrap interval; it never looks at the published credible interval, so it
 //! cannot detect a credible interval that is too narrow or too wide.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// RNG stream base for the aligned-row block replicates.
 const BOOTSTRAP_REFUTE_STREAM: u64 = crate::streams::BOOTSTRAP_REFUTE;

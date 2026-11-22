@@ -9,7 +9,7 @@
 //! enumerated binomial mixture of a two-unit fixed allocation, and the
 //! martingale property of the adaptively weighted score.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_inference::AdaptiveInferenceRefusal;
 use antecedent::analysis::adaptive_procedure_report::{

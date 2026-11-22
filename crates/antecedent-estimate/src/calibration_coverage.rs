@@ -32,7 +32,7 @@
 //! the one `CoverageTally::for_record` emission path), which prints the
 //! `calibration-record` line `scripts/collect_coverage_records.py` collects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,
