@@ -423,10 +423,18 @@ def test_incomplete_cpdag_counterfactual_publishes_the_set_of_its_members(accept
 
 @pytest.mark.parametrize("refute", ["cheap", "full"])
 def test_a_pag_counterfactual_under_validation_keeps_its_refusal(refute):
-    """The matrix refuses this cell with a documented reason; the route keeps that refusal."""
+    """The matrix refuses this cell with a documented reason; the route keeps that refusal.
+
+    The refusal passes the support gate, as in Rust: a release build refuses the study with
+    `not_supported` and the documented reason, and a development build runs it, binds the
+    not-supported coordinate and lists the same refusal among the result's would-refuse
+    entries.
+    """
     _, data, graph, query, _ = _cross_world_case("pag_counterfactual")
-    with pytest.raises(CausalError, match="not_supported") as caught:
-        ant.prepare(
+    reason = "placebo treatment permutes the treatment"
+
+    def prepared():
+        return ant.prepare(
             data,
             graph=graph,
             query=query,
@@ -434,7 +442,22 @@ def test_a_pag_counterfactual_under_validation_keeps_its_refusal(refute):
             inference=_FREQUENTIST,
             execution=ant.Execution(seed=5),
         )
-    assert "placebo treatment permutes the treatment" in str(caught.value)
+
+    if ant.build_flavor() == "release":
+        with pytest.raises(CausalError, match="not_supported") as caught:
+            prepared()
+        assert reason in str(caught.value)
+        return
+    study = prepared()
+    support = study.inspect().support.payload
+    assert support["matrix_coordinate"] == f"Counterfactual:Pag:explicit:Frequentist:{refute}"
+    assert support["matrix_status"] == "not_supported"
+    result = require_success(study.estimate())
+    assert result.evidence_status == "not_supported"
+    assert any(
+        entry["code"] == "not_supported" and reason in entry["detail"]
+        for entry in result.would_refuse
+    ), result.would_refuse
 
 
 # -- mediation ------------------------------------------------------------------------------
