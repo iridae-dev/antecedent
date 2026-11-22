@@ -289,7 +289,8 @@ jobs:
       - name: Published crates resolve without the development feature
         run: |
           set -euo pipefail
-          if cargo tree -e features -p antecedent -p antecedent-py | grep -q development; then
+          cargo tree -e features -p antecedent -p antecedent-py > "$RUNNER_TEMP/release-features.txt"
+          if grep -q development "$RUNNER_TEMP/release-features.txt"; then
             echo "::error::the development feature is enabled in a release resolution"
             exit 1
           fi
@@ -331,7 +332,8 @@ jobs:
       - name: Published crates resolve without the development feature
         run: |
           set -euo pipefail
-          if cargo tree -e features -p antecedent -p antecedent-py | grep -q development; then
+          cargo tree -e features -p antecedent -p antecedent-py > "$RUNNER_TEMP/release-features.txt"
+          if grep -q development "$RUNNER_TEMP/release-features.txt"; then
             echo "::error::the development feature is enabled in a release resolution"
             exit 1
           fi

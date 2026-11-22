@@ -115,7 +115,9 @@ class PublishVersionTests(unittest.TestCase):
     def test_current_internal_version_packages_in_dependency_order(self) -> None:
         result = self.run_gate(f"^{VERSION}")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("packaged=2 check-only=0", result.stdout)
+        self.assertIn("--dry-run --allow-dirty -p antecedent-core -p antecedent-consumer", result.stdout)
+        self.assertEqual(result.stdout.count("TEST_PACKAGE_VERIFIED"), 1)
+        self.assertIn("2 crate packages verified", result.stdout)
         self.assertLess(
             result.stdout.index("-p antecedent-core"),
             result.stdout.index("-p antecedent-consumer"),
@@ -151,7 +153,7 @@ class PublishVersionTests(unittest.TestCase):
     def test_path_only_self_dev_dependency_is_omitted_and_allowed(self) -> None:
         result = self.run_gate("*", "dev", self_dependency=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("packaged=2 check-only=0", result.stdout)
+        self.assertIn("2 crate packages verified", result.stdout)
 
     def test_versioned_private_dev_dependency_refuses_before_packaging(self) -> None:
         result = self.run_gate(f"^{VERSION}", "dev", private_dependency=True)
@@ -170,7 +172,7 @@ class PublishVersionTests(unittest.TestCase):
     def test_path_only_private_dev_dependency_is_omitted_and_allowed(self) -> None:
         result = self.run_gate("*", "dev", private_dependency=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("packaged=1 check-only=0", result.stdout)
+        self.assertIn("1 crate packages verified", result.stdout)
         self.assertNotIn("-p antecedent-core", result.stdout)
 
     def test_wildcard_private_dev_dependency_is_still_versioned(self) -> None:

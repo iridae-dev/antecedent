@@ -771,9 +771,8 @@ Before merging the release PR:
    records on a development machine (`bash scripts/test.sh`) and commit them first.
 4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
-5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
-   `cargo check` for unpublished workspace dependencies: that is not a completed
-   package verification for those crates.
+5. Run `bash scripts/publish_crates.sh --dry-run`. Cargo verifies the packaged
+   crate graph together, including dependencies introduced by this release.
 6. Build wheel and source-distribution artifacts and test installation outside
    the checkout, without an editable install. Verify the supported OS/Python wheel
    matrix before publishing; one local extension build covers only that environment.
