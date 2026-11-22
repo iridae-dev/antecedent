@@ -1934,6 +1934,7 @@ class PreparedAnalysis:
         scale: str = "identity",
         weighting: str = "observed",
         response_options: dict[str, Any] | None = None,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2529,6 +2530,25 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_graph_posterior_derivative(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: Any,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        response_options: dict[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_graph_posterior_intervention_response(
         names: list[str],
         columns: Sequence[Any],
@@ -2587,6 +2607,7 @@ class PreparedAnalysis:
         path_nodes: list[str] | None = None,
         max_paths: int = 64,
         max_len: int = 16,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2625,6 +2646,7 @@ class PreparedAnalysis:
         extra_outcomes: list[str] = ...,
         joint_active: list[tuple[str, float]] = ...,
         joint_control: list[tuple[str, float]] = ...,
+        graph: Any = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

@@ -140,13 +140,13 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for a mediation, path-restricted effect, natural direct effect,
-    /// interventional distribution or anomaly / change attribution over a graph posterior.
+    /// Compile once for a mediation, counterfactual, path-restricted effect, natural direct
+    /// effect, interventional distribution or anomaly / change attribution over a graph posterior.
     ///
-    /// `kind` is `mediation`, `nested_counterfactual`, `path_specific`, `distribution`,
-    /// `anomaly_attribution` or `change_attribution`; the other arguments are read by the kind
-    /// that names them. Every posterior atom is answered by the explicit executor of its own
-    /// structure and the atoms are mixed by posterior probability.
+    /// `kind` is `mediation`, `counterfactual`, `nested_counterfactual`, `path_specific`,
+    /// `distribution`, `anomaly_attribution` or `change_attribution`; the other arguments are read
+    /// by the kind that names them. Every posterior atom is answered by the explicit executor of
+    /// its own structure and the atoms are mixed by posterior probability.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -234,6 +234,19 @@ impl PyPreparedAnalysis {
                         q.target_population = population;
                     }
                     query
+                }
+                "counterfactual" => {
+                    req.refuse_population("a counterfactual unit-effect query")?;
+                    static_kind_query(
+                        data.schema(),
+                        &kind,
+                        &need(&treatment, "treatment")?,
+                        &need(&outcome, "outcome")?,
+                        &mediators,
+                        &contrast,
+                        control_level,
+                        active_level,
+                    )?
                 }
                 "path_specific" => {
                     crate::bridge::check_paths(max_paths, max_len)?;
@@ -446,6 +459,70 @@ impl PyPreparedAnalysis {
                     },
                     &req.opts,
                 );
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
+            })
+        })
+    }
+
+    /// Compile once for a static derivative over a graph posterior.
+    ///
+    /// Every posterior atom (a DAG, CPDAG, PAG, ADMG, or a temporal ADMG read as its
+    /// contemporaneous projection) is answered by the executor the derivative has on a supplied
+    /// structure of its kind, and the atoms are mixed by posterior probability.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        kind,
+        treatments,
+        outcomes,
+        *,
+        at=None,
+        direction=None,
+        order=1,
+        scale="identity",
+        weighting="observed",
+        response_options=None,
+        posterior=None,
+        seed=1,
+        threads=None,
+        options=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_derivative(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        at: Option<Vec<f64>>,
+        direction: Option<Vec<f64>>,
+        order: u8,
+        scale: &str,
+        weighting: &str,
+        response_options: Option<Bound<'_, PyDict>>,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+        seed: u64,
+        threads: Option<u32>,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let response_options = parse_response_options(response_options.as_ref())?;
+            let scale = crate::response_api::parse_scale(scale)?;
+            let weighting = crate::response_api::parse_weighting(weighting)?;
+            let supplied = take_supplied_posterior(posterior, &req)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
+                let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+                let functional = build_functional(
+                    &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
+                )?;
+                let query = response_query(functional, &req.opts);
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)

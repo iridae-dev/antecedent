@@ -262,7 +262,7 @@ impl PyPreparedAnalysis {
             let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
             let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
             let graph = StaticClassGraph::extract(&graph, &req.names)?;
-            if matches!(graph, StaticClassGraph::Admg(_)) {
+            if matches!(graph, StaticClassGraph::Admg(_) | StaticClassGraph::TemporalAdmg(_)) {
                 req.refuse_prior("an ADMG general-ID average effect")?;
             }
             let data = req.load_columns(py, columns)?;
@@ -458,10 +458,13 @@ impl PyPreparedAnalysis {
     }
 
     /// Static mediation and counterfactuals retain the same staged result axes.
+    ///
+    /// `graph` binds a supplied or accepted PAG, CPDAG, ADMG or temporal ADMG in place of the
+    /// DAG `edges`; the compiler then runs the query's class executor on that structure.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
         contrast="mediated", control_level=0.0, active_level=1.0, extra_outcomes=Vec::new(),
-        joint_active=Vec::new(), joint_control=Vec::new(), accepted=false, seed=1,
+        joint_active=Vec::new(), joint_control=Vec::new(), graph=None, accepted=false, seed=1,
         threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_kind(
@@ -479,6 +482,7 @@ impl PyPreparedAnalysis {
         extra_outcomes: Vec<String>,
         joint_active: Vec<(String, f64)>,
         joint_control: Vec<(String, f64)>,
+        graph: Option<Bound<'_, PyAny>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -489,6 +493,7 @@ impl PyPreparedAnalysis {
             if kind == "counterfactual" || kind == "nested_counterfactual" {
                 req.refuse_prior("a counterfactual query")?;
             }
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
             let data = req.load_columns(py, columns)?;
             let mut query = static_kind_query(
                 data.schema(),
@@ -524,21 +529,26 @@ impl PyPreparedAnalysis {
                 req.refuse_population("a counterfactual unit-effect query")?;
             }
             req.off_gil(py, move |req| {
-                let dag = dag_from_named_edges(data.schema(), &edges)?;
-                let builder = req.opts.apply(
+                let builder = if let Some(class) = class {
+                    class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
                     with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                        .query(query),
-                );
+                };
+                let builder = req.opts.apply(builder.query(query));
                 req.finish(builder, false)
             })
         })
     }
 
     /// Freeze identification for a complete-data static derivative.
+    ///
+    /// `graph` binds a supplied or accepted PAG, CPDAG, ADMG or temporal ADMG in place of the
+    /// DAG `edges`; the compiler then runs the derivative's class executor on that structure.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
         direction=None, order=1, scale="identity", weighting="observed", response_options=None,
-        accepted=false, seed=1, threads=None, options=None))]
+        graph=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_derivative(
         py: Python<'_>,
@@ -554,6 +564,7 @@ impl PyPreparedAnalysis {
         scale: &str,
         weighting: &str,
         response_options: Option<Bound<'_, PyDict>>,
+        graph: Option<Bound<'_, PyAny>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -563,6 +574,7 @@ impl PyPreparedAnalysis {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             req.refuse_prior("a response derivative")?;
             let response_options = parse_response_options(response_options.as_ref())?;
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
             let data = req.load_columns(py, columns)?;
             let scale = crate::response_api::parse_scale(scale)?;
             let weighting = crate::response_api::parse_weighting(weighting)?;
@@ -572,10 +584,14 @@ impl PyPreparedAnalysis {
                 let functional = build_functional(
                     &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
                 )?;
-                let dag = dag_from_named_edges(data.schema(), &edges)?;
-                let builder = with_response_options(
+                let builder = if let Some(class) = class {
+                    class.bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
                     with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                        .query(response_query(functional, &req.opts)),
+                };
+                let builder = with_response_options(
+                    builder.query(response_query(functional, &req.opts)),
                     response_options,
                 );
                 req.finish_applied(builder, false)

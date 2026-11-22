@@ -11,25 +11,39 @@ from typing import Any
 
 from .discovery import cpdag_oriented_edges
 from .errors import CausalUnsupportedError, CausalValueError
-from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+from .graph import (
+    Admg,
+    Cpdag,
+    Dag,
+    Pag,
+    TemporalAdmg,
+    TemporalCpdag,
+    TemporalDag,
+    TemporalPag,
+)
 from .ids import Estimator
 
 
 def _static_edges(
     graph: Dag | Cpdag | Sequence[tuple[str, str]] | None,
 ) -> list[tuple[str, str]]:
+    """The directed edges of the explicit DAG a DAG-only route reads.
+
+    Routes with a class executor (the derivatives, mediation, counterfactuals, path-specific
+    effects and interventional distributions, and the class-aware averages and responses) bind
+    a ``Cpdag``, ``Pag``, ``Admg`` or ``TemporalAdmg`` as itself and never call this.
+    """
     if graph is None:
         raise CausalValueError("graph= is required")
     if isinstance(graph, Dag):
         return [(str(a), str(b)) for a, b in graph.edges()]
-    if isinstance(graph, (Pag, TemporalDag, TemporalCpdag, TemporalPag, Admg)):
+    if isinstance(graph, (Pag, TemporalDag, TemporalCpdag, TemporalPag, Admg, TemporalAdmg)):
         raise CausalValueError(
             f"this query reads a fully oriented static Dag; got {type(graph).__name__}"
         )
     if isinstance(graph, Cpdag):
-        # Compatibility normalization for fixed-DAG query families: a fully
-        # oriented CPDAG has a unique DAG and reports that Dag coordinate.
-        # Incomplete CPDAGs refuse; this does not support class execution.
+        # A DAG-only route reads a fully oriented CPDAG as its unique DAG and reports that Dag
+        # coordinate; an incomplete CPDAG refuses.
         return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]
 
