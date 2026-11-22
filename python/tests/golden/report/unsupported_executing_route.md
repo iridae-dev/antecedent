@@ -18,14 +18,14 @@
 
 ## Claim
 
-- **Claim id:** 0bda3b38b5bc8149f7295f2d5a24a624ce069f6ab241a61df6deba2854821cfc
+- **Claim id:** 1f65cc3cac7649857f29b5a91a9e4b4daa6d00a417344cd5012f42e4e2ff9179
 - **Kind:** point
 - **Value:** none
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
 - **Evaluated domain:** evaluated
-- **Execution:** fb7d8135d46ba6334e2aaaa1703fac1cab6c6f56938d89a6456adff96ff34305
+- **Execution:** 8d82d64747e3dabdcfde837d1f494fe37b8b06c7b06c9fcffb309a54be7e76fc
 
 ## Identification
 
@@ -239,11 +239,11 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **memory.components\[5\].component:** retained\_scores\_draws
 - **memory.components\[6\].bytes:** 104
 - **memory.components\[6\].component:** output
-- **memory.components\[7\].bytes:** 3744
+- **memory.components\[7\].bytes:** 0
 - **memory.components\[7\].component:** concurrent\_workers
 - **memory.learner\_fold\_copies:** 0
-- **memory.total:** 4510
-- **memory.workers:** 10
+- **memory.total:** 766
+- **memory.workers:** 1
 - **operators\[0\].capability:** cpu
 - **operators\[0\].designs:** 0
 - **operators\[0\].device\_work:** no

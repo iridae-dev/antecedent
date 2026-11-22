@@ -18,14 +18,14 @@
 
 ## Claim
 
-- **Claim id:** d1803f71b503e931964618b9d564dee96c24443b348f2dd6b4d25ddeb43adc9b
+- **Claim id:** 93c5d53e85fa62c0598160f2cf326e701a7b448f857d389203b017ff32317a68
 - **Kind:** point
 - **Value:** 0.8976448135
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
 - **Evaluated domain:** evaluated
-- **Execution:** 353dfc4b77ff829d10972f7ae5a9e244b9e6212e7bb7d850e56735ad30f51adb
+- **Execution:** c5cdca58ac09e97a714ea6773694ab770deb26e67028b04058f4cc1761d5527d
 
 ## Identification
 
@@ -250,11 +250,11 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **memory.components\[5\].component:** retained\_scores\_draws
 - **memory.components\[6\].bytes:** 4808
 - **memory.components\[6\].component:** output
-- **memory.components\[7\].bytes:** 86832
+- **memory.components\[7\].bytes:** 0
 - **memory.components\[7\].component:** concurrent\_workers
 - **memory.learner\_fold\_copies:** 0
-- **memory.total:** 109380
-- **memory.workers:** 10
+- **memory.total:** 22548
+- **memory.workers:** 1
 - **operators\[0\].capability:** cpu
 - **operators\[0\].designs:** 1
 - **operators\[0\].device\_work:** no
@@ -269,7 +269,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **operators\[1\].effect:** fit
 - **operators\[1\].output\_bytes:** 8
 - **operators\[1\].retained\_bytes:** 6400
-- **operators\[1\].scratch\_bytes:** 96480
+- **operators\[1\].scratch\_bytes:** 9648
 - **operators\[1\].sources:** 1
 - **operators\[2\].capability:** cpu
 - **operators\[2\].designs:** 1
@@ -297,7 +297,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **operators\[4\].sources:** 1
 - **output\_bytes:** 6408
 - **retained\_bytes:** 6400
-- **scratch\_bytes:** 122080
+- **scratch\_bytes:** 35248
 
 ## Identities
 

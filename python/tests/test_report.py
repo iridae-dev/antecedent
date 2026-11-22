@@ -27,6 +27,9 @@ from antecedent.policy import ConditionalDoseResponse
 
 GOLDEN = Path(__file__).parent / "golden" / "report"
 REGENERATE = "ANTECEDENT_REGENERATE_REPORTS"
+# The execution identity records the thread budget, so a fixed budget keeps the golden
+# claim and execution ids the same on every machine.
+THREADS = 1
 
 _SECTIONS = [
     "Summary",
@@ -59,7 +62,7 @@ def _supported_outcome():
         query=ant.AverageEffect("t", "y"),
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
-        execution=ant.Execution(seed=3),
+        execution=ant.Execution(seed=3, threads=THREADS),
     )
     return ant.estimate(prepared)
 
@@ -75,7 +78,7 @@ def _bayesian():
         query=ant.AverageEffect("t", "y"),
         inference=ant.Bayesian(backend="conjugate", n_draws=64, prior_scale=30.0),
         refute="none",
-        execution=ant.Execution(seed=3),
+        execution=ant.Execution(seed=3, threads=THREADS),
     )
     return ant.estimate(prepared).study
 
@@ -108,6 +111,7 @@ def _unsupported():
             bandwidth=0.6,
             density_provenance="known",
         ),
+        execution=ant.Execution(threads=THREADS),
     )
     return ant.estimate(prepared).study
 
@@ -131,7 +135,7 @@ def _temporal():
             active_level=1.0,
         ),
         refute=False,
-        execution=ant.Execution(seed=7),
+        execution=ant.Execution(seed=7, threads=THREADS),
     )
     return ant.estimate(prepared).study
 
@@ -202,7 +206,7 @@ def test_report_before_an_estimate_reads_the_contract_and_executes_nothing() -> 
         query=ant.AverageEffect("t", "y"),
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
-        execution=ant.Execution(seed=3),
+        execution=ant.Execution(seed=3, threads=THREADS),
     )
     markdown = prepared.report("markdown")
     assert prepared.inspect().stage == "prepared", "a report executes nothing"
@@ -258,7 +262,7 @@ def test_html_is_inert_and_escapes_every_value() -> None:
         query=ant.AverageEffect(hostile[0], hostile[1]),
         refute="none",
         inference=ant.Frequentist(bootstrap=0),
-        execution=ant.Execution(seed=3),
+        execution=ant.Execution(seed=3, threads=THREADS),
     )
     prepared = ant.estimate(prepared).study
 
