@@ -1705,7 +1705,7 @@ def main(argv: list[str]) -> int:
         ledger.set_classification(owed, current)
         if not record_status and "--write-current" in argv:
             destination = Path(argv[argv.index("--write-current") + 1])
-            destination.write_text(json.dumps([(r["evidence_test"], r["evidence_assertion"]) for r in current]))
+            destination.write_text(json.dumps([(r["evidence_test"], r["evidence_assertion"]) for r in current]), encoding="utf-8")
     status = count_main(report, evidence_only, ledger) or record_status
     found = structure_problems()
     for problem in found:

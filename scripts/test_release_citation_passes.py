@@ -33,10 +33,10 @@ class ReleaseCitationPassesTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "claim"
-            path.write_text("initial")
+            path.write_text("initial", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "changed during verification"), verified_source_snapshot():
-                self.assertEqual(source_cache(Path.read_text)(path), "initial")
-                path.write_text("changed")
+                self.assertEqual(source_cache(Path.read_text)(path, encoding="utf-8"), "initial")
+                path.write_text("changed", encoding="utf-8")
 
     def test_listing_removes_ignored_tests_and_bulk_collection_preserves_file_identity(self):
         def process(stdout):
@@ -48,7 +48,7 @@ class ReleaseCitationPassesTest(unittest.TestCase):
             self.assertEqual(evidence.ReleasePasses.runnable_names("test-binary"), {"runs"})
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
-            (directory / "current.json").write_text("[]")
+            (directory / "current.json").write_text("[]", encoding="utf-8")
             passes = evidence.ReleasePasses(directory)
         with patch.object(evidence.subprocess, "run", return_value=process(
             "tests/test_one.py::TestGroup::test_case[1]\ntests/test_two.py::test_second\n"
@@ -61,12 +61,12 @@ class ReleaseCitationPassesTest(unittest.TestCase):
     def test_only_the_exact_passing_binary_and_module_can_supply_a_citation(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
-            (directory / "current.json").write_text(json.dumps([["python/tests/science.py", "truth"]]))
+            (directory / "current.json").write_text(json.dumps([["python/tests/science.py", "truth"]]), encoding="utf-8")
             (directory / "rust-1.xml").write_text(
                 '<testsuites><testsuite name="pkg::suite">'
                 '<testcase name="mod::works"/><testcase name="mod::ignored"><skipped/></testcase>'
                 '<testcase name="mod::failed"><failure/></testcase>'
-                '<testcase name="other::absent"/></testsuite></testsuites>'
+                '<testcase name="other::absent"/></testsuite></testsuites>', encoding="utf-8"
             )
             passes = evidence.ReleasePasses(directory)
         rust = evidence.ROOT / "some.rs"

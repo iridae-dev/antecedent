@@ -547,10 +547,10 @@ class ReleasePasses:
     """Exact assertions proved executable by the candidate's successful prerequisite lanes."""
 
     def __init__(self, directory: Path) -> None:
-        self.scientific = {tuple(row) for row in json.loads((directory / "current.json").read_text())}
+        self.scientific = {tuple(row) for row in json.loads((directory / "current.json").read_text(encoding="utf-8"))}
         self.binaries: dict[str, list[str]] = {}
         for metadata in sorted(directory.glob("binaries-*.json")):
-            for binary, row in json.loads(metadata.read_text())["rust-binaries"].items():
+            for binary, row in json.loads(metadata.read_text(encoding="utf-8"))["rust-binaries"].items():
                 self.binaries.setdefault(binary, []).append(row["binary-path"])
         self.listed: dict[str, set[str]] = {}
         self.engineering = set()
