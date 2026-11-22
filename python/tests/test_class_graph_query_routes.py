@@ -428,27 +428,28 @@ def test_a_pag_counterfactual_under_validation_keeps_its_refusal(refute):
     The refusal passes the support gate, as in Rust: a release build refuses the study with
     `not_supported` and the documented reason, and a development build runs it, binds the
     not-supported coordinate and lists the same refusal among the result's would-refuse
-    entries.
+    entries. `prepare` returns a scientific refusal as a refused preparation rather than
+    raising it; estimating that preparation returns the refusal, which `require_success`
+    raises.
     """
     _, data, graph, query, _ = _cross_world_case("pag_counterfactual")
     reason = "placebo treatment permutes the treatment"
-
-    def prepared():
-        return ant.prepare(
-            data,
-            graph=graph,
-            query=query,
-            refute=refute,
-            inference=_FREQUENTIST,
-            execution=ant.Execution(seed=5),
-        )
-
+    study = ant.prepare(
+        data,
+        graph=graph,
+        query=query,
+        refute=refute,
+        inference=_FREQUENTIST,
+        execution=ant.Execution(seed=5),
+    )
     if ant.build_flavor() == "release":
+        assert study.refusal is not None
+        assert study.refusal.code == "not_supported"
         with pytest.raises(CausalError, match="not_supported") as caught:
-            prepared()
+            require_success(study.estimate())
         assert reason in str(caught.value)
         return
-    study = prepared()
+    assert study.refusal is None
     support = study.inspect().support.payload
     assert support["matrix_coordinate"] == f"Counterfactual:Pag:explicit:Frequentist:{refute}"
     assert support["matrix_status"] == "not_supported"
