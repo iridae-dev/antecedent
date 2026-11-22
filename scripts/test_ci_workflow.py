@@ -10,6 +10,7 @@ from pathlib import Path
 from _repo import REPO_ROOT, ensure_scripts_on_path
 
 ensure_scripts_on_path()
+import check_dco  # noqa: E402
 import ci_workflow as ci  # noqa: E402
 
 HEAD = "a" * 40
@@ -23,6 +24,38 @@ jobs:
   gates:
     name: Domain gates
 """
+
+
+class DcoRemediationTest(unittest.TestCase):
+    def test_only_original_author_can_remediate_an_exact_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+            def commit(email: str, message: str) -> str:
+                git("-c", "user.name=Contributor", "-c", f"user.email={email}",
+                    "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false",
+                    "commit", "--allow-empty", "-qm", message)
+                return git("rev-parse", "HEAD")
+
+            git("init", "-q")
+            base = commit("original@example.org", "Base")
+            target = commit("original@example.org", "Original change")
+            other = commit("original@example.org", "Another change")
+            revision = f"{base}..HEAD"
+
+            def certify(author: str, signer: str, sha: str) -> None:
+                commit(author, f"Certify contribution\n\nDCO-remediation: {sha}\n"
+                       f"Signed-off-by: Contributor <{signer}>")
+
+            certify("other@example.org", "other@example.org", target)
+            certify("original@example.org", "other@example.org", target)
+            certify("original@example.org", "original@example.org", target[:12])
+            self.assertEqual(set(check_dco.check_range(revision, root)[1]), {target, other})
+            certify("original@example.org", "original@example.org", target)
+            self.assertEqual(check_dco.check_range(revision, root)[1], [other])
 
 
 class CiAttestationTest(unittest.TestCase):

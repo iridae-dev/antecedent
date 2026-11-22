@@ -53,14 +53,7 @@ jobs:
           # to --no-merges, so the ephemeral merge itself got DCO-checked.
           git fetch --unshallow origin "$BASE_REF" 2>/dev/null \
             || git fetch origin "$BASE_REF"
-          RANGE="origin/${BASE_REF}..HEAD"
-          while IFS= read -r commit; do
-            if ! git log -1 --format=%B "$commit" | grep -qE '^Signed-off-by: .+ <.+@.+>$'; then
-              echo "Missing DCO on $commit"
-              git log -1 --format=%B "$commit"
-              exit 1
-            fi
-          done < <(git rev-list --no-merges "$RANGE")
+          python3 scripts/check_dco.py "origin/${BASE_REF}..HEAD"
 
       - name: Install Rust 1.97
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below

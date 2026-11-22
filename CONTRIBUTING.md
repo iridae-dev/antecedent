@@ -25,8 +25,14 @@ Signed-off-by: Your Name <your.email@example.com>
 Use `git commit -s` (or add the trailer manually). The trailer certifies the
 statements in [DCO](DCO). A CLA is not required.
 
-CI rejects a pull request in which any non-merge commit lacks a valid `Signed-off-by` line. To
-refuse such a commit locally, install the repository's commit-message hook:
+If you omitted a sign-off, you can certify your earlier commits in one follow-up
+commit. Add one `DCO-remediation: <full commit hash>` trailer per original
+commit and your usual `Signed-off-by` trailer. The author email of the follow-up
+commit and its sign-off email must both match the original author's email.
+Make the follow-up part of the same pull request. CI checks every non-merge
+commit in the PR range.
+
+To catch a missing sign-off locally, install the commit-message hook:
 
 ```bash
 git config core.hooksPath scripts/githooks
