@@ -4532,7 +4532,7 @@ commit = "1df8dceef57c220b45ecc588730b23659ddfd302"
 dirty = false
 fingerprint = "8ac3074dbf3aba54233a492b74c13a0f49e9c4093a55f01a4d51fe9c64350a1c"
 recorded_at = "2026-11-21T08:35:02Z"
-dependency_manifest = "c7a9a7ef4f7d8bc034296c78eb0464b3e03944313292a87403282e79f784e945"
+dependency_manifest = "8625ff6bdf45be2eec8fc829f0889af952f602b6fef22bcb2bd3a8d0f00d9380"
 
 [[record]]
 test = "antecedent-stats::adaptive_inference_oracle::confidence_sequence_radius_matches_the_closed_form"
