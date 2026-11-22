@@ -57,6 +57,11 @@ finish_step() {
   fi
   cat "$step_logs/$id"
 }
+start_readers() {
+  step_logs="$(mktemp -d)"
+  trap 'rm -rf "$step_logs"' EXIT
+  parallel_steps="$1"
+}
 finish_readers() {
   local id
   for id in "${active_steps[@]}"; do finish_step "$id"; done
@@ -103,9 +108,7 @@ check_records() {
 # ---------------------------------------------------------------------------------------
 if wanted static || wanted ci-static; then
 section_start static
-step_logs="$(mktemp -d)"
-trap 'rm -rf "$step_logs"' EXIT
-parallel_steps="${ANTECEDENT_STATIC_JOBS:-3}"
+start_readers "${ANTECEDENT_STATIC_JOBS:-3}"
 case "$parallel_steps" in 1|2|3) ;; *) echo "ANTECEDENT_STATIC_JOBS must be 1, 2, or 3" >&2; exit 2 ;; esac
 
 echo "== format, lint allows, test targets, crate ownership =="
@@ -297,7 +300,9 @@ fi
 # ---------------------------------------------------------------------------------------
 if [[ "$section" == scientific ]]; then
 section_start scientific
+start_readers 2
 check_records
+finish_readers
 if (( ${#failed_steps[@]} )); then
   echo "== scientific: ${#failed_steps[@]} check(s) failed; earn the owed records with bash scripts/test.sh and commit them ==" >&2
   printf '  FAILED: %s\n' "${failed_steps[@]}" >&2
