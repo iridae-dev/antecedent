@@ -28,8 +28,17 @@ from antecedent.policy import ConditionalDoseResponse
 GOLDEN = Path(__file__).parent / "golden" / "report"
 REGENERATE = "ANTECEDENT_REGENERATE_REPORTS"
 # The execution identity records the thread budget, so a fixed budget keeps the golden
-# claim and execution ids the same on every machine.
+# execution ids and memory facts the same on every machine.
 THREADS = 1
+# The claim id digests the executed result at full precision, whose last bits differ
+# between platform math libraries (aarch64 Linux among them). Every rendered value is still
+# compared exactly; only the digest is masked.
+_CLAIM_ID = re.compile(r"(Claim id:\*\* |<dt>Claim id</dt><dd>)[0-9a-f]{64}")
+
+
+def _portable(report: str) -> str:
+    return _CLAIM_ID.sub(r"\1<claim id>", report)
+
 
 _SECTIONS = [
     "Summary",
@@ -156,7 +165,7 @@ def _check_golden(name: str, extension: str, actual: str) -> None:
         return
     if not path.is_file():
         pytest.fail(f"golden report {path} is missing; generate it with {REGENERATE}=1")
-    assert actual == path.read_text(encoding="utf-8"), (
+    assert _portable(actual) == _portable(path.read_text(encoding="utf-8")), (
         f"report {name}.{extension} differs from its golden file; regenerate deliberately "
         f"with {REGENERATE}=1 and review the diff"
     )

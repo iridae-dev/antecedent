@@ -736,6 +736,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The optimized bench build of the facade lost its runner mid-compile; free disk, add
+      # swap and build two crates at a time to stay within memory.
+      - name: Free disk and add swap
+        run: |
+          set -euo pipefail
+          for path in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android /opt/ghc /usr/local/share/boost; do
+            if [[ -e "$path" ]]; then sudo rm -rf "$path"; fi
+          done
+          sudo fallocate -l 16G /swapfile.bench
+          sudo chmod 600 /swapfile.bench
+          sudo mkswap /swapfile.bench
+          sudo swapon /swapfile.bench
+          echo 'CARGO_BUILD_JOBS=2' >> "$GITHUB_ENV"
+          free -h
+          df -h /
+
       - name: Install Rust 1.97
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
