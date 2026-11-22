@@ -387,7 +387,9 @@ class OnlyAndCurrencyGates(unittest.TestCase):
 
     def test_ci_checks_records_and_executes_neither_lane(self):
         gate = self.read("scripts/gate_release.sh")
-        self.assertIn("step python3 scripts/scientific_records.py status --check", gate)
+        self.assertIn("step python3 scripts/gate_support.py --check-scientific", gate)
+        self.assertIn("scientific_records.report_status(ROOT, owed, current, check=True)",
+                      self.read("scripts/gate_support.py"))
         self.assertIn("step python3 scripts/calibration_status.py --check", gate)
         self.assertNotIn("test.sh scientific", gate)
         self.assertNotIn("test.sh scientific", self.read("scripts/gate_release_candidate.sh"))
