@@ -5879,10 +5879,10 @@ composed_caller = "prepare -> contract reasoning support slot -> support::cell_c
 required_dimensions = ["success"]
 legacy_internal = ["antecedent::cell_coordinate"]
 [[capability.evidence]]
-test = "python/tests/test_matrix_edge_contracts.py::test_cpdag_derivatives_normalize_only_fully_oriented_graphs"
-assertion_scopes = ["test_cpdag_derivatives_normalize_only_fully_oriented_graphs"]
+test = "python/tests/test_matrix_edge_contracts.py::test_cpdag_derivatives_run_on_the_class_whether_or_not_it_is_oriented"
+assertion_scopes = ["test_cpdag_derivatives_run_on_the_class_whether_or_not_it_is_oriented"]
 dimensions = ["success", "inspection"]
-assertion_contract = "For every derivative query on explicit and accepted fully oriented graphs the prepared study's matrix coordinate is exactly query:Dag:explicit|accepted:Frequentist:none."
+assertion_contract = "For every derivative query on an explicit and an accepted CPDAG, fully oriented or with an undirected edge, the prepared study's matrix coordinate is exactly query:Cpdag:explicit|accepted:Frequentist:none and estimation succeeds."
 [[capability.evidence]]
 test = "python/tests/test_contract.py::test_prepared_contract_has_domain_separated_identities"
 assertion_scopes = ["test_prepared_contract_has_domain_separated_identities"]
