@@ -67,10 +67,11 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       # The gate's scripts run as `python3`. Review digests of Python items use the
-      # interpreter's `ast.unparse`, so pin the interpreter rather than take the image's.
+      # interpreter's `ast.unparse`, whose output changes between patch releases (it did
+      # between 3.12.7 and 3.12.13), so pin the exact patch the digests were bound under.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.12.16"
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -254,55 +255,6 @@ jobs:
           name: rust-test-results-${{ matrix.os }}-${{ matrix.suite }}
           path: target/ci-test-results/*.xml
           if-no-files-found: warn
-
-  # `fuzz/` is its own package (empty `[workspace]`), so the Rust job never
-  # builds it. This job only typechecks and links the libFuzzer binaries.
-  # It does not execute them.
-  fuzz:
-    name: Fuzz build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      # Do not inherit the workflow `-D warnings`. This package builds path
-      # dependencies as they are, and those crates currently warn.
-      RUSTFLAGS: ""
-      # The sanitizer build of the whole workspace lost its runner mid-compile with
-      # one rustc per core; build two at a time, with swap, to stay within memory.
-      CARGO_BUILD_JOBS: "2"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Free disk and add swap
-        run: |
-          set -euo pipefail
-          for path in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android /opt/ghc /usr/local/share/boost; do
-            if [[ -e "$path" ]]; then sudo rm -rf "$path"; fi
-          done
-          sudo fallocate -l 16G /swapfile.fuzz
-          sudo chmod 600 /swapfile.fuzz
-          sudo mkswap /swapfile.fuzz
-          sudo swapon /swapfile.fuzz
-          free -h
-          df -h /
-
-      - name: Install nightly
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
-        with:
-          toolchain: nightly
-
-      - name: Install cargo-fuzz
-        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
-        with:
-          tool: cargo-fuzz
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          workspaces: fuzz
-
-      - name: Build fuzz targets
-        run: cargo +nightly fuzz build --target x86_64-unknown-linux-gnu
 
   # `cargo test --workspace` unifies features through the `python` member
   # (default = ml-full), so the Rust job never compiles the graph a crates.io
@@ -856,8 +808,9 @@ jobs:
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
           toolchain: "1.97"
-          # The evidence-earning script tests merge coverage profiles with llvm-profdata.
-          components: llvm-tools-preview
+          # The evidence-earning script tests merge coverage profiles with llvm-profdata and
+          # build the compiler inventory driver against rustc-dev.
+          components: llvm-tools-preview, rustc-dev
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2

@@ -28,24 +28,12 @@ class JointPanelReference(unittest.TestCase):
 
     def test_seed_and_all_retained_artifacts_reproduce(self):
         for name, generated in reference.artifacts().items():
-            retained = (HERE / name).read_text(encoding="utf-8")
-            if not name.endswith(".csv"):
-                self.assertTrue(reference.matches_artifact(name, retained, generated), name)
-                continue
-            # The AR(1) errors are `random.gauss` draws, which pass through the platform's `log`
-            # and `cos`; their last bits differ between math libraries, so the regenerated panel
-            # matches cell by cell: text exactly, numbers to the truth tolerance.
-            kept = list(csv.reader(retained.splitlines()))
-            new = list(csv.reader(generated.splitlines()))
-            self.assertEqual([len(row) for row in kept], [len(row) for row in new], name)
-            for row_kept, row_new in zip(kept, new, strict=True):
-                for a, b in zip(row_kept, row_new, strict=True):
-                    try:
-                        x, y = float(a), float(b)
-                    except ValueError:
-                        self.assertEqual(a, b, name)
-                        continue
-                    self.assertLessEqual(abs(x - y), reference.TRUTH_ABSOLUTE_TOLERANCE, name)
+            self.assertTrue(
+                reference.matches_artifact(
+                    name, (HERE / name).read_text(encoding="utf-8"), generated
+                ),
+                name,
+            )
         self.assertEqual(self.truth["seed"], 20261021)
 
     def test_truth_comparison_preserves_metadata_shapes_and_rejects_numeric_drift(self):
@@ -57,7 +45,12 @@ class JointPanelReference(unittest.TestCase):
         self.assertFalse(reference.same_truth([0.5], [0.5, 0.5]))
         self.assertFalse(reference.same_truth(0.5, "0.5"))
         self.assertFalse(reference.same_truth(float("nan"), float("nan")))
-        self.assertFalse(reference.matches_artifact("data.csv", "0.5\n", "0.500000000000001\n"))
+        # Panels hold to the truth tolerance: last-bit drift passes, larger drift and any change
+        # to a text cell or the shape do not.
+        self.assertTrue(reference.matches_artifact("data.csv", "a,0.5\n", "a,0.500000000000001\n"))
+        self.assertFalse(reference.matches_artifact("data.csv", "a,0.5\n", "a,0.5000000000002\n"))
+        self.assertFalse(reference.matches_artifact("data.csv", "a,0.5\n", "b,0.5\n"))
+        self.assertFalse(reference.matches_artifact("data.csv", "a,0.5\n", "a,0.5,0.5\n"))
 
     def test_steady_state_interaction_has_an_independent_closed_form(self):
         # After L=2, exposure under sustained dose4 is4 regardless of history.

@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** 2ff0a68d651fb64a2687a3a39aa8a67bc86b1a71a3d506662211a3319cd85ea8
+- **Claim id:** f9a918131e230f21951eb7f91f6e927c851bdf64e872111bc6f6f1a563b75c4d
 - **Kind:** point
 - **Value:** 2
 - **Outcome units:** none
@@ -64,7 +64,7 @@
 
 ### Evidence the claim references
 
-- snapshot:7acd4e323d010cf6c9a4fb5b578a6461f2d751ce3591de0d5f593f57dea1e9d5
+- snapshot:944b8a9d64a6ce5f7ff1df3a1b784d313644f0be0021280c56916e015156d300
 - identification:96fba9fff73599a0e3cee2cba940842671350661995c3151c25535bafcb0ecbf
 - program:20ffe89f49a215eea89f516d10461d1109c90405b844ee1328b656c92ccb46b1
 
@@ -160,7 +160,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Family:** static\_effect
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** d59c6a8a44e255ef630b671dab52be9e7c64d5b5013e67da0b5cbbb085cdaa4f
+- **Program identity:** 4916d906fa4fdc2361ca473b3e47f6fdf712aa09d2ffdf8fe56b7d163c3cfd71
 - **Sealed operation:** linear\_adjustment
 
 ### Scientific problem
@@ -169,7 +169,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **graph\_class:** Dag
 - **plan\_id:** static\_ate
 - **query\_variables:** t, y
-- **source\_digest:** e3bdd7be223b5dd4ce9ba6bbe2db8b128dc18eaecbba941a41039e817e7c13c8
+- **source\_digest:** 1e5ee54e8c911f3fc053520f1747781ee9ba0c2046dc2c823df4c6b1185b4db4
 - **target.form:** target
 - **target.identity:** c1f19633ed84499d5f80449f4aba6903d5ea55effd9ee985bae72097b6894379
 
@@ -214,8 +214,8 @@ This report restates the contract. It computes no estimate, grants no support, a
 ### Evidence and decision program
 
 - **composition.kind:** single
-- **identity:** 7428bd06bdc75756cfab8d0fb1ff32fa179774e737ece2f3e9ab14ea66136159
-- **sources\[0\].digest:** e3bdd7be223b5dd4ce9ba6bbe2db8b128dc18eaecbba941a41039e817e7c13c8
+- **identity:** 92e066cd5fc61dca544f30d1b96c50f4dedb48d925e1923f06afae6c9db23a6e
+- **sources\[0\].digest:** 1e5ee54e8c911f3fc053520f1747781ee9ba0c2046dc2c823df4c6b1185b4db4
 - **sources\[0\].role:** observations
 
 ### Physical plan
@@ -319,7 +319,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Program:** 20ffe89f49a215eea89f516d10461d1109c90405b844ee1328b656c92ccb46b1
 - **Inference binding:** 122227db05904a9fdcabbcab561919a16691db0b8a445cffef22541a91240ba4
 - **Observation:** ce6fe76d79b8e0d0cc58ebbbeb1a4dcac0b651b8c0d124f0a590f82102d46be8
-- **Data snapshot:** 7acd4e323d010cf6c9a4fb5b578a6461f2d751ce3591de0d5f593f57dea1e9d5
-- **Score reuse:** b8b350f6c3fedf6fc4feb96752af1bc3040a2461a784db78f75aa638bf64ff4e
+- **Data snapshot:** 944b8a9d64a6ce5f7ff1df3a1b784d313644f0be0021280c56916e015156d300
+- **Score reuse:** 64eb3489783c819ebc203bd6219d9bfefdb8e74118abfcac33780a90c4447391
 - **Target weights:** none
 

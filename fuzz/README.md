@@ -12,10 +12,14 @@ cargo +nightly install cargo-fuzz
 cargo +nightly fuzz run schema_names
 ```
 
-CI builds every target and does not run the fuzzer (the `fuzz` job of `.github/workflows/ci.yml`):
+CI neither builds nor runs these targets. On a development machine, `scripts/fuzz.sh` builds
+every target and runs each for 60 seconds; `build` only checks that the harnesses compile, and
+`run SECONDS TARGET...` runs chosen targets for longer:
 
 ```bash
-cargo +nightly fuzz build
+bash scripts/fuzz.sh
+bash scripts/fuzz.sh build
+bash scripts/fuzz.sh run 600 artifact_container query_wire
 ```
 
 ## Targets

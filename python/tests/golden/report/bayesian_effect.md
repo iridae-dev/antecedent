@@ -9,7 +9,7 @@
 - **Estimator:** bayesian.gcomp
 - **Route:** StaticAteDag
 - **Claim kind:** point
-- **Value:** 1.99992834668
+- **Value:** 1.99992602751
 - **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
@@ -19,9 +19,9 @@
 
 ## Claim
 
-- **Claim id:** 865901b526778a08879b484cbb56be8a72771620a1e36e8cf1a1eef7ebbc6498
+- **Claim id:** 1ff0a6dc7e78a75378f282d3f2f26eb4ac6b8946efe58858cad85279f0fa7080
 - **Kind:** point
-- **Value:** 1.99992834668
+- **Value:** 1.99992602751
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
@@ -64,7 +64,7 @@
 
 ### Evidence the claim references
 
-- snapshot:4227e9268ff5722d293afe79bb6aad7465835dccce4b0821d02d515b3ee89e54
+- snapshot:7f7ac87441134cf75507c52e1b6ad51de05888383dabc7eee4747d0320a99445
 - identification:96fba9fff73599a0e3cee2cba940842671350661995c3151c25535bafcb0ecbf
 - program:4960d48b0ac07dcec33f995c87575fa7361da1a8fd576d266ce0555609c15f24
 
@@ -314,7 +314,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Program:** 4960d48b0ac07dcec33f995c87575fa7361da1a8fd576d266ce0555609c15f24
 - **Inference binding:** 030ecd1f896a70d70871711a7c71fb5a6c1033ba4422028d0210e96eef48a5e0
 - **Observation:** ce6fe76d79b8e0d0cc58ebbbeb1a4dcac0b651b8c0d124f0a590f82102d46be8
-- **Data snapshot:** 4227e9268ff5722d293afe79bb6aad7465835dccce4b0821d02d515b3ee89e54
+- **Data snapshot:** 7f7ac87441134cf75507c52e1b6ad51de05888383dabc7eee4747d0320a99445
 - **Score reuse:** none
 - **Target weights:** none
 

@@ -186,22 +186,25 @@ def _holds_gil_for_control():
 
 def _python_thread_progresses_during(operation):
     ready = threading.Event()
+    go = threading.Event()
     progressed = threading.Event()
 
     def witness():
         ready.set()
-        time.sleep(0.01)
+        go.wait()
         progressed.set()
 
     worker = threading.Thread(target=witness)
     previous_interval = sys.getswitchinterval()
-    # Prevent the worker from winning an interpreter timeslice immediately
-    # after a GIL-holding call returns. The worker does no busy-loop work.
+    # With a one-second switch interval this thread keeps the GIL after releasing the
+    # witness, so the witness can only run while `operation` releases the GIL. No timing
+    # window: a short native call still lets the waiting witness through.
     sys.setswitchinterval(1.0)
     try:
         worker.start()
         assert ready.wait(timeout=5.0)
-        assert not progressed.is_set(), "scheduler missed the witness start window"
+        go.set()
+        assert not progressed.is_set(), "the witness ran before the operation"
         operation()
         return progressed.is_set()
     finally:
@@ -211,7 +214,7 @@ def _python_thread_progresses_during(operation):
 
 
 def test_a_long_native_estimator_lets_other_python_threads_run():
-    """Observe a delayed Python witness during one 2**20-allocation native call.
+    """Observe a waiting Python witness run during one 2**20-allocation native call.
 
     A GIL-holding native sleep is the negative control. This tests concurrency,
     without treating a busy counter's contended throughput as a release budget.

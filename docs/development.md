@@ -61,9 +61,10 @@ CI executes no scientific assertion and no calibration measurement:
    `--no-default-features`), **`public-api`** (public items match `parity/public_api/*.txt`),
    **`cited-tests`** (eight shards; every cited test is a compiled, non-ignored test),
    **`benches`** (Criterion smoke, skipped on a pull request that touches no bench),
-   **`python-native`** (the extension the Python jobs share), **`deny`** (`cargo deny check`, and
-   the crates.io publish dry-run on a pull request that changes a crate manifest or the publish
-   scripts) and **`fuzz`** (builds the fuzz targets on nightly).
+   **`python-native`** (the extension the Python jobs share) and **`deny`** (`cargo deny check`,
+   and the crates.io publish dry-run on a pull request that changes a crate manifest or the
+   publish scripts). The fuzz targets are built and run on a development machine with
+   `bash scripts/fuzz.sh`, not in CI.
 2. **Engineering tests** — tests of the software with no scientific claim. **`rust`** (the
    engineering nextest selection and doctests; the facade and remaining packages run in parallel on
    Ubuntu, both also on macOS after merge), **`development`** (the development build that runs
@@ -185,7 +186,7 @@ unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
 | Calibration | Coverage / Type I / null FPR (`parity/calibration_groups.toml`, measured locally by `measure_calibration.sh`) |
 | Cross-language | Python bindings exercise the same semantics |
 | Criterion benches | Designated hot paths; release gate locally and in CI |
-| Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
+| Fuzz | Parsers / graph / artifact surfaces under `fuzz/`, run locally by `scripts/fuzz.sh` |
 
 Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
 conformance band without an ADR-level reason.

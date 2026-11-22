@@ -352,13 +352,30 @@ def same_truth(expected, generated) -> bool:
 
 
 def matches_artifact(name: str, retained: str, generated: str) -> bool:
-    """CSV remains byte exact; JSON numeric truth has the declared absolute tolerance."""
+    """JSON truth and CSV panels both hold to the declared absolute tolerance.
+
+    CSV text cells stay exact. Numeric cells carry `random.gauss` draws, which pass through the
+    platform's `log` and `cos` and so differ in their last bits between math libraries."""
     if name == "expected.json":
         kept = json.loads(retained)
         # The retained reference_review binds this script by digest and is carried through.
         kept["oracle"] = {k: v for k, v in kept["oracle"].items() if k != "reference_review"}
         return same_truth(kept, json.loads(generated))
-    return retained == generated
+    kept_rows = list(csv.reader(io.StringIO(retained)))
+    new_rows = list(csv.reader(io.StringIO(generated)))
+    if [len(row) for row in kept_rows] != [len(row) for row in new_rows]:
+        return False
+    for kept_row, new_row in zip(kept_rows, new_rows, strict=True):
+        for kept_cell, new_cell in zip(kept_row, new_row, strict=True):
+            try:
+                left, right = float(kept_cell), float(new_cell)
+            except ValueError:
+                if kept_cell != new_cell:
+                    return False
+                continue
+            if not same_truth(left, right):
+                return False
+    return True
 
 
 def interaction_identity_problems(document: dict) -> list[str]:

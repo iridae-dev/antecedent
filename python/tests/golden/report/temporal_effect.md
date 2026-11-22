@@ -9,7 +9,7 @@
 - **Estimator:** temporal.linear.adjustment
 - **Route:** TemporalEffectDag
 - **Claim kind:** point
-- **Value:** 0.8976448135
+- **Value:** 0.901698689589
 - **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
@@ -18,9 +18,9 @@
 
 ## Claim
 
-- **Claim id:** 93c5d53e85fa62c0598160f2cf326e701a7b448f857d389203b017ff32317a68
+- **Claim id:** 2bcefca209f58b6c4783d117df6ed1c7a390fac99736dbe82e6829aa48e14cc3
 - **Kind:** point
-- **Value:** 0.8976448135
+- **Value:** 0.901698689589
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
@@ -65,7 +65,7 @@
 
 ### Evidence the claim references
 
-- snapshot:d9896080f5dcee6c44004e70185b5034c2836f6aadb73bc6f0fae14fd1debd58
+- snapshot:78466913c01431ca69f19500260c8d11013a2487907dc52f9107a0ebd3356f9b
 - identification:32ee7fe95e290cfb06cc6e453763e356a1509c373d4adaf58ff734c18524b1b1
 - program:903d5c382ecf74a8b732fc58ff38a4f8861d0dc061f0f72c5d47d3283774ff97
 
@@ -307,7 +307,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Program:** 903d5c382ecf74a8b732fc58ff38a4f8861d0dc061f0f72c5d47d3283774ff97
 - **Inference binding:** c0b56df81bae1a8835154001766ba818ecda7b1aa1c180ef71640e6b9db4d029
 - **Observation:** f27aa98772837e28c8c83c5a99a36ed0443730553037d310c7d2d063f044050f
-- **Data snapshot:** d9896080f5dcee6c44004e70185b5034c2836f6aadb73bc6f0fae14fd1debd58
+- **Data snapshot:** 78466913c01431ca69f19500260c8d11013a2487907dc52f9107a0ebd3356f9b
 - **Score reuse:** none
 - **Target weights:** none
 

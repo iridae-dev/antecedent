@@ -42,7 +42,7 @@ sha256 = "ac38a636c37c0537de609f6e5dbeb89224c0ef06d9e95b99f14062cff8b5e178"
 role = "assertion"
 path = "crates/antecedent-validate/tests/temporal_mediation_refuter_reference.rs"
 items = ["const PLACEBO", "const PLACEBO_MORE", "const REPS", "const SEED", "const WINDOW", "fn build", "fn by_id", "fn case_shape", "fn check", "fn contrast", "fn emit", "fn floats", "fn indices", "fn noise", "fn perturbations", "fn reference", "fn same", "fn temporal_mediation_refuter_frozen_perturbations_are_the_library_streams", "fn temporal_mediation_refuter_suite_equals_the_exact_reference", "fn the_non_gapped_entry_points_refuse_a_series_with_missing_time_points", "fn var"]
-sha256 = "10438dc12f1214ee7e6ec62b7515a5969eba817445f4894ac598951265c58d53"
+sha256 = "4683ac9fab5339562208a2358d420f4a4fc2d73d9ead448c9d8851bcd29cb870"
 
 [[method_review.artifacts]]
 role = "reference"

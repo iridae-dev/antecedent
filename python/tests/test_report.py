@@ -12,7 +12,6 @@ on; that refusal is pinned here and its report is the Rust one.
 
 from __future__ import annotations
 
-import math
 import os
 import re
 from collections.abc import Callable
@@ -30,9 +29,10 @@ REGENERATE = "ANTECEDENT_REGENERATE_REPORTS"
 # The execution identity records the thread budget, so a fixed budget keeps the golden
 # execution ids and memory facts the same on every machine.
 THREADS = 1
-# The claim id and the data snapshot digest the result and the input table at full
-# precision; their last bits differ between platform math libraries (the inputs use sin and
-# cos). Every rendered value is still compared exactly; only these digests are masked.
+# The claim id and the data snapshot digest the estimate and the table at full precision;
+# they are masked so a last-bit difference between platforms' floating-point kernels cannot
+# fail the comparison. The inputs are built from exact arithmetic, and every rendered value
+# and every other identity is compared as is.
 _PLATFORM_DIGEST = re.compile(
     r"(Claim id:\*\* |<dt>Claim id</dt><dd>|Data snapshot:\*\* |<dt>Data snapshot</dt><dd>"
     r"|snapshot:)[0-9a-f]{64}"
@@ -59,10 +59,16 @@ _SECTIONS = [
 _EDGES = [("z", "t"), ("z", "y"), ("t", "y")]
 
 
+def _wave(i: int, period: int) -> float:
+    """A triangle wave in [-1, 1] from correctly rounded arithmetic: the same on every
+    platform, unlike `sin` and `cos`, whose last bits depend on the math library."""
+    return 4.0 * abs((i % period) / period - 0.5) - 1.0
+
+
 def _table(n: int = 240, names: tuple[str, str, str] = ("t", "y", "z")) -> dict[str, np.ndarray]:
     t_name, y_name, z_name = names
-    z = np.array([math.sin(i / 17.0) for i in range(n)])
-    t = (z + np.array([math.cos(i / 11.0) for i in range(n)]) > 0).astype(float)
+    z = np.array([_wave(i, 34) for i in range(n)])
+    t = (z + np.array([_wave(i + 5, 22) for i in range(n)]) > 0).astype(float)
     y = 1.0 + 2.0 * t + 0.8 * z
     return {t_name: t, y_name: y, z_name: z}
 
@@ -131,7 +137,7 @@ def _unsupported():
 def _temporal():
     n = 400
     rng = np.random.default_rng(7)
-    pressure = np.sin(0.04 * np.arange(n))
+    pressure = np.array([_wave(i, 157) for i in range(n)])
     defect = np.zeros(n)
     for t in range(1, n):
         defect[t] = 0.9 * pressure[t - 1] + 0.05 * rng.uniform(-1.0, 1.0)

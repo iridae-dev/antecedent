@@ -3,7 +3,7 @@
     {
       "path": "conformance/response/joint_panel/reference.py",
       "role": "generator",
-      "sha256": "cdd507d3fb9aee99927086919972c7b0205e0a858c0c64fa3d882ee73ca53275"
+      "sha256": "dbcfa9ba4da3f7b6ab236d874834d1a52fbd7efb62ea0890672525423ba4c32a"
     },
     {
       "path": "conformance/response/joint_panel/reference.py.lock",
