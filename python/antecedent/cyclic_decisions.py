@@ -1137,7 +1137,7 @@ def consume_bundle_refitting(
     As :func:`antecedent.composition_bundle.consume_bundle`, except that each embedded native
     producer (a cyclic posterior fit, a transport fit, a predictive fit) is recompiled from its
     portable evidence and refitted under ``execution``; a node bound to its own seed refits under
-    that seed. ``route`` names the licensed consumer route: ``"cyclic_posterior"`` for bundles of
+    that seed. ``route`` names the supported consumer route: ``"cyclic_posterior"`` for bundles of
     cyclic posterior fits, ``"native_fit"`` for any native fit node. Both run the same verifiers.
 
     Raises:
