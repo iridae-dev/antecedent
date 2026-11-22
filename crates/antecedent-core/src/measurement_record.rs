@@ -44,12 +44,12 @@ pub const PEAK_RSS_NEEDS_LIBC: &str = concat!(
 
 /// `/proc/self/status` did not contain a `VmHWM` kibibyte field.
 #[cfg(target_os = "linux")]
-pub const PEAK_RSS_VMHWM_MISSING: &str =
+pub(crate) const PEAK_RSS_VMHWM_MISSING: &str =
     "peak RSS is unsupported: /proc/self/status has no VmHWM kibibyte field";
 
 /// `/proc/self/status` could not be read.
 #[cfg(target_os = "linux")]
-pub const PEAK_RSS_PROC_UNREADABLE: &str =
+pub(crate) const PEAK_RSS_PROC_UNREADABLE: &str =
     "peak RSS is unsupported: /proc/self/status could not be read";
 
 /// Repeats disagreed, or only some of them had a sample.

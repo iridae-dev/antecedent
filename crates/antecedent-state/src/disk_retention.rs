@@ -340,6 +340,7 @@ impl Drop for Unregistered {
 }
 
 /// The owning process of a spill file name `<pid>-<64 hex digits>.spill`, if it has that shape.
+#[cfg_attr(not(unix), allow(dead_code, reason = "only Unix directory recovery reads spill owners"))]
 fn owner_of(name: &str) -> Option<u32> {
     let stem = name.strip_suffix(".spill")?;
     let (pid, digest) = stem.split_once('-')?;
@@ -403,6 +404,7 @@ fn recover_directory(_directory: &Path) -> u64 {
     0
 }
 
+#[cfg_attr(not(unix), allow(dead_code, reason = "only Unix directory recovery names probe files"))]
 fn unique_nonce() -> u64 {
     SPILL_NONCE.fetch_add(1, Ordering::Relaxed)
 }
