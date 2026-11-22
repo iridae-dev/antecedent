@@ -1681,8 +1681,9 @@ def main(argv: list[str]) -> int:
             directory = Path(argv[argv.index("--release-receipts") + 1])
             test_evidence.release_passes = test_evidence.ReleasePasses(directory)
             test_evidence.release_passes.collect_python()
-            rows = _repo.load_toml(directory / "capabilities.toml")["fixture_evidence"]
-            capabilities = sorted({(ROOT / row["evidence_test"], row["evidence_assertion"]) for row in rows})
+            if shard in ("all", "0"):
+                rows = _repo.load_toml(directory / "capabilities.toml")["fixture_evidence"]
+                capabilities = sorted({(ROOT / row["evidence_test"], row["evidence_assertion"]) for row in rows})
         found = cited_test_problems(shard)
         test_evidence.prefetch_rust_listings(capabilities)
         for path, name in capabilities:

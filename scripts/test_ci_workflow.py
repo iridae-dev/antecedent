@@ -68,6 +68,23 @@ class CiAttestationTest(unittest.TestCase):
         )
 
 
+class CitationJobsTest(unittest.TestCase):
+    def test_citations_consume_the_current_runs_successful_prerequisites(self) -> None:
+        jobs = ci.load_jobs()
+        cited = jobs["cited-tests"]
+        self.assertEqual(set(cited["needs"]), {"python-native", "static", "scientific", "rust"})
+        self.assertNotIn("if", cited)
+        artifacts = [step["with"] for step in cited["steps"]
+                     if step.get("uses", "").startswith("actions/download-artifact@")]
+        self.assertTrue(all("run-id" not in artifact for artifact in artifacts))
+        self.assertEqual({a["pattern"] for a in artifacts if "pattern" in a},
+                         {"citation-*", "rust-test-results-ubuntu-latest-*"})
+        for job, artifact in [("static", "citation-ci-static"), ("scientific", "citation-scientific")]:
+            self.assertTrue(any(step.get("with", {}).get("name") == artifact
+                                and step["with"].get("if-no-files-found") == "error"
+                                for step in jobs[job]["steps"]))
+
+
 class PublicationOrderTest(unittest.TestCase):
     """A registry upload cannot be undone, so nothing is uploaded before the docs are proven."""
 

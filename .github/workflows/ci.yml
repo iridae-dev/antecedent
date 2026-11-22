@@ -77,7 +77,18 @@ jobs:
           python-version: "3.12"
 
       - name: Static gate
-        run: bash scripts/gate_release.sh --section ci-static
+        env:
+          ANTECEDENT_RC_RECEIPTS: ${{ runner.temp }}/citations
+        run: |
+          mkdir -p "$ANTECEDENT_RC_RECEIPTS"
+          bash scripts/gate_release.sh --section ci-static
+
+      - name: Retain verified citation inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: citation-ci-static
+          path: ${{ runner.temp }}/citations/capabilities.toml
+          if-no-files-found: error
 
   rust:
     name: Rust ${{ matrix.display }}
@@ -604,7 +615,7 @@ jobs:
   # matrix cells run in parallel; shard 0 also takes the graphless and transport citations.
   cited-tests:
     name: Cited tests ${{ matrix.shard }}
-    needs: python-native
+    needs: [python-native, static, scientific, rust]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -659,10 +670,28 @@ jobs:
         working-directory: python
         run: uv run --no-sync python ../scripts/ci_python_native.py install ../target/ci-python-native "$GITHUB_SHA"
 
+      - name: Download verified citation inputs from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: citation-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/citations
+
+      - name: Download Linux engineering results from this run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rust-test-results-ubuntu-latest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/citations
+
       - name: Resolve the cited tests
         env:
           UV_NO_SYNC: "1"
-        run: bash scripts/gate_release.sh --section "cited-tests-${{ matrix.shard }}"
+          RECEIPTS: ${{ runner.temp }}/citations
+          SHARD: ${{ matrix.shard }}
+        run: |
+          for suite in rest facade; do mv "$RECEIPTS/$suite.xml" "$RECEIPTS/rust-$suite.xml"; done
+          python3 scripts/gate_support.py --cited-tests --matrix-shard "$SHARD" --release-receipts "$RECEIPTS"
 
       - name: Compiler cache statistics
         if: always()
@@ -738,7 +767,18 @@ jobs:
           python-version: "3.12"
 
       - name: Scientific and calibration records are current
-        run: bash scripts/gate_release.sh --section scientific
+        env:
+          ANTECEDENT_RC_RECEIPTS: ${{ runner.temp }}/citations
+        run: |
+          mkdir -p "$ANTECEDENT_RC_RECEIPTS"
+          bash scripts/gate_release.sh --section scientific
+
+      - name: Retain verified citation inputs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: citation-scientific
+          path: ${{ runner.temp }}/citations/current.json
+          if-no-files-found: error
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release
@@ -825,7 +865,7 @@ jobs:
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run --no-sync pytest -q -m 'not requires_calibration and not calibration_simulation' --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync python -m pytest -q -n auto --maxprocesses=4 --dist worksteal --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
 
       - name: Compiler cache statistics
         if: always()
@@ -949,14 +989,14 @@ jobs:
           set -euo pipefail
           # Install from repo root, then import/test outside python/ so the
           # source tree does not shadow the wheel on sys.path.
-          pip install python/dist/*.whl numpy pandas pyarrow pytest mypy
+          pip install python/dist/*.whl numpy pandas pyarrow pytest 'pytest-xdist>=3.8,<4' mypy
           cd "$(mktemp -d)"
           python -c "import antecedent; print(antecedent.__version__)"
           # Run the WHOLE suite against the installed wheel. Do not reintroduce a
           # hand-maintained file allowlist here: the previous 11-of-56 list silently
           # excluded every test added by the 0.4.0 refactor.
           ROOT="${{ github.workspace }}"
-          pytest -q -m 'not requires_calibration and not calibration_simulation' --durations=30 "$ROOT/python/tests"
+          python -m pytest -q -n auto --maxprocesses=4 --dist worksteal --durations=30 "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
