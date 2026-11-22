@@ -8,7 +8,7 @@
 //! The static design is exactly balanced, so every estimator checked on it is exact and the
 //! expected value is derived here by hand from the table, never by a production estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "each test target uses a different part of the harness")]
 

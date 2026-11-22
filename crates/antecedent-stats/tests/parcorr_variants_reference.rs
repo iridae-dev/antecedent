@@ -4,7 +4,7 @@
 //! canonical correlations, the weighted Pearson statistic with its Kish degrees of freedom and
 //! the van der Waerden scores from their definitions in multiprecision arithmetic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{

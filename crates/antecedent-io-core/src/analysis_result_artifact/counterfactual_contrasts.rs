@@ -9,7 +9,7 @@
 //! same units, that each contrast's per-unit effects are well formed, and that its mean is the
 //! mean of those effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

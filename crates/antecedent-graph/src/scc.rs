@@ -7,7 +7,7 @@
 //! directed edge. An unrelated source can wait while a smaller-id chain is
 //! placed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::mem::take;

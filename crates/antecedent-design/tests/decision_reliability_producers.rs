@@ -7,7 +7,7 @@
 //! mean `7.4` and sample variance `16 * 0.0875 / 3`, standard error `0.34157`; `wait` is
 //! identically zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{

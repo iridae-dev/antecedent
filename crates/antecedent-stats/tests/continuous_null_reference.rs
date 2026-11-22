@@ -7,7 +7,7 @@
 //! expectation `(1 + R p) / (1 + R)`; with R = 20000 replicates it must lie within five binomial
 //! standard errors of that. Statistics are asserted to 1e-12 (the distance correlation as its square).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{

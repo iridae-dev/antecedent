@@ -5,7 +5,7 @@
 //! execution can construct [`MeasuredInference`]. Every reported scalar must
 //! resolve to a current attesting non-boundary calibration record. Consumers
 //! independently replay the original source and compare the complete report.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
 use crate::calibration::{CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire};
 use crate::contract_section::CalibrationSlotWire;

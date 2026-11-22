@@ -7,7 +7,7 @@
 //! quadrature of the expected maximum of independent normals. No tolerance is tuned to
 //! an observed value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{

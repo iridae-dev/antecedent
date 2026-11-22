@@ -7,7 +7,7 @@
 //! probability-best is exactly one third per option. The hierarchical routes are checked against
 //! the stats crate's frozen mpmath/cubature oracle (`hierarchical_choice_reference`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AssignmentFamily, ChoiceDesignContract, ChoiceDesignDeclaration, ChoiceLook, ChoiceRespondent,

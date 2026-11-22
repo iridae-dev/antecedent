@@ -18,7 +18,7 @@
 //! row order. A component that covers the whole graph leaves a single unit and the split is
 //! refused: no honest split exists.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

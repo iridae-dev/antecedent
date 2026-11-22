@@ -2,7 +2,7 @@
 //! serial-dependence posterior check, the tempering diagnostic and
 //! the HMC draw-floor diagnostic (B-5).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

@@ -7,7 +7,7 @@
 //! estimator. The product is a posterior of a nuisance, never of an effect, and it is retained
 //! as an artifact that a loader refits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "exact sealed copies and exact zero band probabilities")]
 

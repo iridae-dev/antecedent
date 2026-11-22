@@ -1,6 +1,6 @@
 //! Stamping and checked-operation execution for prepared estimate clicks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAipwOperation, CheckedDistributionOperation, CheckedFrontDoorOperation,

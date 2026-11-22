@@ -6,7 +6,7 @@
 //! arithmetic) at four coverages, and evaluates the exact Dirichlet-weighted law (a B-spline law
 //! for distinct scores) of the active value, the control value and their shared-weight contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::score_posterior::ScorePosteriorOptions;

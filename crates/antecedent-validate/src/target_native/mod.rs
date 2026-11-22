@@ -21,7 +21,7 @@
 //!
 //! Every report is a diagnostic. Its pass threshold has no measured error rate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod bayesian;
 mod derivative;

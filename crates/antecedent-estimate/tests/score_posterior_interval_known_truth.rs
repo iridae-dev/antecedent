@@ -9,7 +9,7 @@
 //! taken from the product. Each test requires the draws to follow that law on a grid and the
 //! published 95% interval to sit at its 2.5% and 97.5% points.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "draw counts are small integers")]
 
 use antecedent_core::ExecutionContext;

@@ -41,7 +41,7 @@
 //! realization of every queried quantity) with the alignment identity of the
 //! repo's distribution artifact, and carry no coverage statement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod error;
 mod wire;

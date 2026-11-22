@@ -1,7 +1,7 @@
 //! Graph interchange (JSON, DOT, GML, `NetworkX`) and durable, versioned artifacts of results,
 //! posteriors and models, with their replay.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io::{
     AnalysisResultConsumption, AnalysisResultContractWire, AnalysisResultLoad,

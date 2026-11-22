@@ -43,7 +43,7 @@
 //! counts are 16-bit; a validated declaration enrols at most 65,535 units, so
 //! no count can overflow.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

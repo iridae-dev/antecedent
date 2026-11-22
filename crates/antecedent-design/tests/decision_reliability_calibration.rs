@@ -18,7 +18,7 @@
 //! (the maximum is barely biased), 64 candidates at the smallest budget (the widest
 //! selection), shared noise at 0.9 (the union bound must still hold).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

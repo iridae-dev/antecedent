@@ -5,7 +5,7 @@
 //! one function, so they agree on which rows are missing: a row is missing when its
 //! cell is invalid **or** the row lies outside the storage analysis mask.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 

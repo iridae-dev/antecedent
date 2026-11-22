@@ -8,7 +8,7 @@
 //! the last, each dummy repeated on every lag slot, and synthetic ids starting past the whole
 //! schema. The product's `pool_multi_env_lagged_frame` must match every value and every id.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

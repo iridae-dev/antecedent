@@ -151,7 +151,7 @@
 //! both select and analyse are the reuse case and refuse an interval; a refresh never
 //! converts reuse into a split.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

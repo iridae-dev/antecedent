@@ -4,7 +4,7 @@
 //! a second artifact cannot reuse a discriminator, and so encode paths name
 //! one static word.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) const ADAPTIVE_MONITORING_CONTRACT: &str = "adaptive_monitoring_contract_v1";
 pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";

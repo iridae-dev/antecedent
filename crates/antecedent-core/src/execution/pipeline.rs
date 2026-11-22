@@ -1,5 +1,5 @@
 //! Execution context: indexed maps and bounded pipelines.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::admission::{AdmissionError, AdmissionLease, AdmissionRequest, AdmissionWait};
 use super::context::ExecutionContext;

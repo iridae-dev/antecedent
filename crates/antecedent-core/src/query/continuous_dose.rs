@@ -1,5 +1,5 @@
 //! Caller-supplied conditional continuous-dose response design.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
 use super::fault::PolicyValueFault;

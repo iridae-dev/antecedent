@@ -8,7 +8,7 @@
 //! variances they are left unweighted. This is not a generic IV guarantee. A first-stage F
 //! statistic below the configured threshold is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use crate::linalg::SpdFactor;

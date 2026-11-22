@@ -8,7 +8,7 @@
 //! count (an exact rational ceiling); finite Bayes posteriors with counts to 6e8; and the conjugate
 //! update at shapes from 1e-3 to 1e300 and counts to 2^52.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_model::observation_query::{
     BetaBernoulli, Direction, FiniteBayesModel, ObservationQueryError, UnreachableBound,

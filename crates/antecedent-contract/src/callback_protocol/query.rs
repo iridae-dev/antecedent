@@ -7,7 +7,7 @@
 //! distribution function or quantile function a law. A malformed law is
 //! refused whole; nothing is repaired, sorted or clipped.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::identity::CanonicalWriter;
 

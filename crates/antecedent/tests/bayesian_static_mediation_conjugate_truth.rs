@@ -15,7 +15,7 @@
 //! the sample grows. Three sample sizes of one law show the gap shrinking at the closed-form
 //! rate. A tolerance fitted to the observed gap would hide this; the bound here is derived.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

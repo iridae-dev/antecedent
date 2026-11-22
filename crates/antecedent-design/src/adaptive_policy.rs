@@ -8,7 +8,7 @@
 //! as an assigned intervention. Every action is clipped into the family's action interval, so
 //! the action bound is a property of the family rather than a penalty.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ValueExpr, VariableId};
 

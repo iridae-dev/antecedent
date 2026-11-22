@@ -21,7 +21,7 @@
 //! weighted returns as independent and the normal approximation as adequate; no coverage
 //! record measures it, so it is reported with the calibration status `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::evidence_ledger::{
     EvidenceLedger, MAX_OBSERVATIONS_PER_SOURCE, ObservationId, SourceDeclaration, SourceKind,

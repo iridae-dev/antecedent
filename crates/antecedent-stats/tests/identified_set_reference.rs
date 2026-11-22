@@ -11,7 +11,7 @@
 //! critical value, a width below the retention threshold, a single completion and dropped
 //! replicates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     IdentifiedSetInterval, imbens_manski_critical_value, imbens_manski_influence,

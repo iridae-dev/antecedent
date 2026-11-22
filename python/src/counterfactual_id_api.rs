@@ -5,7 +5,7 @@
 //! and the artifact consumer are the Rust route's, so a Python answer is the
 //! Rust answer bit for bit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::counterfactual_id::{
     CounterfactualIdConsumeLimits, CounterfactualIdEffect, CounterfactualIdOptions,

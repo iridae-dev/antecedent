@@ -1,6 +1,6 @@
 //! Temporal cross-world contrast construction and evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DomainRef, EstimandMethod,

@@ -1,6 +1,6 @@
 //! discovery-parity PCMCI multi-var conformance (edge set + val/p matrix entries).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

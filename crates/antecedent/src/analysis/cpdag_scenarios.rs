@@ -15,7 +15,7 @@
 //! one joint covariance matrix of per-scenario plug-in estimates from the same
 //! complete-row sample, never an interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::cpdag_scenarios::{CpdagScenarioReport, PreparedCpdagScenarios};

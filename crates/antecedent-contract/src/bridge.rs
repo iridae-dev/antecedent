@@ -43,7 +43,7 @@
 //! source, also carries the first-order propagated variance of the bridged value
 //! ([`PointPropagation`]) beside the plug-in value, read as an uncalibrated spread.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,

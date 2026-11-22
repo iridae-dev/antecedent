@@ -7,7 +7,7 @@
 //! function only under consistency, positivity, and nuisance convergence/rate
 //! conditions. Cross-fitting alone does not guarantee valid inference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

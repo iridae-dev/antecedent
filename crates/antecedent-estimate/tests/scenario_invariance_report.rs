@@ -10,7 +10,7 @@
 //! `P_s(y = 1 | do(x)) = 0.08 + 0.48 = 0.56`, relying on the source experiment
 //! alone; selection on `y` is an s-hedge and relies on nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

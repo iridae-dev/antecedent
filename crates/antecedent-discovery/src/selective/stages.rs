@@ -18,7 +18,7 @@
 //! stage it depends on, so a change anywhere upstream is visible downstream. The plan names
 //! the changed inputs. It decides and explains; it computes nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

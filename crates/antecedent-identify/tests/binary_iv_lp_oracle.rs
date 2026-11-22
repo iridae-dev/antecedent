@@ -4,7 +4,7 @@
 //! (`conformance/identify/binary_iv_lp/reference.py`), a different algorithm from the
 //! product's enumeration of basic solutions. Feasible and infeasible laws are both asserted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_identify::{BinaryIvLaw, binary_iv_ate_bounds};
 

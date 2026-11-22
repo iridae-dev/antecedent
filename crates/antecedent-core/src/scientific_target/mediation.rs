@@ -1,6 +1,6 @@
 //! Mediation targets and their cross-world premises.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::canonical_encode::{CanonicalEncode, count, encode_variables};
 use crate::identity::CanonicalWriter;

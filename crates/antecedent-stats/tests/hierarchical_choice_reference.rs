@@ -5,7 +5,7 @@
 //! homogeneous limit recovers the pooled Dirichlet posterior, the two-option kernel is the
 //! beta-binomial, and unresolved or out-of-domain posteriors are refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     DirichletPosterior, HierarchicalChoicePosterior, HierarchicalChoicePrior,

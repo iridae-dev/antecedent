@@ -6,7 +6,7 @@
 //! lag (F near its threshold) and a shifted alignment are included so the alignment and the
 //! threshold rule are exercised, not only an easy instrument.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::lagged_instrument::{LaggedInstrumentSample, fit_lagged_instrument};
 use serde_json::Value;

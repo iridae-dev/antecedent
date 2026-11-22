@@ -3,7 +3,7 @@
 //! Every layer that reads a treatment column back as an arm uses this one predicate, so the
 //! fitting side and the scoring side cannot disagree about which rows are treated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Level above which an indicator value is read as the treated arm.
 pub const TREATED_THRESHOLD: f64 = 0.5;

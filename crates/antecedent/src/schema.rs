@@ -1,7 +1,7 @@
 //! Declarations a study is assembled from: assumptions, identity primitives, diagnostics, ids and
 //! the supporting records of the foundation crate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Match key and scope facts of one reported interval.
 pub use antecedent_core::CalibrationBasis;

@@ -18,7 +18,7 @@
 //! P(pair <= 10) = 1/4 (only draw 1). With dose 3 unsupported, `far` is left out and the
 //! comparison is pair 23 against sure 20, so pair is uniquely optimal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -4,7 +4,7 @@
 //! truth). The E-value oracle is written here from the raw outcome column and the reported
 //! effect, not by calling the code that attaches it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "scenario effects are copied, not recomputed")]
 

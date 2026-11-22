@@ -20,7 +20,7 @@
 //! that retained the identity independently also refuses a consistently resealed artifact of
 //! another run. The artifact decides nothing and computes nothing: it carries scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::recalc::{RetargetSupport, Stage, StageIdentities, StageIdentity};
 use serde::{Deserialize, Serialize};

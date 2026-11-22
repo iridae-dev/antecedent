@@ -7,7 +7,7 @@
 //! coefficients, in 30-digit arithmetic. Cases: a strong fuzzy jump, a regression kink and a
 //! first stage so weak that the interval must be withheld.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_local_ratio::{
     LocalRatioKind, LocalRatioSample, LocalRatioSpec, fit_bayesian_local_ratio,

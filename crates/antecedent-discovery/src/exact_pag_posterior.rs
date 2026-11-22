@@ -17,7 +17,7 @@
 //! enumerated, and [`exact_pag_posterior`] hands the problem to the sampler over MAGs,
 //! [`pag_posterior_mcmc`], with its default schedule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 

@@ -11,7 +11,7 @@
 //! Target law {0: 0.25, 1: 0.75} (E z = 0.75); source law {0: 0.4, 1: 0.4, 2: 0.2}
 //! (E z = 0.8).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

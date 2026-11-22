@@ -7,7 +7,7 @@
 //! a plan swapped for another program, or no program at all, is refused with
 //! `route_not_lowered` before any work runs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

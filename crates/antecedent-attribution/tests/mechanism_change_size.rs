@@ -12,7 +12,7 @@
 //! Under an intercept shift of the outcome `y` the same detector must reject `y` and leave `z`,
 //! whose mechanism did not change, at its size.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_attribution::{MechanismChangeMethod, detect_mechanism_changes};
 use antecedent_core::{ExecutionContext, MechanismChangeQuery, PopulationSelector, VariableId};

@@ -13,7 +13,7 @@
 //! numerical error is within-cell: a variance inflation of about `(1 / cells_per_scale)^2 / 12`
 //! of the marginal variance, with `cells_per_scale = 16`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_wrap,

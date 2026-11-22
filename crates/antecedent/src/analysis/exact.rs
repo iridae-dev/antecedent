@@ -1,6 +1,6 @@
 //! Exact-law modality of the retained common prepared-study lifecycle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{PreparedStudy, StudyBuilder};
 use antecedent_contract::{
     AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,

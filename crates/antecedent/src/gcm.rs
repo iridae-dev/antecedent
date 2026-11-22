@@ -36,7 +36,7 @@
 //! let fitted = fit_gcm(dag, &data)?;
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

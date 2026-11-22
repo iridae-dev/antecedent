@@ -9,7 +9,7 @@
 //! at scale 1e4 and offset 1e6, tied conditioning values (a rank-deficient kernel), a six-row
 //! sample, a wide length scale (a nearly rank-one kernel) and an empty conditioning set.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use serde_json::Value;

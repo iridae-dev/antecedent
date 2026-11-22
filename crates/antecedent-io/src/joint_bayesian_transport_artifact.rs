@@ -31,7 +31,7 @@
 //! the identification record copies, which is a declared premise bound into the premises
 //! digest, not re-derived here (no graph is stored).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::model_codes::{
     GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,

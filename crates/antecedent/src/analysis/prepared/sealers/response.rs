@@ -1,7 +1,7 @@
 //! Sealers of the static response routes: derivative, cell-AIPW, DAG
 //! response, and the legacy mean-curve operation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::builder::RefuteSuite;

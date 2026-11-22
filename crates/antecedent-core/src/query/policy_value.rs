@@ -2,7 +2,7 @@
 //!
 //! The nuisance predictions and policy actions are frozen on the evaluation
 //! rows; prediction ownership is retained as caller-declared metadata.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
 use super::fault::PolicyValueFault;

@@ -11,7 +11,7 @@
 //! they may remain on an accepted graph. Conflict and bidirected marks that
 //! cannot complete are refused before estimation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

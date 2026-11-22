@@ -6,7 +6,7 @@
 //! concentrated posteriors (shapes up to 4000), skewed shapes (1, 40) and non-integer shapes; and,
 //! for integer shapes, the two-arm superiority as an exact rational sum from the binomial tail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     BetaPosterior, best_arm_probabilities, expected_losses, probability_exceeds,

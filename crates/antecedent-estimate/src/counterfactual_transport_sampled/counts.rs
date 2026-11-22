@@ -9,7 +9,7 @@
 //! structural envelope. A cell the caller declares structurally zero must have
 //! count zero and is never smoothed or filled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
 

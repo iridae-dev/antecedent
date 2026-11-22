@@ -1,6 +1,6 @@
 //! Exact pairs-bootstrap solves in a QR-orthonormalized basis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use faer::linalg::householder::{

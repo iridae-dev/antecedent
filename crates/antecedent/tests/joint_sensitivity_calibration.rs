@@ -22,7 +22,7 @@
 //! closed (`not_supported`). The estimator is
 //! compiled only under `calibration-internal`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

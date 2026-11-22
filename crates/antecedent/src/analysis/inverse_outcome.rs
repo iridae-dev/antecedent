@@ -32,7 +32,7 @@
 //! The report carries an order-invariant identity digest of every input and
 //! is a pure function of them, so an independent consumer recomputes it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

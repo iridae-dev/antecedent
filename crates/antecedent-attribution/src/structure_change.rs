@@ -13,7 +13,7 @@
 //! as [`ChangeAttributionResult::observed_change`], with
 //! [`ChangeAttributionResult::unexplained_change`] as the remainder.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

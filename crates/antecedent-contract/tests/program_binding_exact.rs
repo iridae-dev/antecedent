@@ -7,7 +7,7 @@
 //! regime label but is a different point: its exact bits differ, so a claim for one is refused
 //! against the other with `dose_grid_changed`, and the durable identities differ.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalProgramClaim,

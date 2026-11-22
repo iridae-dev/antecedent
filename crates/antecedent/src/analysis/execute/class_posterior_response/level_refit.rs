@@ -1,6 +1,6 @@
 //! Response-level refits and scoped class-completion sensitivity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, AtomRefutationPolicy, AverageEffectQuery, CachedGraphPosteriorIdentification, CausalError,

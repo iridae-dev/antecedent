@@ -1,6 +1,6 @@
 //! Retained proof and procedure for a fixed-graph temporal effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, IdentificationStatus, TemporalEffectQuery};
 use antecedent_data::TemporalIndexer;

@@ -11,7 +11,7 @@
 //! `msm_dirichlet_posterior`. Nothing here uses a vanishing prior, so a route that skipped the
 //! update would fail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{

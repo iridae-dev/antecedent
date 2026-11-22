@@ -3,7 +3,7 @@
 //! Oracle packages are used only during external fixture generation. These
 //! tests consume committed outputs and do not install or execute them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

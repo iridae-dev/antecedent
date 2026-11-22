@@ -6,7 +6,7 @@
 //! says nothing about the causal structure, so the checks compare the node
 //! list and the sorted directed edge set instead.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{Dag, NodeRef, TemporalDag};
 

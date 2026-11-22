@@ -8,7 +8,7 @@
 //! it overlaps or reuses what was already used. Nothing here re-identifies or recompiles the
 //! study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{PreparedModality, PreparedStudy};
 use crate::error::CausalError;

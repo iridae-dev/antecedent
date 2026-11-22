@@ -22,7 +22,7 @@
 //! that ancestral set is also the answer when the pool exceeds the declared candidate ceiling
 //! or the examination budget runs out, valid but not minimum-cardinality.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -3,7 +3,7 @@
 //! hierarchical borrowing against numerical integration, and the dependence
 //! envelope against a brute-force correlation grid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::synthesis::{
     BetweenStudyMethod, MeanPrior, SynthesisError, TauPrior, check_covariance, equicorrelated_gls,

@@ -10,7 +10,7 @@
 //! everything else with the not-a-CPDAG detail. The enumeration shares no search code with
 //! this reference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

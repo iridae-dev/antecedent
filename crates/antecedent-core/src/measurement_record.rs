@@ -21,7 +21,7 @@
 //! `scripts/bench_regression.py` attaches when `<bench>/measurement.json` is present.
 //! This module is not a second benchmark runner.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::time::Instant;

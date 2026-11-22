@@ -1,6 +1,6 @@
 //! Scalable Nystrom GPDC conditional independence test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::gpdc::{
     GPDC_FACTOR_CACHE, ResidualNull, ensure_residual_information, residual_dcor_permutation_result,

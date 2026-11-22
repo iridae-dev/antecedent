@@ -15,7 +15,7 @@
 //! [`ExecutionFactStatus::Cancelled`] and [`ExecutionFactStatus::Failed`] do
 //! not publish a claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

@@ -11,7 +11,7 @@
 //! checks that a declared integer sampling weight equals row replication for the point estimates,
 //! so the declaration is neither ignored nor mis-scaled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

@@ -13,7 +13,7 @@
 //! refused, never paired by index). Ties split their probability equally, so the best
 //! probabilities of all candidates sum to one at every draw.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};

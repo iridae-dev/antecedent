@@ -67,7 +67,7 @@
 //! waves flagged [`StopReason::Cancelled`]. A wave's scratch is a local vector that is dropped
 //! on every exit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, derive_stream};
 use antecedent_data::DataError;

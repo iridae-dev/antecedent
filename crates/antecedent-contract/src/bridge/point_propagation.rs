@@ -35,7 +35,7 @@
 //! interval of the bridged value remains the separate, scoped request of the layer
 //! that holds the coverage records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::measurement_model::{MeasurementModel, MeasurementParameters};

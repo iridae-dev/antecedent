@@ -4,7 +4,7 @@
 //! one contemporaneous slice plus its history, then relabeled so contemporaneous
 //! nodes keep the series schema ids the query already names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Admg, Arc, CausalError, Dag, DenseNodeId, TableView, TabularData, TemporalDag, TemporalIndexer,

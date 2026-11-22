@@ -5,7 +5,7 @@
 //! refused at the artifact, a masked coordinate and a non-finite draw are refused and never
 //! dropped, and a candidate outside its declared control bounds is excluded, never valued.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{ExecutionContext, VariableId};

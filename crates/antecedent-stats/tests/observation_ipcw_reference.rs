@@ -10,7 +10,7 @@
 //! the augmented pseudo-value over every one of the `2^n` selection patterns, weighted by their
 //! probabilities, returns the full-data mean for any outcome model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     censoring_tail_restriction, kaplan_meier_ipcw, selected_outcome_pseudo_values,

@@ -6,7 +6,7 @@
 //! million observations, and the exact miss probability over every Bernoulli path, which Ville's
 //! inequality bounds by the level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{SequenceKind, SequenceState, mixture_hoeffding_radius};
 use serde_json::Value;

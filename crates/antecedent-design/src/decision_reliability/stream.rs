@@ -7,7 +7,7 @@
 //! stream. Anything else (a shifted overlap) is neither paired nor independent, and the
 //! caller must refuse rather than guess.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, CausalRng, RngFactory, StreamDomain, mix64};
 use serde::{Deserialize, Serialize};

@@ -19,7 +19,7 @@
 //! normal interval from the published Newey-West standard error, a posterior-quantile interval
 //! re-summarized from the retained draws.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "row indexes are small integers")]
 

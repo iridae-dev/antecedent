@@ -8,7 +8,7 @@
 //! An equivalence class stays an equivalence class: an edge whose endpoint marks are not
 //! both resolved is reported as unresolved and no function in this module chooses a member.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, NodeRef, VariableId};
 use antecedent_graph::{

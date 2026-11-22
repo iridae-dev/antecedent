@@ -4,7 +4,7 @@
 //! to update, and resampling the units is not a substitute. Both matching settings answer with
 //! the premise that is missing and the next attempt that does reach a posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::matching_posterior_boundary::{
     MatchingPosteriorRequest, refuse_matching_posterior,

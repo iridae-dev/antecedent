@@ -1,6 +1,6 @@
 //! Panel perturbation and refitting.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalRng, ExecutionContext, Modal, PanelData, PanelUnit, PreparedRefit, TableView,

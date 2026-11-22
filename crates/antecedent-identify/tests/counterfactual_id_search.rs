@@ -3,7 +3,7 @@
 //! structural models, explicit two-model non-identifiability witnesses, the
 //! shared search budget, the declared bounds and invariances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -11,7 +11,7 @@
 //! it holds no producer object, and its oracle is a closed form written here,
 //! not a library call.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "two test binaries share this module and each uses a subset")]
 #![allow(clippy::too_many_lines, reason = "scenario builders list declarations in order")]

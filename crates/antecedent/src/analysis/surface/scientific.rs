@@ -3,7 +3,7 @@
 //! A consumer of the facade crate builds quantities, readings and model declarations
 //! with these types without importing component crates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use crate::analysis::mechanism_exports::model_crate::compile::MechanismSlot;
 pub use crate::analysis::mechanism_exports::model_crate::compose::{

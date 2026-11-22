@@ -7,7 +7,7 @@
 //! over structures, and it reaches downstream analyses only through the review
 //! gate of an accepted graph.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::DiscoverFault;
 use std::sync::Arc;

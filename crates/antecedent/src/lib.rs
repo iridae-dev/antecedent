@@ -1,5 +1,6 @@
-//! Identification-first causal inference: declare what you assume, ask a typed question, and
-//! get back an answer that states what it rests on, or a refusal that states why not.
+//! A compiler and evidence-aware runtime for causal science: declare what you assume, ask a
+//! typed question, and get back an answer that states what it rests on, or a refusal that
+//! states why not.
 //!
 //! `antecedent` is the facade crate of the Antecedent library. It decides whether a causal
 //! question is identified under a declared structure before it estimates anything, runs
@@ -162,7 +163,7 @@
 //! Tutorials, guides, the support matrix and the refusal-code reference are at
 //! <https://antecedent.readthedocs.io/>.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

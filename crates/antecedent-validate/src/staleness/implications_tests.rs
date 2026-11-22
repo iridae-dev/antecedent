@@ -3,7 +3,7 @@
 //! stays at the declared level, a graph that implies nothing is reported as untested, and the
 //! exported baseline gives the same report without the producer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::recalc::Stage;
 use antecedent_core::{CausalRng, ExecutionContext};

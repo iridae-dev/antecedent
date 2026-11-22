@@ -15,7 +15,7 @@
 //!   its variance (4 - 4 rho^2)/(5 - 4 rho), which peaks at rho = 1/2 with
 //!   value 1 and is 0.76/1.4 at 0.9.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::Range;
 

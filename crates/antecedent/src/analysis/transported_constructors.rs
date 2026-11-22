@@ -51,7 +51,7 @@
 //!   declarations for the call only; the response owns copies of everything it
 //!   keeps.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,

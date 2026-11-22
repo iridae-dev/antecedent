@@ -20,7 +20,7 @@
 //!   (measured with independent source and mapping evidence) do not cover;
 //! * every mapping outside the measured design, as for a mean.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

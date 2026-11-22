@@ -6,7 +6,7 @@
 //! Each helper restates a fragment that routes previously inlined; none
 //! widens or narrows what any route admits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     Diagnostic, DiagnosticKind, DiagnosticSeverity, ResponseFunctional, VariableId,

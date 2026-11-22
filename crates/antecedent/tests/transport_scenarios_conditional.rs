@@ -17,7 +17,7 @@
 //!
 //! Every law and every truth is enumerated from latent SCMs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/admg_conditional_scm.rs"]
 mod admg_conditional_scm;

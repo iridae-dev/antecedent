@@ -8,7 +8,7 @@
 //! `t`, and shares no ancestor with `y` once `t`'s outgoing edges are removed. Every labelled
 //! DAG on four nodes and every ordered (treatment, outcome) pair is compared.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

@@ -22,7 +22,7 @@
 //!   `latent = (observed + specificity - 1) / (sensitivity + specificity - 1)`
 //!   and its forward map, for the model's declared rates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::identity::CanonicalWriter;
 use antecedent_core::measurement_model::{

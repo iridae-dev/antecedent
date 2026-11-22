@@ -8,7 +8,7 @@
 //! reduced joint `P*(y, w | do(x))` normalized at `w`. Every law and the truth
 //! are enumerated from one latent SCM.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/admg_conditional_scm.rs"]
 mod admg_conditional_scm;

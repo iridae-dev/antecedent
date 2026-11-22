@@ -10,7 +10,7 @@
 //! score and the finite-law CRPS for a count), against the training-mean baseline on the same
 //! cases. A score is a point value; no interval is published for it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

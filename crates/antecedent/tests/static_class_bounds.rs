@@ -1,7 +1,7 @@
 //! A partially identified static class (CPDAG / PAG) answer carries its
 //! identified set, and class responses export and reload.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `x`, `g` are the variable names of the laws below.
 #![allow(

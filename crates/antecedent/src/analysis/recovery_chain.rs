@@ -14,7 +14,7 @@
 //! [`RecoveryChain::consume`] re-decides, re-evaluates and re-verifies the witness
 //! from the exported artifact and refuses any resealed change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 pub use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};

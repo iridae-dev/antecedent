@@ -6,7 +6,7 @@
 //! sample of queries against the scan, checks a whole estimate on a subsample against the
 //! scan-based estimate, and replays the fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::time::{Duration, Instant};
 

@@ -12,7 +12,7 @@
 //! refused instead of being rewritten into one the digest would then describe
 //! differently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

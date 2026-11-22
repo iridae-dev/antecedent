@@ -9,7 +9,7 @@
 //! interval; where the recorded column exists, taking it at face value must miss the planted
 //! effect. The pooled values are also checked against Rubin's rules written out here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

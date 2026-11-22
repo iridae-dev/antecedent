@@ -10,7 +10,7 @@
 //! through a whole-procedure interval that selects again inside every refit; this record is not
 //! such a statement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_data::TabularData;

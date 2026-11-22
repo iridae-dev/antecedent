@@ -17,7 +17,7 @@
 //! Monte Carlo standard errors and refuses an interval whose larger error exceeds
 //! [`MAX_ENDPOINT_MCSE_FRACTION`] of its width: the draws have not converged enough
 //! for the endpoints to mean what they say.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };

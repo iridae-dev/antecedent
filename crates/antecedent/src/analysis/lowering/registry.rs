@@ -6,7 +6,7 @@
 //! route added to `RouteInput` without a row here does not compile, and a row
 //! always has a plan route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalQuery;
 

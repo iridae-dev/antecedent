@@ -1,7 +1,7 @@
 //! The replayable cross-world artifact: export from a computed effect, and
 //! consume by replay plus the independent closed-form recomputation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

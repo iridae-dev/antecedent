@@ -16,7 +16,7 @@
 //!   value says the reported derivative describes the response only on a smaller scale than
 //!   the one the claim is read at.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

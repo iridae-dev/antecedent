@@ -41,7 +41,7 @@
 //! data cannot move them. A refit under another population, regime or quantity than the
 //! request names is refused (the diagram and context findings), never adopted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

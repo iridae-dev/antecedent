@@ -9,7 +9,7 @@
 //! loss that depends on the outcome, exposure failure under both attributions, every stopping
 //! rule, both final selections, three arms with ties, and the prior predictive.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

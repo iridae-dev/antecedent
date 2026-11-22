@@ -1,7 +1,7 @@
 //! Measured allocation of the selected-column paths: every ownership copy a design makes
 //! is one the receipt or the physical-event record names, and nothing else allocates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::unwrap_used,

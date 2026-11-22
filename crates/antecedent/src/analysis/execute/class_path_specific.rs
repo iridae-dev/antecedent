@@ -18,7 +18,7 @@
 //! identified set, and a candidate the identifier refuses refuses the whole effect, since no
 //! functional is then correct for every model the PAG represents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::pag_path::ClassTag;
 use super::{

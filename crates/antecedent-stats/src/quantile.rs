@@ -4,7 +4,7 @@
 //! (Hyndman–Fan type 6) for posterior draws and interpolated (type 7) for resampling
 //! percentiles and descriptive summaries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Consistency constant turning a median absolute deviation into a Gaussian σ.
 pub(crate) const MAD_TO_SIGMA: f64 = 1.4826;

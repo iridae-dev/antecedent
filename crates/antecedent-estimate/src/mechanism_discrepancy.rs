@@ -36,7 +36,7 @@
 //! shift in a nonlinear or higher-moment feature of the mechanism may go undetected. Type I error
 //! and power are *`not_measured`* ([`CalibrationStatus::NotMeasured`]); no calibration claim is made.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

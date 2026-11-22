@@ -1,7 +1,7 @@
 //! Known-truth evidence for the source c-factor taken at a `TRz` line-10 exchange
 //! and for rule 3 leaving the child formula unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

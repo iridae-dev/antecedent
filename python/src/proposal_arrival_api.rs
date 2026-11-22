@@ -1,5 +1,5 @@
 //! Actual bounded proposal-arrival point estimation and raw-provider artifact replay.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, MAX_ARRIVAL_BYTES};
 use antecedent::io::IoError;

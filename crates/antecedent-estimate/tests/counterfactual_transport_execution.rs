@@ -6,7 +6,7 @@
 //! supplied regime laws. The fixtures live with the identifier's tests and are
 //! included here by path so one oracle serves both layers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

@@ -7,7 +7,7 @@
 //! carried record by record onto the current methods, each with its own outcome or
 //! break. Nothing here widens a stale digest.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::io::release_migration::{
     CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError, RouteRecordOutcome,

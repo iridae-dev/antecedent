@@ -12,7 +12,7 @@
 //! excluded from the support; their count is `rejected_invalid` and is stated in the
 //! diagnostics notes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;

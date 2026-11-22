@@ -10,7 +10,7 @@
 //! The identity covers layers one to four and six. Layer five is execution
 //! accounting: a data refresh may re-plan it without changing what was compiled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod chain;
 mod decision;

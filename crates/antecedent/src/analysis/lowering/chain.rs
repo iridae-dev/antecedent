@@ -23,7 +23,7 @@
 //! point or uncalibrated spread, and an interval of a composed quantity stays
 //! not constructed without a measured coverage record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -22,7 +22,7 @@
 //! assumption with status `untestable`. Sampling intervals and their derived tipping conclusions
 //! are reported with their calibration status and are never merged with the range.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, Intervention, OutcomeFunctional, TargetPopulation, VariableId,

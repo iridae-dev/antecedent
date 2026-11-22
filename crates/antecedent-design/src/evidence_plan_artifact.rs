@@ -22,7 +22,7 @@
 //! candidate universe and re-seals honestly, and it does not check that arriving
 //! studies will deliver their declared evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

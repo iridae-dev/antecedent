@@ -16,7 +16,7 @@
 //!
 //! Every row, unit and period lost to one of these is counted in [`PanelDataAccounting`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// What to do with a unit whose source rows contain a missing cell (`NaN` or a cleared
 /// validity bit) in the assignment, outcome, confounder or season column.

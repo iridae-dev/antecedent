@@ -16,7 +16,7 @@
 //! The ignored design runs through `scripts/measure_calibration.sh`; it emits no coverage record
 //! (the estimator is not reachable through the facade) and gates pass or fail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "bounded measurement dimensions")]
 

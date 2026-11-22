@@ -16,7 +16,7 @@
 //! summary is the worst label, and a dose outside the observed range is labelled outside the
 //! empirical support whatever its weights. The tolerance 1e-10 absorbs only libm `exp` rounding.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{DiagnosticScope, SupportReport, SupportStatus};
 use antecedent_estimate::dose_grid_functional::dose_support_report;

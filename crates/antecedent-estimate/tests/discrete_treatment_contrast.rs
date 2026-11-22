@@ -11,7 +11,7 @@
 //! contrast exactly and reports the rows it excluded. A two-valued column is untouched, and a
 //! column with many distinct values stays a continuous dose.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

@@ -1,7 +1,7 @@
 //! Shared reading of the frozen procedure references (`oracle_data/procedure_*_reference.json`):
 //! a declaration, a kernel and the exact terminal atoms written by `procedure_exact.py`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(dead_code, reason = "each test file uses the part of the support it needs")]
 

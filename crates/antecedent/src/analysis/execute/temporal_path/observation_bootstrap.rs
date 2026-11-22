@@ -1,6 +1,6 @@
 //! Observation-adjusted temporal response bootstraps.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, AtomBandSource, CausalError, CausalResponse, ClassBandLayout, ClassBootstrapTargets,

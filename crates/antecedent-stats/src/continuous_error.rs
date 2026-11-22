@@ -42,7 +42,7 @@
 //! the estimator layer bootstraps the whole procedure. Every result depends
 //! only on its inputs and, for SIMEX, the supplied random stream.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;

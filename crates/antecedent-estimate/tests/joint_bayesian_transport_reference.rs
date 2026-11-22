@@ -10,7 +10,7 @@
 //! reported posterior and effect moments to match, and the iid draws to reproduce the effect
 //! moments within Monte Carlo error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "small dense fixtures")]
 
 use std::sync::Arc;

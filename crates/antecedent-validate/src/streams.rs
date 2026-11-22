@@ -3,7 +3,7 @@
 //! Each value is the historical stream. A rename does not change draws; a new
 //! number would.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Replicates whose stream is the historical `base + r`. Bases of the refuters above are
 /// `0x1000` apart at the closest, so those offsets cannot alias a neighbouring refuter.

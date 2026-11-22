@@ -18,7 +18,7 @@
 //! under `do(b, l1, a1, l2, a2)` for every complete history and both actions.
 //! The target supplies its observational law over all six coordinates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use std::sync::Arc;

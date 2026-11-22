@@ -26,7 +26,7 @@
 //! digest, not by replay. The replay proves the numbers follow from the stored
 //! premises, not that the premises are the scientifically right ones.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};

@@ -7,7 +7,7 @@
 //! mediators, a treatment-level difference of two, and offsets of 1e3 (treatment), 1e5
 //! (mediators) and 1e6 (outcome).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

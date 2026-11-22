@@ -1,7 +1,7 @@
 //! Marginalize a unit-variance, zero-intercept Gaussian likelihood over the disjoint
 //! coefficient boxes [-1,-0.5] ∪ [0.5,1]. Their combined length is one in each dimension.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::f64::consts::{PI, TAU};
 use std::sync::OnceLock;

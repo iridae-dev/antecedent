@@ -1,6 +1,6 @@
 //! Particle-filter state cache — bootstrap/SIR for 1-D LGSSM.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_kernels::standard_normal;

@@ -1,6 +1,6 @@
 //! Divergence and two-sample helpers for mechanism-change detection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

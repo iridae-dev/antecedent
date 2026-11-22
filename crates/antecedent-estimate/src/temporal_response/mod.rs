@@ -3,7 +3,7 @@
 //! Reuses temporal-backdoor identification and linear g-computation on the
 //! unfolded design. No new identification algorithm.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

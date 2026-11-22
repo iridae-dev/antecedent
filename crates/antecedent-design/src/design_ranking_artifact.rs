@@ -36,7 +36,7 @@
 //! Calibration of Monte Carlo error coverage and rank guarantees is `not_measured`; an
 //! exact-integration EVSI is a point value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::too_many_lines,
     reason = "each receipt check is one linear pass kept in a single audited place"

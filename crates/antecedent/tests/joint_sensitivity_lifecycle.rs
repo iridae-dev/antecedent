@@ -4,7 +4,7 @@
 //! the measured endpoint bootstrap; the range artifact still refuses a
 //! forged sampling interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::too_many_lines,

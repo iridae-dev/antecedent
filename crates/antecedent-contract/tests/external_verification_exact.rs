@@ -5,7 +5,7 @@
 //! (0.25 and 0.75 differ by exactly 0.5). A receipt covers only the exact request it verified:
 //! changing any one of the five identity fields, or the quantity, leaves it uncovering.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalScientificObject, LawProviderContract,

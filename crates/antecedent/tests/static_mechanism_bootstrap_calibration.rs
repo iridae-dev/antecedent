@@ -24,7 +24,7 @@
 //!   `U = 2Φ(−|z|)` uniform on (0, 1), and the per-unit score `−log U` a unit exponential
 //!   variable, whose mean is exactly 1.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

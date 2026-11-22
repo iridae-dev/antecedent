@@ -33,7 +33,7 @@
 //!   [`super::sensitivity_decision::consume`]; consumption recomputes identity
 //!   digests and the decision outcome and refuses a resealed mutation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::transport_sensitivity::{
     REFERENCE_ACTION_ID, TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION, TRANSPORT_SENSITIVITY_VERSION,

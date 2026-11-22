@@ -16,7 +16,7 @@
 //! [`ReliabilityReport::combined_uncertainty`]): a combined statement is a whole-method
 //! claim that needs its own calibration at the coordinate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 

@@ -1,7 +1,7 @@
 //! Every supported support-matrix cell is first-class on inspect and completes
 //! inspect → preview → execute → claim → consume.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,
@@ -6088,7 +6088,7 @@ mod temporal_admg_compiler_fixture {
     //! comparison of published values and refuter states with that fixture is
     //! `tests/temporal_admg_derivative_known_truth.rs`.
     //!
-    //! SPDX-License-Identifier: MIT OR Apache-2.0
+    // SPDX-License-Identifier: MIT OR Apache-2.0
 
     #![allow(
         clippy::cast_precision_loss,

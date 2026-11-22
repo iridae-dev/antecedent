@@ -12,7 +12,7 @@
 //! sufficiency of a given table are untestable, so a given discovered graph is never
 //! certified. A construction that reuses the discovery rows for the analysis is a different
 //! construction ([`REUSE_STRUCTURE`]) and no record can support it here.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
 };

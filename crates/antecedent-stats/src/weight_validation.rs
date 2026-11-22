@@ -1,6 +1,6 @@
 //! Shared checks for observation weights used by weighted fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Whether every weight is finite and non-negative; zero, including negative zero, is allowed.
 pub(crate) fn finite_nonnegative(weights: &[f64]) -> bool {

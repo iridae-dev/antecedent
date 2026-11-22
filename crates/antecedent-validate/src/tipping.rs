@@ -5,7 +5,7 @@
 //! policies that the callers already differed on. Roots stay the arithmetic of
 //! the loop or formula that used to be inlined.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Smallest bisection tolerance either sensitivity contract admits.
 pub(crate) const MIN_TOLERANCE: f64 = 1e-12;

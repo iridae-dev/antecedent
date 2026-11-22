@@ -10,7 +10,7 @@
 //! baselines of each exact tail is at least alpha / 2; the accepted set and the number of laws
 //! evaluated are compared exactly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

@@ -27,7 +27,7 @@
 //! That diagnostic shuffles one outcome column and re-scores a *fitted* model; this procedure
 //! fits nothing, relabels the graph, and compares graph-implied independencies with the data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};

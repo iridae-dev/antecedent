@@ -9,7 +9,7 @@
 //! queries are covered; the series-data side of each lives in the checked temporal
 //! graph-posterior route evidence files.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "each test states its fixture, route and truth inline")]
 

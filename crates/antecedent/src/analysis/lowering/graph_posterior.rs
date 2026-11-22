@@ -21,7 +21,7 @@
 //! every execution of the cell refuses; the atoms are otherwise identified one by
 //! one at any posterior width, under the existing work and memory budgets.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

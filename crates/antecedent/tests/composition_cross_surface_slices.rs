@@ -21,7 +21,7 @@
 //! facade producer, so `antecedent-io/tests/composition_cross_surface.rs` covers them from the law
 //! artifact.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
 mod recovery_scm;

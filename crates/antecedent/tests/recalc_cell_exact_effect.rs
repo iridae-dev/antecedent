@@ -8,7 +8,7 @@
 //! multinomial propensity + 4 cell outcome regressions) = 25 cell models by the specification;
 //! a utility change fits nothing. The expected numbers are written out by hand here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_cell::{
     CellRequest, CellSession, CellSpec, ScoreQuantity, execute_cell_with_receipt,

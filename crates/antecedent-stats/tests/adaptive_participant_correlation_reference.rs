@@ -11,7 +11,7 @@
 //! and a dense grid over `p`), with the mass function written as a product of rising factors, not
 //! through the library's posterior code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

@@ -74,7 +74,7 @@ impl EntropyChannel {
     /// `H(prior) − H(p(G|y))`.
     ///
     /// Individual draws may be negative when an observation increases posterior entropy;
-    /// expectation is taken over draws without pointwise clipping (MM-012).
+    /// expectation is taken over draws without pointwise clipping.
     pub(super) fn draw(
         &self,
         candidate: &CandidateDesign,

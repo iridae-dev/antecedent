@@ -1,6 +1,6 @@
 //! Consumes the frozen causaleffect 1.3.15 transport-subset oracle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

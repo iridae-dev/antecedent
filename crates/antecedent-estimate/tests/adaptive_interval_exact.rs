@@ -7,7 +7,7 @@
 //! the quantiles 1.959963984540054 (95%) and 1.6448536269514722 (90%). The Welch difference of
 //! two small arms is computed by hand.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::adaptive_measured_interval::{
     beta_credible_interval, repeated_confidence_interval, weighted_wald_interval, welch_difference,

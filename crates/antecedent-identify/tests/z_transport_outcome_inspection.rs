@@ -5,7 +5,7 @@
 //! reason, a line-11 obstruction carries its terminal record, and an exhausted
 //! search carries a limits receipt with what it consumed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

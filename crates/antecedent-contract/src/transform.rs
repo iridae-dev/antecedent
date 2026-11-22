@@ -5,7 +5,7 @@
 //! Composition unions layer effects and concatenates unresolved
 //! obligations; it cannot drop an earlier unresolved obligation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

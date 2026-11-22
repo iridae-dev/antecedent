@@ -1,5 +1,5 @@
 //! Sharp bounds on the average effect of a binary treatment under a binary instrument.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
 use super::fault::IvBoundsFault;

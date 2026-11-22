@@ -18,7 +18,7 @@
 //!
 //! Registries can share a directory; each registry removes only its own files.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fs;

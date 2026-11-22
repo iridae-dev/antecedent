@@ -1,6 +1,6 @@
 //! Estimate, retarget, export, and refute clicks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
 

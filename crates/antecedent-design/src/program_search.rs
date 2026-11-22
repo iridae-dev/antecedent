@@ -5,7 +5,7 @@
 //! certifies the supplied finite set under its retained law, never a continuous or statistical
 //! optimum. Failed or unsupported source coordinates refuse a complete certificate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, DecisionFunctional,

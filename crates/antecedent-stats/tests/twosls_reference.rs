@@ -6,7 +6,7 @@
 //! instruments, a covariate with a large offset, and weak instruments whose Anderson-Rubin set is
 //! unbounded in one or both directions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     FaerBackend, IvBlocks, IvMoments, LeastSquaresWorkspace, anderson_rubin_confidence_set,

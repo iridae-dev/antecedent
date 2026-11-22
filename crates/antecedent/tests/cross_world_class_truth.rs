@@ -7,7 +7,7 @@
 //! DAG completion. The natural direct effect is the path-specific effect along the edges that
 //! avoid the mediator. A mediator-outcome latent confounder refuses the effect as not identified.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

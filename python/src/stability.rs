@@ -1,6 +1,6 @@
 //! Discovery stability validators bound from `antecedent-validate::stability`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_arguments)]
 

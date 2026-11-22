@@ -26,7 +26,7 @@
 //! dataset by its digest, which [`NonlinearMediation::consume_with`] then needs the caller to
 //! supply.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_CALIBRATION, NONLINEAR_MEDIATION_INTERVAL_STATUS,

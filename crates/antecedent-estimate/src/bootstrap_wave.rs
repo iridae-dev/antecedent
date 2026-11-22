@@ -10,7 +10,7 @@
 //! evaluation only. It does not reduce the caller's full-sample asymptotic fit. Cancellation is
 //! a recorded stop, not a success. Failed replicates stay in the attempt count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::{EstimationError, ResampleBufferFault};
 use antecedent_core::ExecutionContext;

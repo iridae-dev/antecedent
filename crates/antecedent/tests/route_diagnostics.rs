@@ -1,7 +1,7 @@
 //! Route-native diagnostics reach `CausalError::route_diagnostics` from the code paths
 //! that detect them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study, StudyResult,

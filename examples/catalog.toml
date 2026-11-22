@@ -1162,7 +1162,7 @@ topic = "Estimate effects"
 level = "intermediate"
 dependencies = []
 runtime = "small synthetic example"
-claim = "Execution reports the fitted evidence and replays any admissible forecast. The planted variants are synthetic, and execution awaits support in release builds."
+claim = "Execution reports the fitted evidence and replays any admissible forecast. The planted variants are synthetic."
 
 [[example]]
 id = "fitted_feedback_decision"

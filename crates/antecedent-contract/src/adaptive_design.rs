@@ -16,7 +16,7 @@
 //! The contract does no statistics. The numerical routes are in
 //! `antecedent_stats::adaptive_inference` and `antecedent_estimate`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod accounting;
 mod choice;

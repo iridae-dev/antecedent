@@ -8,7 +8,7 @@
 //! prior that sets neither factor must keep printing as it always did, since that text enters
 //! the digest of a discovery query.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -6,7 +6,7 @@
 //! non-rejection does not positively certify equality or a practical margin.
 //! Reporting floors, skip caps, width checks and named boundaries are separate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

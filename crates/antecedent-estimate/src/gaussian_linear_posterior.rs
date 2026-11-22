@@ -18,7 +18,7 @@
 //! frequentist interval, and the sandwich covariances of the frequentist routes have no
 //! counterpart here (the likelihood is the model-based one).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use antecedent_stats::{invert_square, student_t_ppf, student_t_sf};

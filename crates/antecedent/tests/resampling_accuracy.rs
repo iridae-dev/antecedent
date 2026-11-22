@@ -1,6 +1,6 @@
 //! Same-resample uncertainty agreement for the production OLS fast path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, CausalQuery, ExecutionContext, VariableId};

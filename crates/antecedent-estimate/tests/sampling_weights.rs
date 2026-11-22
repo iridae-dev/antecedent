@@ -10,7 +10,7 @@
 //! * against the truth of a simulated super-population that is sampled with known, unequal
 //!   inclusion probabilities, where the unweighted estimate of the same estimator is biased.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

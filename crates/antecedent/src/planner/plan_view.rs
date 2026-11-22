@@ -25,7 +25,7 @@
 //! the cell's [`RouteFamily`], and the view matches every family exhaustively, so a
 //! route cell or a family added without a view does not compile.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

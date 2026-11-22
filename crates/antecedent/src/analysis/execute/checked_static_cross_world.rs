@@ -4,7 +4,7 @@
 //! Its click invokes the scientific family executor directly; it does not re-enter
 //! the public builder, compile a replacement plan or run the generic dispatcher.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

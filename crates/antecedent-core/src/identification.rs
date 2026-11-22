@@ -3,7 +3,7 @@
 //! Lives in `antecedent-core` so both `antecedent-identify` and `antecedent-estimate` can
 //! reference the same enum without a layering edge estimate → identify
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::named_variants;
 

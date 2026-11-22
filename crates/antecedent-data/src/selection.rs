@@ -1,6 +1,6 @@
 //! Row selection and column transform helpers shared by estimators / refuters.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
 use std::sync::Arc;

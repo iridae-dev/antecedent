@@ -23,7 +23,7 @@
 //! (an entity appearing in both endpoint roles, a giant component, too few components per
 //! fold) is a typed `dyadic_dependence_not_supported` / `too_few_clusters` refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

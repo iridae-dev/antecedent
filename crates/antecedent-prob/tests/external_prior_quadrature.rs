@@ -3,7 +3,7 @@
 //! Each composed prior is compared with the moments of the density it claims to summarise,
 //! integrated on a grid without using the closed forms in the implementation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_prob::{
     CoefficientCorrelation, ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior,

@@ -11,7 +11,7 @@
 //! excludes its fold), the knot-split quadrature, the score assembly and the odds weights, under
 //! hinge knots inside the window, odds weights above ten, and an outcome offset of 1e6.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

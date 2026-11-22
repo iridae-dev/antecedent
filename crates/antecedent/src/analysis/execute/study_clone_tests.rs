@@ -1,7 +1,7 @@
 //! A `Study` copy is a reference-count bump: configuration, the heavy overlay
 //! members, and every prepare-time cache are shared, never deep-copied.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -18,7 +18,7 @@
 //! [`CausalQueryKind`], which `antecedent-core` keeps exhaustive, so a query
 //! variant added there does not compile here until its row is written.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, CausalQueryKind};
 

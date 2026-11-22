@@ -9,7 +9,7 @@
 //! gradient by numerical differentiation; the sharp bounds of a monotone envelope; and the
 //! maximum-likelihood latent-class fit of two integer pattern-count tables by EM to 1e-30.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, reason = "oracle pattern indices are small")]
 

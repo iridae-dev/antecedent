@@ -7,7 +7,7 @@
 //! intercept `0.06`, so a surrogate effect `0.8` bridges to `0.796`; sensitivity
 //! 0.9 and specificity 0.8 turn a recorded prevalence `0.31` into `11/70`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

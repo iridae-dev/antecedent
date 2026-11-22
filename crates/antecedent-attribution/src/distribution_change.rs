@@ -4,7 +4,7 @@
 //! change in the outcome marginal to mechanism replacements via Shapley values
 //! (Budhathoki et al. 2021).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -10,7 +10,7 @@
 //! ordering is preserved: verified structural sufficiency first, then lower cost
 //! units, then lower sample budget, then semantic id.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

@@ -7,7 +7,7 @@
 //! contract and the program identity of a study prepared on it; and the hidden
 //! engines are not on the public surface.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

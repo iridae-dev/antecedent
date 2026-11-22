@@ -1,6 +1,6 @@
 //! [`CausalState`] apply / invalidate / recompute.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 use std::sync::Arc;

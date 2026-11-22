@@ -44,7 +44,7 @@
 //!   one bit for bit; a consumer that retained the identity independently refuses
 //!   a self-consistent artifact of another composition.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::model_crate::discretized_scm::{
     ArmDiagnostic, BRIDGE_CALIBRATION, BRIDGE_ERROR_SCOPE, BRIDGE_INFERENCE, BridgeRefusal,

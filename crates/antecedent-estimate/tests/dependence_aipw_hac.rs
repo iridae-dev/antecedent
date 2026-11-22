@@ -12,7 +12,7 @@
 //! levels, or an active level the data never took, is refused by both, naming the observed
 //! levels, rather than reduced to a pair or extrapolated to.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -15,7 +15,7 @@
 //! whose rows lie in high-leverage regions of the fitted design, are named boundaries of
 //! the measured coverage, not claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

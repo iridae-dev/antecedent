@@ -1,5 +1,5 @@
 //! Local linear slopes of a temporal response, one horizon, with their whole-procedure band.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

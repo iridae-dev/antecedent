@@ -36,7 +36,7 @@
 //! recorded) are not linear in the
 //! scores; their modules state their own uncertainty paths.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod contrasts;
 pub mod dose;

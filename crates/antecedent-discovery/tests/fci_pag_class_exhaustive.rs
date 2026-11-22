@@ -10,7 +10,7 @@
 //! variables are complete), so every missed orientation, every unsound mark and every wrong
 //! adjacency is a disagreement.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

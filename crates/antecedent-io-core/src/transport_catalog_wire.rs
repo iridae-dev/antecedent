@@ -1,6 +1,6 @@
 //! Durable supplied-evidence catalogs, including measurement and sampling identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{

@@ -1,5 +1,5 @@
 //! Execution context: parallelism, kernel and cache policy, and Monte Carlo budgets.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(doc)]
 use super::context::ExecutionContext;

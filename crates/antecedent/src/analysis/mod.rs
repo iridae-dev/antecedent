@@ -6,7 +6,7 @@
 //! results of individual routes (transport, panel designs, decision evidence, adaptive
 //! procedures and others) for callers who use those routes directly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Reference getters on checked operations. The expansion is the function the
 /// invocation writes: the same visibility, attributes, signature, and

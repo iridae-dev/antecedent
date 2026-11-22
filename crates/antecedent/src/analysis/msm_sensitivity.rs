@@ -14,7 +14,7 @@
 //! with `not_supported` / `msm_sensitivity.composition_not_supported`. Calibration is
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_io::IoError;

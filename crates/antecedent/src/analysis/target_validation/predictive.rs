@@ -1,6 +1,6 @@
 //! Prior-sensitivity and posterior-predictive target checks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalRng, DenseLinearAlgebra, ExecutionContext, FaerBackend, InferenceMode,

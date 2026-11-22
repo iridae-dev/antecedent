@@ -8,7 +8,7 @@
 //! values and their paired contrasts share draws. The optimisation and held-out splits use
 //! independent noise streams.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

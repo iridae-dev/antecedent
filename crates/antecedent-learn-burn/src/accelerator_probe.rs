@@ -18,7 +18,7 @@
 //! Call [`probe_small_fold`] from one thread. This probe builds its layers with Burn's own
 //! initializer, which draws from the process-global ndarray seed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};

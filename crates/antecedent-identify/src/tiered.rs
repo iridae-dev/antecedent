@@ -4,7 +4,7 @@
 //! tier-closure set in `O(p)`. [`WithinTier::Unknown`] returns two canonical
 //! sets as an envelope and never collapses to one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

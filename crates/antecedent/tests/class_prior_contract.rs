@@ -1,6 +1,6 @@
 //! Class-prior contract: not enumeration, not a graph posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, Lag, TemporalEffectQuery, VariableId};

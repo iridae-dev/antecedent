@@ -30,7 +30,7 @@
 //! consistently, and the derivation the identification record copies, which is a
 //! declared premise bound into the premises digest, not re-derived here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use crate::joint_bayesian_transport_artifact::engine_refusal;

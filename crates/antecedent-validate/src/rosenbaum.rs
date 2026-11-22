@@ -28,7 +28,7 @@
 //! * **Amplification.** [`amplify`] decomposes `Γ` into an unobserved covariate's effect `Λ`
 //!   on treatment and `Δ` on the outcome, `Γ = (ΛΔ + 1) / (Λ + Δ)` (Rosenbaum and Silber 2009).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::norm_sf;

@@ -7,7 +7,7 @@
 //! 40-digit arithmetic. The conjugate parameters and the closed-form means are asserted to
 //! 1e-9; the draws behind the intervals are compared on mean and standard deviation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::survival::SurvivalRows;
 use antecedent_estimate::survival_posterior::{

@@ -15,7 +15,7 @@
 //! contract to the request bytes it travels with. It does not execute the model
 //! and grants no identification: a specified model stays model-conditional.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

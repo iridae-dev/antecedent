@@ -2,7 +2,7 @@
 //!
 //! Node keys and dense unfolding indexes live in `antecedent-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_core::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 

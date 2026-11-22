@@ -20,7 +20,7 @@
 //! `ρ̃ = corr(ε₁, ε₂)`. At `ρ = 0` it is the product of coefficients `β₂ γ`; it vanishes at
 //! the break-even `ρ = ρ̃`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 

@@ -11,7 +11,7 @@
 //! are retained. The original structural report is unchanged. Intervals remain conditional
 //! on discovery and refinement; complete-procedure calibration must include both steps.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![expect(
     clippy::result_large_err,

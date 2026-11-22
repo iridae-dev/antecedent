@@ -5,7 +5,7 @@
 //! Concrete test constructors live in `antecedent-stats` (use
 //! [`ci_from_name`] or import the type from that crate).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{StatsError, ensure_alpha_resolvable};

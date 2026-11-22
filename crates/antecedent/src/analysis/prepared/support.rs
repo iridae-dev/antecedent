@@ -1,6 +1,6 @@
 //! Shared prepare-time predicates and score-table helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::builder::DataInput;
 use crate::analysis::execute::Study;

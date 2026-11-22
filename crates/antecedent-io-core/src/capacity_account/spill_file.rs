@@ -11,7 +11,7 @@
 //! replacement or exclusive publication. Cleanup guards remove temporary and
 //! newly published files on failure; filesystem cleanup itself is best effort.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::TryReserveError;
 use std::ffi::OsString;

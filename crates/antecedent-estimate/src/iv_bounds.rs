@@ -16,7 +16,7 @@
 //! counted and left out, never replaced. Either interval is built so that it covers each sharp
 //! endpoint of the identified set at its level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IvBoundsQuery, StreamDomain, Value, VariableId};
 use antecedent_data::{

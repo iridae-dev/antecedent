@@ -2,7 +2,7 @@
 //!
 //! Hot paths bind [`VariableId`](crate::ids::VariableId)s; names are resolved only at API boundaries.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod association;
 mod attribute;

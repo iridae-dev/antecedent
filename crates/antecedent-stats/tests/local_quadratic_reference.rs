@@ -9,7 +9,7 @@
 //!   `e0'(X'WX)^-1 X'W^2 X (X'WX)^-1 e0`. Fractional Gaussian weights make `sum(w) - 3` the wrong
 //!   residual divisor; `sum(w) - tr((X'WX)^-1 X'W^2 X)` is the right one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{LocalPolynomialPoint, StatsError, gaussian_local_quadratic_influence};
 

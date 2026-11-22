@@ -29,7 +29,7 @@
 //! differences; the spend difference must agree with the two doses. Mapping uncertainty and source dependence on that prior are
 //! kept, and so are the bridge's assumptions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "propagation/joint.rs"]
 mod joint;

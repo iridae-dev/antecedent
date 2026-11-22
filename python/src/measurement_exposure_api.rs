@@ -6,7 +6,7 @@
 //! JSON for the Python layer to raise as its own typed exception, and a malformed declaration
 //! that never reached the checks is an input error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::estimate::measurement::{
     DeclaredEstimate, MeasurementError, SoftExposureCombination,

@@ -7,7 +7,7 @@
 //! the mode and the exact posterior-mean score by quadrature of the scalar linear predictor.
 //! One lag column is on a different scale from the other so the column-scale convention matters.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::temporal_penalized_score::{
     BayesianTemporalPropensity, FrequentistTemporalPropensity, TemporalPropensityDesign,

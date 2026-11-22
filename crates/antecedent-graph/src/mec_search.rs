@@ -12,7 +12,7 @@
 //! stop is sticky and typed ([`MecSearch::search_stop`]); it is a resource outcome, never a claim
 //! that the remainder holds no member.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;

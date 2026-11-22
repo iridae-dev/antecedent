@@ -8,7 +8,7 @@
 //! basis, so no record matches it and the annotation is `not_measured` or
 //! `outside_measured_scope` rather than the interval being withheld.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

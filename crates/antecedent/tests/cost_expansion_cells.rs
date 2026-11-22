@@ -5,7 +5,7 @@
 //! per outer fold, folds x strata for the joint cell), and the counted folds are checked
 //! against the folds an executed run records.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     BatchRetargetRequest, BatchStudy, EstimatorId, RefuteSuite, RetargetClaim, RetargetContrast,

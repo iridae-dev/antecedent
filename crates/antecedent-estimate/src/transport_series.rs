@@ -11,7 +11,7 @@
 //!   influence, whose studentized error is Student-t at an exact degrees of freedom;
 //! * [`scale_series_draws_to_ewc`]: the block-weight draws brought to that same spread.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{ipw_influence, validate_trial_to_target_inputs};
 use crate::EstimationError;

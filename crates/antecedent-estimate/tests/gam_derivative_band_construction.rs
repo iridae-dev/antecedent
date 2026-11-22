@@ -37,7 +37,7 @@
 //! residuals moves the half-width by more than a factor of 1.05, which the test asserts, so a
 //! different leverage correction cannot pass.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

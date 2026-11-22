@@ -23,7 +23,7 @@
 //! [`SUPPORTED_SAMPLING_COMPOSITIONS`] (empty today). Decisions are evaluated only at
 //! the declared grid points; nothing between them is evaluated.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::ExecutionContext;

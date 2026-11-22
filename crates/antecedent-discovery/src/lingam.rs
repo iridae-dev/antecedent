@@ -10,7 +10,7 @@
 //! information statistic `T_kernel` (Section 3.2, Eqs. 9-14). The causal-order
 //! search procedure itself follows the paper; only the independence measure differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

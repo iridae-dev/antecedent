@@ -6,7 +6,7 @@
 //! and exact randomization p-values over every partition of the pooled values for the
 //! small-sample likelihood-ratio and kernel tests.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::divergence::{
     classifier_two_sample, gaussian_kl, kernel_two_sample_with_permutations, mean_diff_two_sample,

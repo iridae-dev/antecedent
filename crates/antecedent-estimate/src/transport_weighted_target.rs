@@ -16,7 +16,7 @@
 //! the weights `odds_i v_i` the trial rows carry toward it (the trial must cover the target).
 //! With `v` constant the estimate is the unweighted contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_identify::TransportIdentification;
 use antecedent_prob::{TargetOverlap, check_weights_overlap};

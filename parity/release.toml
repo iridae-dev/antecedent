@@ -2,9 +2,10 @@
 
 library = "antecedent"
 
-# Minor lines that receive security fixes, newest first.
+# Minor lines that receive security fixes, newest first. Fixes are not backported,
+# so this is the latest minor line; every earlier line is listed as unsupported.
 # scripts/set_version.py rewrites this and the generated SECURITY.md table.
-supported_lines = ["3.0", "2.4", "2.3", "2.2", "2.1", "2.0"]
+supported_lines = ["3.0"]
 
 [[capabilities]]
 id = "release.parity_closure"

@@ -15,7 +15,7 @@
 //! resamples units within arm and repeats the imputation fit, the departure and the estimator,
 //! with the same resampling stream at every parameter value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::mnar_sensitivity::{ArmLoading, MnarEstimator, MnarModel};
 

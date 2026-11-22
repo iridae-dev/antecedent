@@ -53,7 +53,7 @@
 //! those inputs and requires the propagated mean, variance, nonlinear expectation and
 //! the claim identity (which binds them) to equal the stored bits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

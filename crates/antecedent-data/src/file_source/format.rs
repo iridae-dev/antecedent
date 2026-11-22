@@ -1,6 +1,6 @@
 //! File formats and the column kinds a file schema maps to.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, DataType, FileSourceError, Path, fmt};
 

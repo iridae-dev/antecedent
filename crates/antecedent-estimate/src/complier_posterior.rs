@@ -14,7 +14,7 @@
 //! expectation or general support certificate follows from passing this guard. These are
 //! empirical score-law weights, not a principal-strata likelihood enforcing monotonicity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

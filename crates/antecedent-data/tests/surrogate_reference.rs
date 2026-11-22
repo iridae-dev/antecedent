@@ -8,7 +8,7 @@
 //! permutation is checked against the full permutation law of a short series, including a
 //! gap whose position must not move.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::f64::consts::PI;

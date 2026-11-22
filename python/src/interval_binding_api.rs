@@ -5,7 +5,7 @@
 //! execution reported, never what was requested. Python reads them as typed views;
 //! it does not re-derive the method, dependence rule or replicate counts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::StudyResult;
 use antecedent::result::IntervalBinding;

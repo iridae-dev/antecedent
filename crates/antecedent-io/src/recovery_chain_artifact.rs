@@ -25,7 +25,7 @@
 //! declared, never verified from data. The row evaluates exact laws; any sampled
 //! provider composed on it is calibrated separately and is `not_measured` and not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IdentityDomain, VariableId};
 use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};

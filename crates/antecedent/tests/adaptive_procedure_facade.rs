@@ -9,7 +9,7 @@
 //! (the posterior mean is a martingale; an anytime-valid sequence excludes the
 //! truth with probability at most alpha).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_inference::{
     AdaptiveDesignDeclaration, AdaptiveInferenceRefusal, AdaptiveInferenceSession,

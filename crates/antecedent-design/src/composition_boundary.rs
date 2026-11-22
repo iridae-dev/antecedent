@@ -24,7 +24,7 @@
 //! [`check_atom_combination`] never turns conflicting structural atoms into a
 //! silent average.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod composition;
 

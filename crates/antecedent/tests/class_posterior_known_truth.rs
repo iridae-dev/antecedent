@@ -9,7 +9,7 @@
 //! those closed forms. No production estimator is called to produce an
 //! expectation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

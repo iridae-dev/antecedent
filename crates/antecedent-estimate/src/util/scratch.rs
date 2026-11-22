@@ -1,6 +1,6 @@
 //! Admission of the index and gather buffers a resampling loop retains, and of draw buffers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, ScratchLease, ScratchRefusal};
 

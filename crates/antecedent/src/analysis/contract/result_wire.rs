@@ -5,7 +5,7 @@
 //! estimate whose section carries the graphless support the executing result
 //! resolved converts through [`SupportedWire`]; the rest are plain `From`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::analysis_result_artifact::{
     ContinuousDosePointWire, ContinuousDoseResponseWire, DosePolicyValueWire,

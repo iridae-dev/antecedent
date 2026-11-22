@@ -16,7 +16,7 @@
 //!   group intervals.
 //!
 //! The repeated-sampling coverage tests are calibration evidence and are a separate claim.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,

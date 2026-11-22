@@ -9,7 +9,7 @@
 //! treats, an outcome offset of 1e7, a two-row table, three actions in two strata, singleton and
 //! multi-row uplift bins and a three-candidate class.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

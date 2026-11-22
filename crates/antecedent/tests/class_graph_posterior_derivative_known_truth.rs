@@ -13,7 +13,7 @@
 //! violation the fixture declares (an evaluation point beyond the observed treatment range) must
 //! be detected.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

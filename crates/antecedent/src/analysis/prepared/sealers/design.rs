@@ -1,6 +1,6 @@
 //! Sealers of the randomized-design and interference routes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::execute::RouteInput;

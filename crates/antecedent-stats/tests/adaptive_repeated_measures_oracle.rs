@@ -22,7 +22,7 @@
 //! Each family, outcome structure, analysis route and monitoring combination
 //! is its own test: evidence for one cell is not evidence for another.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AnalysisEstimator, ContractGap, DERIVED_NOT_MEASURED,

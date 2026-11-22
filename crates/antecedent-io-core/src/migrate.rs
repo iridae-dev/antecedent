@@ -6,7 +6,7 @@
 //! Analysis results with withheld mediation points also admit the scoped `0.6`
 //! format without migration. Unknown versions and other `0.6` kinds fail explicitly.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::container::{
     CompressPolicy, EncodedArtifact, SectionBytes, section_descriptor_with_policy,

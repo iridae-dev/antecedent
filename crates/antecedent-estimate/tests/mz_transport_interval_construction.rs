@@ -6,7 +6,7 @@
 //! interpolation) percentiles of the resulting risks are computed by hand. The reported
 //! mean interval and the contrast interval must equal those hand values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

@@ -27,7 +27,7 @@
 //! The closure is a sound, bounded search; absence of an item is not a
 //! non-transportability claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

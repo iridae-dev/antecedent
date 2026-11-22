@@ -8,7 +8,7 @@
 //! is computed here by the normal equations, independently of the library. A template whose
 //! treatment shares a latent cause with the outcome has a hedge on its window and is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

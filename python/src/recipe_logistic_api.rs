@@ -5,7 +5,7 @@
 //! provider capability check, the score-gradient check, the Newton solve, the sandwich
 //! covariance and the standardized means are Rust's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recipe_glm::{logistic_provider, logistic_standardized_effect};
 use antecedent::data::TableView;

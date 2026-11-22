@@ -1,6 +1,6 @@
 //! Lossless identification records plus named coordinates for Python consumers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::Identification;
 use antecedent::identify::{IdentificationEnvelope, IdentificationResult};

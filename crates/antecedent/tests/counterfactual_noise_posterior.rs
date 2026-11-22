@@ -16,7 +16,7 @@
 //!   is `Bernoulli(1 - p0/p1)`;
 //! - factual `(x=0, y=1)` and `(x=1, y=0)`: the effect is 0 for every `u`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "test scaffolding divides small constant counts")]
 

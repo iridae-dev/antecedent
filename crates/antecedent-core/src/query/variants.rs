@@ -8,7 +8,7 @@
 //! exhaustive classification tables elsewhere, which fail to compile until they
 //! are extended.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::canonical_encode::CanonicalEncode;
 use crate::identity::CanonicalWriter;

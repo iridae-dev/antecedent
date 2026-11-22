@@ -3,7 +3,7 @@
 //! target law or horizon changed are refused with the value-mismatch detail (or the
 //! evaluation's own refusal).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "each test is one scenario over shared fixtures")]
 

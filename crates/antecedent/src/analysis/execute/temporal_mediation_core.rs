@@ -7,7 +7,7 @@
 //! result envelope live here only, so a route cannot drift from the other in
 //! seeds, diagnostics or provenance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::temporal_path::{
     MediationHorizonClick, mediation_click_adjustment_keys, mediation_horizon_z_differs,

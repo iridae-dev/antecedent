@@ -17,7 +17,7 @@
 //! `sigma2`, over four overdispersed chains whose split R-hat and effective sample size gate the
 //! result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod conditional;
 

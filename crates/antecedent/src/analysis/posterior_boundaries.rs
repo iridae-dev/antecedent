@@ -13,7 +13,7 @@
 //!   `distribution_meaning_mismatch` and `temporal_curve.ordinary_posterior_not_supported` unless the
 //!   caller attests independent innovations, and names the next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::temporal_curve_posterior_meaning::{
     SerialErrorModel, TemporalCurvePosteriorMeaning, temporal_curve_posterior_meaning,

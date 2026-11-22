@@ -51,7 +51,7 @@
 //! The digests here are non-cryptographic content fingerprints (two FNV-1a lanes over
 //! length-prefixed fields); they detect accidental or unresealed change, not an adversary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

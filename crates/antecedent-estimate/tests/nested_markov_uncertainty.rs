@@ -1,5 +1,5 @@
 //! Independent interior multinomial information oracle; no coverage measurement.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, InferenceStanding, NestedMarkovInput, Regime, RegimeCounts,

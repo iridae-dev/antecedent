@@ -7,7 +7,7 @@
 //! study holds a single [`IdentificationCache`] rather than one optional field
 //! per kind with an implicit priority between them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -6,7 +6,7 @@
 //! is `float64`, `int64` or `boolean` (a missing cell is `NaN`), as levels when it is
 //! categorical, and only for missingness otherwise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;

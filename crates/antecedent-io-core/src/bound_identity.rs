@@ -17,7 +17,7 @@
 //! This module does not load an artifact. [`CyclicSolution::Tag`] is the
 //! `cyclic.solution.v1` tag; comparing it does not solve a cyclic system.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::SemanticDigest;
 use thiserror::Error;

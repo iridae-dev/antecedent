@@ -7,7 +7,7 @@
 //! Carlo standard error. Boundary constants are independent: published
 //! values, or an independent grid recursion (`SciPy`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::needless_range_loop, reason = "assertions index per-arm columns by arm")]
 

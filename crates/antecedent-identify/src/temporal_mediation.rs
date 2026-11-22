@@ -4,7 +4,7 @@
 //! decompose via path products once a mediator set participates on treatment→
 //! outcome pathways in the template.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

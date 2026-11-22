@@ -10,7 +10,7 @@
 //! an invalid cell stays missing in every indicator of its channel so the missing-data policy
 //! applies to it as to any other assignment cell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{JointPanelColumns, JointPanelError};
 use antecedent_core::VariableId;
 use antecedent_data::{

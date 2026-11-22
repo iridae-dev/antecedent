@@ -5,7 +5,7 @@
 //! digests and estimator-free artifacts) at its root, so every public path is
 //! the one it was before the split.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

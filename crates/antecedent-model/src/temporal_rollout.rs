@@ -15,7 +15,7 @@
 //! per-step columns ([`TemporalNoise::Retained`], abduced noise of a counterfactual), so
 //! the same policy gives the same values on shared noise on every route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

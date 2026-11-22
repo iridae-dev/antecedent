@@ -1,6 +1,6 @@
 //! Builder-independent execution of a checked temporal graph-posterior effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalQuery, ExecutionContext, InferenceMode, StudyResult, TimeSeriesData,

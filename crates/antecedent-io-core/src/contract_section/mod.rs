@@ -5,7 +5,7 @@
 //! be silently promoted to verified programs. The consumer takes only bytes —
 //! no originating `Study` or caller context.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::AcceptanceReport;
 use antecedent_core::ContractIdentities;

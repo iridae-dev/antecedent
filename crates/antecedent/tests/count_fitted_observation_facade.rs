@@ -2,7 +2,7 @@
 //! tables, the interval is a measured scalar or a typed refusal, and a changed source or
 //! a `not_measured` construction is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::count_fitted_observation::{
     CountFittedNodeWire, CountFittedObservation, MeasuredInference,

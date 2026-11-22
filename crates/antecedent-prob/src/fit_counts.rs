@@ -1,5 +1,5 @@
 //! Actual successful posterior solves and emitted aligned draw rows.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use std::cell::Cell;
 /// Posterior engine work; nested observers include the same actual operations.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

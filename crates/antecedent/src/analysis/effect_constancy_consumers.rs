@@ -4,7 +4,7 @@
 //! source-bank preferences are explicitly data dependent, and policy comparisons are affine
 //! point evaluations. Neither non-rejection nor agreement supports transport or pooling.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

@@ -2,7 +2,7 @@
 //! its frozen horizon, time order, alphabet and hard caps, and its
 //! construction from a lagged template through the ADR 0021 unfolding.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

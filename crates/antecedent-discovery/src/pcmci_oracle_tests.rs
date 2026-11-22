@@ -17,7 +17,7 @@
 //!   separating set d-separates its pair in the generating graph. Orientation completeness is
 //!   not asserted.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;

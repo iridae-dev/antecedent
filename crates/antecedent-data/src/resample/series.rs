@@ -1,6 +1,6 @@
 //! Applying a resampling plan to time-series data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalRng, DataError, GlobalId, OwnedColumnarStorage, ResamplingPlan, TableView,

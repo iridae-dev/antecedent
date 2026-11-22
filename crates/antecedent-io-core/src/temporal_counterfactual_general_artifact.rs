@@ -19,7 +19,7 @@
 //! receipt are bit-identical. The size of a request is bounded by the evaluator's work budget and
 //! the container's byte budget, not by a count of slices or worlds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_counterfactual::temporal_cross_world::general::{

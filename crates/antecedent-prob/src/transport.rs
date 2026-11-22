@@ -4,7 +4,7 @@
 //! source and target populations differ, an explicit [`TransportPolicy`] is
 //! required; the library never invents identification from transport claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::sync::Arc;

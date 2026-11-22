@@ -5,7 +5,7 @@
 //! completion sampler. Successful `try_into_temporal_dag` still collapses to
 //! the `TemporalDag` cell. Bayesian incomplete-class cells stay closed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -17,7 +17,7 @@
 //!   each vocabulary, and the `host_contract` test checks it against the types
 //!   compiled here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, EvidenceObligation, ObligationRecord,

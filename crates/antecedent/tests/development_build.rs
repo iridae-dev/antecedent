@@ -1,7 +1,7 @@
 //! A development build runs a `not_supported` route and says what a release build would have
 //! refused. Compiled only under `--features development`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "development")]
 

@@ -13,7 +13,7 @@
 //!   (`ru_maxrss`: bytes on macOS, kibibytes elsewhere), declared directly so no `libc`
 //!   dependency is added. Hosts without it report an explicit reason.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::path::{Path, PathBuf};

@@ -1,4 +1,4 @@
-# Choose a 3.0 composition workflow
+# Choose a composition workflow
 
 Start with the decision or scientific question you have. The examples below connect the data, model, and final result in one inspectable program. Each walkthrough states what it assumes and what the result can tell you.
 
@@ -17,6 +17,6 @@ Start with the decision or scientific question you have. The examples below conn
 
 ## Read the evidence status
 
-The event-process and latent soft-intervention examples can inspect and execute their supported plans in a 3.0.0 release build. The fitted feedback, target decision, and other Rust examples describe the scope of the implemented methods. Where a result says `not_measured`, its uncertainty has no matching calibration measurement.
+Before you execute a plan, read its `support` field ([plan view](plan-view.md)): it reports whether your installed build supports that route. The [support matrix](../support-matrix.md) lists the supported units and how support is decided. The fitted feedback, target decision, and other Rust examples describe the scope of the implemented methods. Where a result says `not_measured`, its uncertainty has no matching calibration measurement.
 
 The examples use declared models or synthetic data. Their checks cover the computation shown, such as replaying a decision or matching a known path effect. Use [scientific verification](scientific-verification.md) to find how Antecedent establishes support and calibration for a particular route.

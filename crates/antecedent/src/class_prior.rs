@@ -3,7 +3,7 @@
 //! This is not a graph posterior and not completion enumeration. Mechanism
 //! priors stay on [`crate::BayesianConfig`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

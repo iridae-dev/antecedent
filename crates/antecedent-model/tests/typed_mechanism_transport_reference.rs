@@ -8,7 +8,7 @@
 //! and p-value to agree, and checks the rejection decision on either side of the p-value, the
 //! equal-sample case (statistic zero) and the refusal when the target is not on the source design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

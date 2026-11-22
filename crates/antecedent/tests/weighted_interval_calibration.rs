@@ -19,7 +19,7 @@
 //! (`run_wi`); the coverage record is the only missing piece. The fixed-seed truth checks of the
 //! same estimators are `crates/antecedent-estimate/tests/sampling_weights.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

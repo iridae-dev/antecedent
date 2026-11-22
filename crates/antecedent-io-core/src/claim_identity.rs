@@ -4,7 +4,7 @@
 //! which the estimator-bound consumer owns, so it sits above
 //! `antecedent-io-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::IoError;
 use crate::identity::digest_wire;

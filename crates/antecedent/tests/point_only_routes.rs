@@ -5,7 +5,7 @@
 //! The statements are about the default configuration of the route. A requested replicate
 //! count or a Bayesian inference mode is a different procedure with its own record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

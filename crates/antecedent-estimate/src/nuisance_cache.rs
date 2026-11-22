@@ -7,7 +7,7 @@
 //! caller did not supply is refused, so there is no opaque, caller-assembled identity.
 //! Ordinary estimator reuse is stored by `crossfit_cache` under these same keys.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 

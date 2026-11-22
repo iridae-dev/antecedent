@@ -11,7 +11,7 @@
 //! Units are modelled as independent. A cluster that holds more than one unit is refused rather
 //! than silently treated as independent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

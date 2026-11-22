@@ -1,6 +1,6 @@
 //! Exact Gaussian-process distance correlation (GPDC) conditional independence test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ci::block_shuffle::{add_one_pvalue, permutation_null_exceedances, query_stream_salt};
 use crate::ci::residualize::residual_is_uninformative;
@@ -93,7 +93,7 @@ fn count_factorizations(queries: &[CiQuery], z_flat: &[usize], cache_slots: usiz
 /// Residualization centers the response and factors `K+λI` once per distinct Z set with
 /// Cholesky (X and Y are two right-hand sides of the same factorization, and queries of one
 /// batch sharing a Z set reuse it). The GP mean prediction is `Kα` with `(K+λI)α = y_c`, so the
-/// residual is exactly `y_c − Kα = λα` (MM-008). The earlier Jacobi-on-raw-`y` path rejected
+/// residual is exactly `y_c − Kα = λα`. The earlier Jacobi-on-raw-`y` path rejected
 /// conditional nulls and missed two-conditioner alternatives against the pinned advanced-CI
 /// oracle.
 ///
@@ -476,7 +476,7 @@ pub(super) fn gp_factor(
 
 /// GP residual of `y` given the Cholesky `factor` of `K + λI` (`None`: empty Z).
 ///
-/// With `(K+λI)α = y_c` the mean prediction is `Kα = y_c − λα` (MM-008), so the residual is
+/// With `(K+λI)α = y_c` the mean prediction is `Kα = y_c − λα`, so the residual is
 /// `y_c − Kα = λα` — one triangular solve, no `O(n²)` matrix-vector product.
 pub(super) fn gp_residual(
     y: &[f64],

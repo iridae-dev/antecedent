@@ -12,7 +12,7 @@
 //! matched periods the Bartlett bandwidth spans, written here from that definition. The penalized propensity interval is the subject-level influence-function sandwich
 //! of the ridge mode, checked against a two-parameter Newton solve and explicit 2x2 algebra.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

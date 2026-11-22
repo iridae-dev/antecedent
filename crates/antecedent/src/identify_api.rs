@@ -6,7 +6,7 @@
 //! through `Study::compile`, `Study::prepare` or `Study::run`, which retain the identification
 //! product. No raw identification entry is public.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
 use std::sync::Arc;

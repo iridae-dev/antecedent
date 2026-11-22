@@ -17,7 +17,7 @@
 //! the Monte-Carlo standard error of that mean is about 1e-3, so the stated band 0.01 is
 //! several standard errors wide while still failing a 0.05 bias or the confounded 0.6.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,

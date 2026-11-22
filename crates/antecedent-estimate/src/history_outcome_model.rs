@@ -19,7 +19,7 @@
 //! [`crate::BayesianGComputationAte`], so the prior, the draws and the diagnostics are those of
 //! Bayesian g-computation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

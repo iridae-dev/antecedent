@@ -16,7 +16,7 @@
 //! A request that keys the stream by worker scheduling is a [`FailedRngAttempt`].
 //! The legal key is the semantic one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

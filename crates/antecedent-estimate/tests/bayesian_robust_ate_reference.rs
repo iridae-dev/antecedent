@@ -13,7 +13,7 @@
 //! 1000, two covariates within 1e-5 of each other, a clip that binds on a strongly confounded
 //! propensity and a ridge penalty of 0.01.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_estimate::bayesian_robust_ate::{

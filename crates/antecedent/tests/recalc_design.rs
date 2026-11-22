@@ -1,5 +1,5 @@
 //! Checked design-effect recalculation against independent structural and covariance truth.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_design::{
     DesignModel, DesignRequest, DesignRunError, DesignSession, consume_design_with_data,

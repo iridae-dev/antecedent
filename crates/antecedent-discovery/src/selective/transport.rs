@@ -23,7 +23,7 @@
 //!   see [`super::contract`]. A pooled search carries its own invariance and identification
 //!   assumptions, which belong to the transport contract and are not inferable from data.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::convert::Infallible;
 

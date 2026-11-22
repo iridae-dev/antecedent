@@ -1,6 +1,6 @@
 //! Tests of the bootstrap loops, the design dispatch and the interval procedure.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};

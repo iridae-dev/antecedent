@@ -15,7 +15,7 @@
 //! most extreme probability that is reachable (a supremum when raising, an
 //! infimum when lowering) stated beside the requested level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::InferenceBasis;
 use antecedent_core::ExecutionContext;

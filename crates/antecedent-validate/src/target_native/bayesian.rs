@@ -21,7 +21,7 @@
 //!   The threshold verdict is a diagnostic convention whose operating characteristics are
 //!   `not_measured`. No permutation-test plus-one correction is applied.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

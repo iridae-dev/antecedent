@@ -3,7 +3,7 @@
 //! Every row-aligned array keeps its order, and decoding re-validates the query, so a stored
 //! design that its own validation refuses never reaches a study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

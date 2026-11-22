@@ -9,7 +9,7 @@
 //! -3/2) and ship after none (P(faulty) = 1/4, value 5), is worth
 //! `-1/4 + 1/2 * (-3/2) + 1/2 * 5 = 3/2`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::sequential_evaluation::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, ContingentPolicy, ExpectedEvaluation,

@@ -16,7 +16,7 @@
 //! rows, clipped but not trimmed weights, an iid analytic standard error, no sampling weights,
 //! clustering, calibration or bootstrap, and a treatment that sits at the two declared levels.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

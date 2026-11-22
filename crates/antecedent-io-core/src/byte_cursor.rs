@@ -5,7 +5,7 @@
 //! The refusal is the decoder's own error type, so the cursor takes a constructor for it
 //! once and every read that runs past the end returns it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Cursor over `bytes` whose reads fail with `E`.
 #[derive(Clone, Debug)]

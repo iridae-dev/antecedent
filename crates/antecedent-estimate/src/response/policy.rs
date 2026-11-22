@@ -4,7 +4,7 @@
 //! rule for a Gaussian policy), the additive and exact finite-mixture
 //! g-computation row expectations, and the static-Bayesian policy reduction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Intervention, StochasticPolicy, VariableId};
 use antecedent_stats::gauss_legendre;

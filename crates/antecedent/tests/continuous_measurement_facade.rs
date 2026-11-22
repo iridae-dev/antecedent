@@ -5,7 +5,7 @@
 //! `check_operation` and names the continuous entry point; interval and
 //! export refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::continuous_measurement::{
     ContinuousCorrectionSpec, CorrectionMethod, ErrorLocation, OutcomeLink, SimexExtrapolant,

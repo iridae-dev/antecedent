@@ -1,5 +1,5 @@
 //! Independent foreign mean callbacks, actual invocation receipts and portable replay.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_external::*;
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalProgramClaim,

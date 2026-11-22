@@ -13,7 +13,7 @@
 //! (once projected) decision contract and source projection: 5 links before projection and 7
 //! after, with the projection depending on exactly the source artifact and the decision contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

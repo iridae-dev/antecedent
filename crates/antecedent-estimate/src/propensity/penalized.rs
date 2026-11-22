@@ -19,7 +19,7 @@
 //! orthogonal-score argument under a stated remainder condition; the declared configuration
 //! travels with the score table through its provenance string.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::hash::{Hash, Hasher};
 

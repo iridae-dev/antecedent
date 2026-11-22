@@ -4,7 +4,7 @@
 //! This module owns the scientific record: which layer a digest belongs to,
 //! and that layers are not interchangeable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
 use std::sync::Arc;

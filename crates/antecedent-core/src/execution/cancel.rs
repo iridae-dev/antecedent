@@ -1,5 +1,5 @@
 //! Execution context: cancellation tokens and progress reporting.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::admission::{SharedAdmission, lock_mutex};
 #[cfg(doc)]

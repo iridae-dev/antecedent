@@ -14,7 +14,7 @@
 //! - the Bayesian static routes condition on independent rows;
 //! - the conditional effect refuses a three-level treatment instead of fitting its slope.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

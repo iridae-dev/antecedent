@@ -1,7 +1,7 @@
 //! Selective adjusted-regression recalculation against independent finite algebra.
 //!
 //! These tests assess values, covariance and actual work, not statistical coverage.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,

@@ -14,7 +14,7 @@
 //! the same inputs. Catalog descriptor v1 bindings can now refuse before the
 //! historical rule-version check, because their identities require reissue too.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::consume_mixed_source_artifact;
 use antecedent::design::{StudyPlanArtifactWire, StudyPlanConsumeLimits};

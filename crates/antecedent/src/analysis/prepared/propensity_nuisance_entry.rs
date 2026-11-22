@@ -7,7 +7,7 @@
 //! posteriors that do answer that effect. The retained product embeds the design it was fitted
 //! on, so a loader refits it and refuses any change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{PreparedModality, PreparedStudy};
 use crate::analysis::array_fits::{

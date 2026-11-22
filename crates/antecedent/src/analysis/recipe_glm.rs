@@ -10,7 +10,7 @@
 //! A provider that lacks a capability, or whose body does not answer the log density, is
 //! refused before any row is read.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     ExecutionContext, InferenceSelection, ProviderCapability, ProviderDeclaration, ProviderId,

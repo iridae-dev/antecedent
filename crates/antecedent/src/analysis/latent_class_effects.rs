@@ -25,7 +25,7 @@
 //! dataset by its digest, which [`LatentClassEffects::consume_with`] then needs the caller to
 //! supply.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LATENT_CLASS_MAX_CLASSES, LatentClassConfig,

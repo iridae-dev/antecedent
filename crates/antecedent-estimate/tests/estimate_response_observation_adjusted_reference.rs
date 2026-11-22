@@ -11,7 +11,7 @@
 //! folds. The composition publishes no interval, names its method, and refuses a conditioning set that
 //! omits the treatment or an adjuster and simultaneous bands.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

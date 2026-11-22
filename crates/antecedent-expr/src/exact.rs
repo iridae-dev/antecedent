@@ -1,6 +1,6 @@
 //! Validated finite-discrete laws. These inputs are laws, not sample frequencies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod transport;
 

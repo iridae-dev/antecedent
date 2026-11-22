@@ -6,7 +6,7 @@
 //! Oracle. The transported mean of `effect` in `clinic_b` is `2.0`. The utility of
 //! `treat` is `4 x - 1.5`, so its expected utility is `6.5`; `wait` is `0 * x = 0`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

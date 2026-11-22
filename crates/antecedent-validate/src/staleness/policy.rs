@@ -5,7 +5,7 @@
 //! [`StalenessPolicy::identity`]. The policy identity is part of the report identity, so two
 //! reports under different policies never compare equal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 

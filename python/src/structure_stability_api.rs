@@ -7,7 +7,7 @@
 //! often every whole structure came back. The frequencies are a bootstrap distribution of
 //! the search, not a posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_arguments, reason = "one keyword per option of the wrapped search")]
 

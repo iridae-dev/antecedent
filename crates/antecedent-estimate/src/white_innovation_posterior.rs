@@ -25,7 +25,7 @@
 //! Rows must be the contiguous lag windows of one series, in time order. A gapped series is not
 //! accepted here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

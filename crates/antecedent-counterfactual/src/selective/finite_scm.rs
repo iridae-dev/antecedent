@@ -29,7 +29,7 @@
 //! its cross-world routes, reading every exogenous term from the same
 //! posterior state, so the worlds are coupled by construction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

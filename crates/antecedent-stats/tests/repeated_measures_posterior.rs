@@ -12,7 +12,7 @@
 //!   `a_fixed_sample_analysis_after_adaptive_assignment_is_refused` in
 //!   `adaptive_repeated_measures_oracle.rs`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
 use antecedent_stats::adaptive_inference::{

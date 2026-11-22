@@ -16,7 +16,7 @@
 //!   known weights, so the percentile interval, the bootstrap spread and the posterior law are
 //!   exact.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::temporal_design::dose::{DoseFit, DosePairs, DoseTarget, fit_dose};

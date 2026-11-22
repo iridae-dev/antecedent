@@ -62,7 +62,7 @@
 //! [`PropagationChain::interval`] refuses without a measured coverage record
 //! at the composed coordinate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::MEASURE_COMPOSED_COVERAGE;

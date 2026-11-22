@@ -12,7 +12,7 @@
 //! from the public surface: called directly they return a structure with no
 //! contract, plan, claim or provenance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

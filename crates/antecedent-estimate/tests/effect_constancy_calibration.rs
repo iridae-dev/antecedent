@@ -1,7 +1,7 @@
 //! Independent Gaussian experiment for the Q/Wald and Holm composition of `EffectConstancy`.
 //! Known covariance only: this does not calibrate a caller's estimated SEs,
 //! non-Gaussian effect estimator, or a different sampling design.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::effect_constancy::{
     ConstancyConclusion, ContrastFamily, EffectEstimandIdentity, PartitionDependence,

@@ -12,7 +12,7 @@
 //! refused with a typed `coordinate_support.*` detail instead of being scalarized
 //! or relabeled. Nothing here estimates or rescales anything.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // A refusal is the cold path of a once-per-response derivation; boxing would not pay.
 

@@ -1,5 +1,5 @@
 //! Original checked transport arrival estimation and independently replayed raw counts.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent::analysis::proposal_arrival::{
     ArrivalArtifact, ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,

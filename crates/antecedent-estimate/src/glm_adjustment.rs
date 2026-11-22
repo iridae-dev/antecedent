@@ -10,7 +10,7 @@
 //! [`OverlapPolicy::ExplicitOverride`] is the only supported policy, since this is a regression
 //! (not propensity-based) path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

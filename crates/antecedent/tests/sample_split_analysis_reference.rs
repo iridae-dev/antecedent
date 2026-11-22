@@ -9,7 +9,7 @@
 //! interval at the Kish size less the coefficients (the row count less the coefficients when
 //! unweighted) at 60 digits. The product must reproduce all of it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "carried weights are compared bit for bit")]
 

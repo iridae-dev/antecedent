@@ -7,7 +7,7 @@
 //! mean so the plug-in variance is not trivial. The scale test pins the declared convention that
 //! the prior scale is in units of the residual sd.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::bayesian_rd::{RdSample, fit_bayesian_sharp_rd};
 use antecedent_estimate::util::DrawSpec;

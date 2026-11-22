@@ -8,7 +8,7 @@
 //! mapping, and the residual variance is fixed at one, so the interval does not depend on the
 //! outcome noise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

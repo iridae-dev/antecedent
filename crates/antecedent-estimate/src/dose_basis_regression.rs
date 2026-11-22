@@ -9,7 +9,7 @@
 //! design, a prior and draw-major coefficient storage so that every functional of the curve
 //! can be evaluated draw by draw on the same coefficient draw.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

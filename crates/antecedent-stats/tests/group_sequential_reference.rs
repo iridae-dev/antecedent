@@ -11,7 +11,7 @@
 //! deviation of 0.03 and the panels must follow it), and looks too close for the quadrature are
 //! refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     Sidedness, SpendingFunction, StagewiseLook, boundaries, crossing_probabilities,

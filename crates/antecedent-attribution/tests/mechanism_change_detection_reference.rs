@@ -11,7 +11,7 @@
 //! which rows are held out, which model scores them, the pairing of baseline and comparison
 //! residuals per target, and the family correction of the raw p-values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

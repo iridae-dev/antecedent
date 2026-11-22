@@ -15,7 +15,7 @@
 //! The estimated-correlation posterior is not covered by this file (its integrand is not a
 //! polynomial); see the limitations of the record.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

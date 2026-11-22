@@ -1,6 +1,6 @@
 //! Field checks for a decoded analysis-result body.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::graphless::{
     graphless_status_ok, validate_continuous_dose_graphless, validate_did_graphless,

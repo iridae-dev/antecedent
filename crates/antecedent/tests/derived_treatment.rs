@@ -3,7 +3,7 @@
 //! refused with the columns named (nothing is dropped), and a declared joint cell runs through
 //! the factorized estimator with an unsupported cell refused alone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

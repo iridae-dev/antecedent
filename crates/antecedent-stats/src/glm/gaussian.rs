@@ -1,6 +1,6 @@
 //! Gaussian (identity-link) GLM fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{GlmDesignRef, GlmFit, check_prior_weights, validate_glm_shape};
 use crate::error::StatsError;

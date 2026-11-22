@@ -12,7 +12,7 @@
 //! conditioning sets (in both argument orders) is a complete check up to `n = 5`.  Six- and
 //! seven-node graphs are checked on deterministic subsets.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId, SeparationResult};
 

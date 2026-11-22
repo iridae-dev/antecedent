@@ -16,7 +16,7 @@
 //!   `0.0004` the delta-method variance is
 //!   `(0.0004 + (11/70)^2 0.0004 + (59/70)^2 0.0004) / 0.7^2`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

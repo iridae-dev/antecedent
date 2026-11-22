@@ -40,7 +40,7 @@
 //! A decision verdict compares the expected utility with a reference utility
 //! beyond the normal band of that standard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod enclosure;
 mod family_table;

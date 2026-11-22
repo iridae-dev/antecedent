@@ -11,7 +11,7 @@
 //! `switchback_itt`); a replicate whose estimator returns no estimate counts as
 //! no rejection, as an analysis that cannot be run rejects nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalRng, ChainId, ExecutionContext, FoldId, ReductionPolicy, ReplicateId, RngKey,

@@ -2,7 +2,7 @@
 //! and, executed, the same values bit for bit, in forward sampling and in a temporal rollout
 //! that reads earlier steps.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -3,7 +3,7 @@
 //! rational arithmetic and mpmath posterior quantities, against the product's unit-by-unit
 //! dynamic program.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule, enumerate_choice_law,

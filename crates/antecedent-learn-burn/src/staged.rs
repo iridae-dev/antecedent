@@ -12,7 +12,7 @@
 //! backend so the same call times `NdArray<f32>`, `NdArray<f32>` with Accelerate, and
 //! Burn's WGPU backend.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::hint::black_box;
 use std::time::{Duration, Instant};

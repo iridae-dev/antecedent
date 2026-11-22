@@ -62,7 +62,7 @@
 //! the caller declares the new one. The call takes `&self` and returns a new
 //! value, so a refused refresh leaves the prepared composition unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

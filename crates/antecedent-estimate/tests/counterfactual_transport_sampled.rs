@@ -7,7 +7,7 @@
 //! distribution of the estimator is known and its truth is the enumerated
 //! probability. Seeds are fixed; tolerances are declared before the run.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "bit-for-bit determinism assertions")]
 

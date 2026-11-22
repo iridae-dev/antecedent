@@ -13,7 +13,7 @@
 //! dispatch refuses to build and run another study, and the effect study of each table is a
 //! study of its own.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

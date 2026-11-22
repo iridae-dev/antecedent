@@ -4,7 +4,7 @@
 //! smoke. `--test` uses toy n so CI knows this compiles. Full 10⁴ / 10⁵
 //! numbers are local: `USER_PATH_N=10000 cargo bench -p antecedent --bench user_path`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 

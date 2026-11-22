@@ -52,7 +52,7 @@
 //! set covers retained completions only and [`IdentifiedSetInterval::truncated`]
 //! records it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::norm_cdf;
 

@@ -14,7 +14,7 @@
 //! posterior is scored. The prior shapes the efficiency of the estimate and never its
 //! identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

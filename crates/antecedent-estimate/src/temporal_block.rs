@@ -25,7 +25,7 @@
 //! series times over the window every design can evaluate, each design refit on
 //! its own lag-aligned rows at those times.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

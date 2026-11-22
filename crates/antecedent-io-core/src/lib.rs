@@ -8,7 +8,7 @@
 //! bound artifacts live in `antecedent-io`, which re-exports this crate at its
 //! own root so every path stays valid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
@@ -76,7 +76,7 @@ pub mod migrate;
 /// mapped constructors (`open_path_mapped`, `from_mmap`) under the same
 /// file-immutability contract.
 ///
-/// SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #[allow(
     unsafe_code,
     reason = "memory-mapped reader; the caller guarantees the file is not mutated while mapped"

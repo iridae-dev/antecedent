@@ -2,7 +2,7 @@
 //!
 //! The class result is the completion-weighted mean of the existing temporal
 //! linear producer. A single directed completion matches the `TemporalDag` pin.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

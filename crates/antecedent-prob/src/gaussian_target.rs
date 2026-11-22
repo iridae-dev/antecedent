@@ -6,7 +6,7 @@
 //! `β | σ² ~ N(m₀, σ² V₀)`. Leapfrog reads a weighted, offset-aware cross-product
 //! summary, so it does not rescan the design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;

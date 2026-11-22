@@ -55,7 +55,7 @@
 //! Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in
 //! Nonlinear Models*, 2nd ed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::measurement_model::{

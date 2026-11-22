@@ -1,6 +1,6 @@
 //! faer-backed ridge factory. Hidden behind [`crate::LearnerSpec::Ridge`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{RidgeIntercept, fit_ridge_with};

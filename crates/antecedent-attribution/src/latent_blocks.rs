@@ -25,7 +25,7 @@
 //! ([`HEDGE_WITNESS_ID`]): two additive-noise SCMs that agree on the observed law and give the
 //! target different values at the reference noise, so different attributions to the blocks.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

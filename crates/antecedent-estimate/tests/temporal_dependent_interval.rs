@@ -9,7 +9,7 @@
 //! 0.2 (equal numbers of each sign), so units are strongly dependent and the
 //! population mean is exactly the SCM's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,

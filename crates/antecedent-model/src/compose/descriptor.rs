@@ -14,7 +14,7 @@
 //! composition ([`MechanismDescriptor::canonical`] and
 //! [`ComposedModelSpec::canonical`] sort every list into one order).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Version of the descriptor semantics. Bumped whenever the meaning of a field
 /// changes, so a stored descriptor is never reread under newer semantics.

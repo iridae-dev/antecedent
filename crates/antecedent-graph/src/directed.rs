@@ -7,7 +7,7 @@
 //! side adds a node or a directed edge. Equality compares the node table and the directed
 //! edge set, never the insertion order of an adjacency row or the insertion scratch.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;

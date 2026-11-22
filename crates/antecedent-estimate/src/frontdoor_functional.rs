@@ -41,7 +41,7 @@
 //! analytic SE is `sqrt(Σ_i (φ_active,i − φ_control,i)²) / n`; it is heteroskedasticity-robust
 //! and assumes independent rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

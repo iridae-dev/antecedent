@@ -23,7 +23,7 @@
 //! decision contract JSON and the source distribution (both byte-compatible) reproduce the
 //! contract, the result and the bundle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_design::composition_bundle::{BundleLimits, SuppliedSources};

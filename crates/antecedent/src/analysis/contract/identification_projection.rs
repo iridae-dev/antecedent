@@ -1,6 +1,6 @@
 //! Projection of cached identification products onto the contract.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(
     clippy::wildcard_imports,

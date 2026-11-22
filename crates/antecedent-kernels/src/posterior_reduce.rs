@@ -3,7 +3,7 @@
 //! One semantic entry point for scalar/portable mean / variance / quantile over
 //! a contiguous draw column. Dispatch once per batch via [`KernelPolicy`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::KernelPolicy;
 

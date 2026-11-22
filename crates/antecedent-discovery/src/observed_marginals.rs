@@ -1,6 +1,6 @@
 //! Directed-edge probabilities given a Gaussian table with one partially observed
 //! column. The missingness law must be ignorable for the structural model.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};

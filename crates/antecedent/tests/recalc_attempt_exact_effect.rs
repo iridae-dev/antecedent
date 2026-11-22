@@ -6,7 +6,7 @@
 //! once and completed; a utility-only change attempts the decision alone; an unchanged repeat
 //! attempts nothing. The numbers produced (effect 2, net benefit `2 * 2 - 0.5`) are hand values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_attempt::{Operation, execute_with_attempt};
 use antecedent::analysis::recalc_receipt::{

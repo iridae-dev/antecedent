@@ -7,7 +7,7 @@
 //! `1` is `do(X = 1)`. Every expected value is derived by hand in the comment
 //! above it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

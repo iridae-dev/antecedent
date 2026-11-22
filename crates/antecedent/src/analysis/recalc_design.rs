@@ -1,5 +1,5 @@
 //! Shared-plan recalculation of checked IV, sharp RD and linear front-door effects.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::recalc_common::{
     Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,

@@ -4,7 +4,7 @@
 //! from keyed streams ([`antecedent_core::RngKey`]) seeded by the policy, so the same inputs
 //! give the same bits on any thread count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ChainId, FoldId, ReductionPolicy, ReplicateId, RngKey, SemanticOperation};
 use antecedent_kernels::{norm_sf, shuffle, sigmoid};

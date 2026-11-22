@@ -1,6 +1,6 @@
 //! Frozen per-regime Tigramite PCMCI+ parity for fixed-label RPCMCI.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

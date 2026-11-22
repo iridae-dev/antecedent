@@ -12,7 +12,7 @@
 //! node mask ([`NoiseSource::coalition`]); nothing is copied per coalition, so the cost of
 //! a coalition is one pass of the compiled kernel ([`NoiseReplayer::replay_into`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain, mix64};
 use antecedent_graph::DenseNodeId;

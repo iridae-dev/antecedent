@@ -7,7 +7,7 @@
 //! `sampling_weights.route_unsupported`: the weights are not silently ignored and the unweighted
 //! number is not published as the weighted population's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

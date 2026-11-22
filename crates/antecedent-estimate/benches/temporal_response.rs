@@ -1,6 +1,6 @@
 //! Temporal dose × horizon response benches (ADR 0021).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

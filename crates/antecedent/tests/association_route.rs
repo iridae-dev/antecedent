@@ -7,7 +7,7 @@
 //! declared dependent-series design, and the Bayesian counterparts use the conjugate marginals
 //! for a Gaussian outcome and the Bayesian bootstrap otherwise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

@@ -14,7 +14,7 @@
 //! requires the deterministic part to match, and checks that a node both hard-set and shifted is
 //! refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

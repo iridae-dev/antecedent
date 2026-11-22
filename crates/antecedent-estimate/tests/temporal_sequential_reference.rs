@@ -18,7 +18,7 @@
 //! moments of the composed Student-t draws, given the tempering factor each mechanism's own note
 //! publishes (frozen in the inputs file and compared with the live note).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

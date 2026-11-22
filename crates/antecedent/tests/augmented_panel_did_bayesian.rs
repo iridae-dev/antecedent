@@ -7,7 +7,7 @@
 //! simulated panel, and at its boundaries: a thin arm, declared sampling weights and a
 //! frequentist-only declaration are refused with the next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

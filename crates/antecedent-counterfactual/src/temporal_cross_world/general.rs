@@ -13,7 +13,7 @@
 //! Node `i` of a slice-`t` layout is `2t` (covariate) or `2t + 1` (action); the outcome is
 //! `2k`. For `k = 2` these are exactly the indices of [`super::TemporalNode`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

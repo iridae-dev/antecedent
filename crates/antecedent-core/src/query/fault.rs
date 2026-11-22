@@ -4,7 +4,7 @@
 //! the matching [`QueryError`](super::QueryError) variant. The display text of a variant is the
 //! stable statement of the contract, so callers and tests match on the kind, not on text.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ids::VariableId;
 use crate::intervention::InterventionError;

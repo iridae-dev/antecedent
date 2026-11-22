@@ -8,7 +8,7 @@
 //! graph (Lauritzen et al. 1990 / Pearl 1988), whose neighbor order the
 //! certificates depend on.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::many_single_char_names, reason = "x, y, z are standard d-separation names")]
 

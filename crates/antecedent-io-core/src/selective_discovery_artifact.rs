@@ -25,7 +25,7 @@
 //! not make the discovery true: the label this format carries is `algorithmic_match_only`.
 //! No recovery, error-control or interval statement is stored or implied.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 use antecedent_discovery::selective::{

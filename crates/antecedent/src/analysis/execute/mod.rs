@@ -1,6 +1,6 @@
 //! Unified `Study` facade execution (split by modality for SRP).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;

@@ -1,7 +1,7 @@
 //! Premise checks of the transported cohort mean that the module's own unit tests leave open:
 //! the identity-scale requirement, cohort weight validation and the closed support box.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

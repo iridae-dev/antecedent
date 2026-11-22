@@ -6,7 +6,7 @@
 //! under, as one named constructor per refusal. The rest of the module tree
 //! calls the constructors and never spells a detail.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{ExternalCapability, ExternalRefusal};
 

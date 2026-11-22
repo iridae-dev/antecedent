@@ -1,6 +1,6 @@
 //! Overlap-policy gates and structured refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;

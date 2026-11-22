@@ -5,7 +5,7 @@
 //! numbers its failing step produced. A figure the step did not compute stays absent, never a
 //! zero invented from a failed fit. Every numeric expectation is written out by hand here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::{
     ClusterDml, EstimationError, ExactF64, RefusalFields, RetargetRefusal, WeightedSupport,

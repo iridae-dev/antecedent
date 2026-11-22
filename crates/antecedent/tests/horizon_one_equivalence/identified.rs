@@ -6,7 +6,7 @@
 //! differs, the cause is pinned: the unsupported temporal cell, the serial-dependence
 //! uncertainty, or the function class of the outcome model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
 use antecedent::{AcceptedGraph, CellStatus, TransportTrialSpec};

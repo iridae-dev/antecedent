@@ -59,7 +59,7 @@
 //! weight `(tau - F_lo) / (F_hi - F_lo)` and the cancellation of `h` in `2h / (38 h)` in double
 //! precision, each of relative size 1e-15.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::randomized_quantile::{
     randomized_quantile_effect, randomized_quantile_effect_on_grid,

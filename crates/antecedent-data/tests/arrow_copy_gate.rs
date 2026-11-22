@@ -2,7 +2,7 @@
 //!
 //! Fixture: `conformance/gates/arrow_copy_fixture.json` (shared with Python).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "arrow")]
 

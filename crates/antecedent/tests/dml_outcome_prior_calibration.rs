@@ -13,7 +13,7 @@
 //! fixed-seed truth checks of the same estimator are
 //! `crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

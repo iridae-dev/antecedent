@@ -11,7 +11,7 @@
 //! The expected value is enumerated by the independent finite-SCM oracle used by the
 //! lifecycle tests; the fixtures are included by path so one oracle serves every layer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

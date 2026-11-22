@@ -4,7 +4,7 @@
 //! the second thread count buys. `NoFork` hides `fork`, which is how a payoff ran before
 //! coalitions could be evaluated on workers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

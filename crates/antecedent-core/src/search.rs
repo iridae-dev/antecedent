@@ -11,7 +11,7 @@
 //! a resource outcome, never an impossibility or non-identification claim.
 //! Wire encoding of a receipt belongs to the artifact that carries it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::execution::ExecutionContext;
 

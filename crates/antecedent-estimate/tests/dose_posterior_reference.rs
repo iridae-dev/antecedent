@@ -9,7 +9,7 @@
 //! variance of the policy value, the reference value and their difference, for a known residual
 //! variance and for an inverse-gamma prior on it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::continuous_dose::DoseRules;
 use antecedent_estimate::continuous_dose_posterior::{

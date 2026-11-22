@@ -9,7 +9,7 @@
 //! into columns, so the code's own contingency construction, stratification, degrees-of-freedom
 //! rule and chi-square tail are all exercised.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{

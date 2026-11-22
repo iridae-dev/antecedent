@@ -5,7 +5,7 @@
 //! covariance or one aligned coefficient posterior. It is conditional on the retained
 //! empirical covariate distribution. This component grants no causal or calibration support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::{Arc, Mutex};
 

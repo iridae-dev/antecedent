@@ -11,7 +11,7 @@
 //! Oracle: the contrast of effects with means 5 and 2, variances 4 and 9 and covariance 3
 //! has mean 3 and variance 4 + 9 - 2 * 3 = 7.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 

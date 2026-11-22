@@ -1,6 +1,6 @@
 //! Shared rank and column-comparison primitives for preflight and rank-drop plans.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

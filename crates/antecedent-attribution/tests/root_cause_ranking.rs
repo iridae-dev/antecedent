@@ -1,6 +1,6 @@
 //! Root-cause ranking over a graph ensemble against a hand-computed weighted mean and spread.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

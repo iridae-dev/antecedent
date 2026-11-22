@@ -1,7 +1,7 @@
 //! Composition-boundary support policy on mean grids whose affine-utility values are computed
 //! by hand: the utility is 2x - 1 of the mean x of each action's coordinate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{ExternalTrustState, QuantityRole, ScientificQuantity};
 use antecedent_core::SupportStatus;

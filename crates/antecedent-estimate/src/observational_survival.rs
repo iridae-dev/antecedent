@@ -32,7 +32,7 @@
 //! folds. The standard error is the standard deviation of the scores over the square root of
 //! the rows; its calibration is `not_measured` and no interval is produced here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{CoxBreslowFit, GlmOptions, LeastSquaresWorkspace, cox_breslow};

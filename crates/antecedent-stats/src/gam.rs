@@ -5,7 +5,7 @@
 //! integrated squared second derivative, see [`RoughnessPenalty`]), not coefficient ridge. Analytic standard errors are not
 //! returned; use resampling / bootstrap for uncertainty.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod basis;
 

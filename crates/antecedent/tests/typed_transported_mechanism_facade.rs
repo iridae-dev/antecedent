@@ -7,7 +7,7 @@
 //! (invariant), the count mechanism shifts to `Poisson(exp(0.5 + 0.2 x + 0.25 x^2))`, so with
 //! `x` intervened `E[n | do(x)] = exp(0.5 + 0.2 x + 0.25 x^2)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

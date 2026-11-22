@@ -7,7 +7,7 @@
 //! fixture's `expected_ate` 0.282. The formula is evaluated here from the counts alone and
 //! shares no code with the product. Each test executes every coordinate it cites.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

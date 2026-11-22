@@ -1,6 +1,6 @@
 //! Temporal PAG endpoint refinements retaining directed and bidirected MAGs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::completion::default_completion_search;
 use crate::{CompletionSampler, CompletionValidationReport, GraphError, NodeRef, Pag, TemporalPag};
 use antecedent_core::{ExecutionContext, SearchLimits, SearchReceipt, SearchStop, TemporalIndexer};

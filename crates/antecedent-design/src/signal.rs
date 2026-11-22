@@ -12,7 +12,7 @@
 //! trust label and exact request fingerprint travel on the [`SignalReceipt`]; a
 //! representation never upgrades trust to native.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};

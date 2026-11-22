@@ -11,7 +11,7 @@
 //! full-content digest is verified once (the required first scan of the lazy
 //! identity); row ranges of it then have their own lazy-view identities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::ops::Range;

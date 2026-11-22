@@ -9,7 +9,7 @@
 //! mean plus the fitted noise as a Gaussian (the posterior variance is *not* used by the library).
 //! One design has parents in years and an outcome near 1000.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![cfg(feature = "gaussian-process")]
 
 use std::sync::Arc;

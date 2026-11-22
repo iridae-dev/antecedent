@@ -3,7 +3,7 @@
 //! History grows by walking template ancestry. The static DAG is materialised
 //! once, at the history that closes the truncated boundary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, TemporalIndexer, TemporalNodeKey};
 use antecedent_graph::{AdmittedUnfoldedTemporalGraph, TemporalDag};

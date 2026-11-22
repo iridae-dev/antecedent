@@ -22,7 +22,7 @@
 //! near-Gaussian sample standard deviation is `1 / sqrt(2 DRAWS)`, so the bound is 5.6 standard
 //! errors). The draws are seeded, so the outcome is deterministic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

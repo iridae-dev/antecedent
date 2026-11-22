@@ -29,7 +29,7 @@
 //!    the declaration checked in step 1, and part of the identity when any of
 //!    them is present.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

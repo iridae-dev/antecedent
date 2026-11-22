@@ -19,7 +19,7 @@
 //! manipulation of the running variable around it, and sharp assignment (which the
 //! estimator verifies row by row against the treatment column).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

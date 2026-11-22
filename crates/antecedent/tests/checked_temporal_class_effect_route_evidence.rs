@@ -1,6 +1,6 @@
 //! Builder independent evidence for frequentist temporal class effect envelopes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "fixtures_common/mod.rs"]
 mod common;

@@ -46,7 +46,7 @@
 //! are the adjustment search and the completion enumeration, which report an exhausted
 //! budget as a bounded-search diagnostic on an `Ok` result, not as an error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,

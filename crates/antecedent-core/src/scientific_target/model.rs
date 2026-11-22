@@ -1,6 +1,6 @@
 //! Worlds, bindings, decision time, and assumptions of a scientific target.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::assumption::{AssumptionRecord, AssumptionSet};
 use crate::callback::Portability;

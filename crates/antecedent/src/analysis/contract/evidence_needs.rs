@@ -10,7 +10,7 @@
 //! (an instrument's validity, the time-invariance a panel relies on) yields no
 //! action that could satisfy it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

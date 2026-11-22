@@ -1,6 +1,6 @@
 //! The replicate rows of a bootstrap and the loops that evaluate them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{DeclaredSamplingDesign, ExecutionContext, ResamplingRule};
 use antecedent_data::{ResamplingPlan, resample::fill_resample_index_replicate};

@@ -7,7 +7,7 @@
 //! Gram singular: the coefficients are withheld (`None`) rather than returned from a
 //! pseudo-inverse, and the refresh agrees with a fresh rebuild.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_state::{OlsRefresh, RefreshRow};
 

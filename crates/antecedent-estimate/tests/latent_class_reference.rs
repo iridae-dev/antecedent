@@ -12,7 +12,7 @@
 //! likelihood trace is non-decreasing and that the declared-premise refusals fire. Global
 //! optimality is not proved; the bootstrap standard errors are not reviewed here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::latent_class_effects::{

@@ -49,7 +49,7 @@
 //! grid locates the first changed grid point and bisection on the conclusion refines the
 //! parameter inside the cell, reported with its certified bracket.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 

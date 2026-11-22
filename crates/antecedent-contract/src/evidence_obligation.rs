@@ -21,7 +21,7 @@
 //! [`crate::ObligationRecord`] of the existing assumption records; no existing
 //! identifier changes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::{

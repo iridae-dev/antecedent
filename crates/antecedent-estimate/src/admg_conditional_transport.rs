@@ -8,7 +8,7 @@
 //! a silently extended value. The route is point-only: exact laws carry no
 //! sampling uncertainty and no interval is computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use antecedent_core::{ExecutionContext, Value, VariableId};

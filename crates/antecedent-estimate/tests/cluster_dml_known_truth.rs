@@ -11,7 +11,7 @@
 //! sandwich is printed so a finite-cluster shortfall is visible rather than absorbed into a
 //! looser tolerance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

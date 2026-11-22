@@ -32,7 +32,7 @@
 //! behavioural effect. No coverage or calibration claim is made about any interval built from the
 //! posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

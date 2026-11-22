@@ -11,7 +11,7 @@
 //! and nearly collinear covariates. Further tests check that an undeclared level is refused
 //! rather than dropped, and that a trim is refused rather than ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

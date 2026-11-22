@@ -1,6 +1,6 @@
 //! Shared uncertainty for cross-world graph-posterior mixtures.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AcceptedGraph, Arc, AtomRun, BootstrapAccounting, CausalError, CausalPosterior, CrossWorldKind,

@@ -8,7 +8,7 @@
 //! facade validation refits this same engine for each perturbed graph atom.
 //! No second identifier.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
 #![cfg_attr(

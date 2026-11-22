@@ -1,6 +1,6 @@
 //! Population-level counterfactual resampling and its admission lease.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Case, CausalError, CounterfactualProcedure, ExecutionContext, Table, case_values};
 use antecedent_estimate::RowResampling;

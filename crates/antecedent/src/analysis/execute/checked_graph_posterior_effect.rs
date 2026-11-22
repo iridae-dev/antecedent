@@ -1,7 +1,7 @@
 //! Builder-independent execution of sealed class and Bayesian graph-posterior
 //! effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, DataInput, ExecutionContext, PhysicalExecutionPlan, StudyResult, TabularData,

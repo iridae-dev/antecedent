@@ -6,7 +6,7 @@
 //! An estimator selected by id alone is resolved to its default configuration and held to the
 //! same rule, so selecting it by id is no way around the declaration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{CausalError, EstimatorId, EstimatorSpec, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{

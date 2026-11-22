@@ -7,7 +7,7 @@
 //! covariances and the 1-norm condition number for two to four categories, against an analytic
 //! Jacobian evaluated at 60 digits. A two-category correction must also reproduce the binary one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::measurement_error::{
     BinaryErrorRates, ConfusionMatrix, ObservedClassSummary, TwoByTwoCounts, corrected_categories,

@@ -1,6 +1,6 @@
 //! The compiled identification product and its accessors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AssumptionRecord, AssumptionSet, AssumptionStatus, BTreeSet, CanonicalWriter, CausalExprArena,

@@ -1,5 +1,5 @@
 //! Execution context: shared CPU and RAM admission pool and leases.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::cancel::CancelFlag;
 #[cfg(doc)]

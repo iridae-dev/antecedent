@@ -2,7 +2,7 @@
 //! matrices of a few dozen coordinates at most, and the penalized logistic fit of the regime
 //! survival models (the stats engine with a prior on every coefficient).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{GlmDesignRef, GlmOptions, LeastSquaresWorkspace, fit_logit_laplace};
 

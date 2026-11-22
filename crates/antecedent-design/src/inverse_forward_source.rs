@@ -68,7 +68,7 @@
 //! `NativeTargetOnly`; data of another population, quantity or arm is refused
 //! by the producing route before it reaches here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::provider_transport::TransportedInputPolicy;
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};

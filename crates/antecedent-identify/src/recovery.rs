@@ -81,7 +81,7 @@
 //! refuses with a budget detail, never a verdict, when the enumeration exceeds
 //! the default operation limit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;

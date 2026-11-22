@@ -14,7 +14,7 @@
 //! [`SerialErrorModel::Unmodeled`] does not, and a request for the ordinary reading is
 //! refused with the premise that is missing and the next attempt that reaches it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 

@@ -9,7 +9,7 @@
 //! subnormal results, near-median Student-t, very large and very small degrees of freedom,
 //! and incomplete-gamma arguments in the sqrt(a) transition region at large a.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::{erf, erfc, log_norm_cdf, norm_cdf, norm_inv, norm_sf};
 use antecedent_stats::{chi_square_sf, gamma_q, ln_gamma, student_t_ppf, student_t_sf};

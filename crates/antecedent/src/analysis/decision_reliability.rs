@@ -33,7 +33,7 @@
 //! the selecting and validating streams. New draws are a new assessment: nothing is
 //! refreshed in place.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::design_exports::design_crate::decision_reliability::{
     BatchPlan, CalibrationCoordinate, CandidateCoupling, CandidateDraws, CandidateOrigin,

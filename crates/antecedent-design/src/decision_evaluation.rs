@@ -24,7 +24,7 @@
 //! Scoring these declared actions does not build a
 //! [`crate::decision_contract::ProgramSearchContract`] and does not search.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::execution_facts::OutputRetention;

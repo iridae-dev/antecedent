@@ -17,7 +17,7 @@
 //! the posterior mean, precision, scale, shape, rate and count and the identity of the prior
 //! and the blocks with the cached posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

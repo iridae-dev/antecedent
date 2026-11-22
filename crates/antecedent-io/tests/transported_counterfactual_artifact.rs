@@ -10,7 +10,7 @@
 //! so `NDE(z) = 4.5 + 1.125 z`. Target law `{0: 0.25, 1: 0.75}` gives `5.34375`, source law
 //! `{0: 0.4, 1: 0.4, 2: 0.2}` gives `5.4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_io::transported_counterfactual_artifact::{
     AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire, SelectionWire,

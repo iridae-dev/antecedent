@@ -5,7 +5,7 @@
 //! identification, the selected estimand and the indexer the executors read, and turns an absent
 //! instrument into a typed refusal that names the premise that failed and the next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::TemporalEffectQuery;
 use antecedent_data::{TemporalIndexer, TemporalNodeKey};

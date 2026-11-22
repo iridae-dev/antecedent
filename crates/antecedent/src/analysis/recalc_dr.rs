@@ -1,6 +1,6 @@
 //! Shared-plan recalculation over the existing checked DML-AIPW and DR-Learner engines.
 //! Model-point CATE prediction is distinct from marginal score inference.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::PreparedStudy;
 use super::recalc_common::{
     Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,

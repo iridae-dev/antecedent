@@ -5,7 +5,7 @@
 //! cycles, a dense matrix, entries of size 5 (1-norm of `W o W` in the hundreds) and twelve
 //! variables.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde_json::Value;
 

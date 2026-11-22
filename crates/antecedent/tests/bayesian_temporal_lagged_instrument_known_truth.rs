@@ -14,7 +14,7 @@
 //! the raw series, plus the second-order bias of a ratio of Gaussians `2 |beta| (se_pi / pi)^2`
 //! with the first-stage standard error also recomputed here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     reason = "deterministic fixture indices are small and exact in f64"

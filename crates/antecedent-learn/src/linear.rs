@@ -1,6 +1,6 @@
 //! faer-backed OLS factory. Hidden behind [`crate::LearnerSpec::Linear`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, fit_wls};

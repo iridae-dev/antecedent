@@ -34,7 +34,7 @@
 //! `still_valid` claim: reusing a structural derivation after the data were
 //! replaced recomputes the numbers and keeps no authority for the old fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -6,7 +6,7 @@
 //! structure. None is a geometric support-matrix cell; the route executes with
 //! calibration status `not_measured`; no coverage record covers it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::fault::AttributeFault;
 use std::sync::Arc;

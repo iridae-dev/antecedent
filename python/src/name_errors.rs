@@ -1,6 +1,6 @@
 //! Shared refusal for an unrecognised name passed from Python.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::reason::reason_code;
 use pyo3::prelude::*;

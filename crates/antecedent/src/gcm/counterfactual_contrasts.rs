@@ -4,7 +4,7 @@
 //! several outcomes, a joint baseline of simultaneous interventions or nested interventions
 //! answers with one contrast per outcome, all read from the same two replays of one abduction.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

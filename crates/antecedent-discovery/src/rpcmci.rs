@@ -5,7 +5,7 @@
 //! Optional alternating assignment refines labels by residual fit under each
 //! regime's discovered lagged parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

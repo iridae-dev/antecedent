@@ -7,7 +7,7 @@
 //! not moved by a later refresh. A result of one data snapshot is not sealed under a handle that
 //! holds another, and a refresh the schema refuses leaves the handle as it was.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::report::ReportFormat;
 use antecedent::{

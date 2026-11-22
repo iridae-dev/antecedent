@@ -24,7 +24,7 @@
 //!   the affine change of variables) when a parent column is rescaled. A raw
 //!   year column and its z-score give the same fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Parent indices are dense graph ids (`u32` by construction) and a term index is
 // bounded by rows / `BASIS_MIN_ROWS_PER_COLUMN`, so `usize → u32` cannot truncate.

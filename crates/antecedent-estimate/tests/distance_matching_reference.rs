@@ -9,7 +9,7 @@
 //! covariates in units of 1e-14 and 1e14 (the match must not depend on units), near-collinear
 //! covariates and a sixteen-row table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

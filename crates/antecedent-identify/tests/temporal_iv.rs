@@ -5,7 +5,7 @@
 //! it is d-separated from the outcome once the treatment's out-edges are cut. Each case below is a
 //! stationary template whose unfolded verdict is derived by hand.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TemporalNodeKey;

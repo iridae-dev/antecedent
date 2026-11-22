@@ -9,7 +9,7 @@
 //! Normal-Inverse-Gamma posterior of the treatment coefficient, and the refusal flips at the
 //! reference p-value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

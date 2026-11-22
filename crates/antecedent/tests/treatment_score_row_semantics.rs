@@ -1,5 +1,5 @@
 //! Nuisance likelihood rows follow the study cohort; prediction rows retain physical positions.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::float_cmp, reason = "identical selected designs must produce identical fits")]
 
 use antecedent::analysis::array_fits::{ArrayFitRequestWire, TreatmentScoreSpec};

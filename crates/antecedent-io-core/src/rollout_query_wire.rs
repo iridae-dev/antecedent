@@ -6,7 +6,7 @@
 //! Every field is optional on its parent wire and absent when unset, so artifacts written
 //! before these fields existed read unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

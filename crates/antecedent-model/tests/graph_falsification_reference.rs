@@ -13,7 +13,7 @@
 //! verdict; and requires a declared equivalence-share threshold to be applied rather than
 //! ignored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

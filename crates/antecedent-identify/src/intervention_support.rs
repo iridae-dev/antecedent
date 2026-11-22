@@ -4,7 +4,7 @@
 //! Shift and `Soft(additive_shift)` are refused: X := X+δ is not do(X=δ).
 //! Arbitrary Soft families and continuous Stochastic policies remain unsupported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Intervention, InterventionSequence, StochasticPolicy, Value};
 use antecedent_expr::{CausalExprArena, InterventionAssignment, InterventionSetId};

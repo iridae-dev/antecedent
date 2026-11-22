@@ -11,7 +11,7 @@
 //! admission pool, and [`SpilledBootstrap::reload`] admits the same bytes again before it
 //! reads the artifact back.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

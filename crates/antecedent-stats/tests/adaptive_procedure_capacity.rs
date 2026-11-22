@@ -10,7 +10,7 @@
 //! 1,200 and 2,400 participants run on every simulation route, single outcome and repeated
 //! measures, and cancellation stops each.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CancellationToken;
 use antecedent_stats::adaptive_inference::{

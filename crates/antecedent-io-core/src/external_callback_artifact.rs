@@ -4,7 +4,7 @@
 //! container: a CBOR section of execution identities and the original claim
 //! artifact as an opaque section. The earlier `ANTCALLBACK1` frame stays
 //! readable; nothing writes it any more.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::IoError;
 use crate::external_claim_artifact::{ExternalClaimArtifact, ExternalClaimIdentity};
 use serde::{Deserialize, Serialize};

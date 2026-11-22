@@ -5,7 +5,7 @@
 //! understanding semantics, verifying dependencies, and being able to
 //! execute remain separate states.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod world_point;
 pub use world_point::{

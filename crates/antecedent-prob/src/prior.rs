@@ -3,7 +3,7 @@
 //! Priors are recorded as assumptions; they do not create nonparametric
 //! identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

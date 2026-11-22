@@ -10,7 +10,7 @@
 //! `PropensityMatching`'s declared bootstrap replicates do **not** populate
 //! [`EffectEstimate::se_bootstrap`] — the invalid bootstrap is not retained as a CI.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod variance;
 

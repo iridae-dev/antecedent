@@ -6,7 +6,7 @@
 //! arm-mean coordinate of arm `a` is `1{A_t = a} Y_{t+lag} / P(A_t = a | history)`; a contrast
 //! is a difference of arm means, so its score is the difference of their scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ProbabilityTable;
 

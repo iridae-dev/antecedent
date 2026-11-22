@@ -10,7 +10,7 @@
 //!   conditioning in 60-digit arithmetic, compared with `assign_and_fit_with` of the required
 //!   `LinearGaussianStateSpace` family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

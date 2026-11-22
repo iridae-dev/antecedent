@@ -4,7 +4,7 @@
 //! the weights, the realized folds, the row identities. None accepts a digest from a caller, so
 //! a fit that reads an input the key omits cannot be written without also writing the omission.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::NumericalPolicy;
 use antecedent_core::SemanticDigest;

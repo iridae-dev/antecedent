@@ -3,7 +3,7 @@
 //! Materializes each environment independently (no cross-env lag windows), stacks
 //! effective rows, then appends synthetic dummy columns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -10,7 +10,7 @@
 //! same pulse is compiled, so the alias equals the explicit pulse over the posterior in both
 //! inference modes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study, StudyResult,

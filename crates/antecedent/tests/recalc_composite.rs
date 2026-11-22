@@ -1,5 +1,5 @@
 //! Exact finite SCM, two real attested providers and one measured shared workflow.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_composite::*;
 use antecedent::analysis::recalc_external::{CallbackPolicy, ExternalMeanProvider};
 use antecedent::analysis::recalc_receipt::UtilitySpec;

@@ -4,7 +4,7 @@
 //! and graph the old `(route, class)` ladders then re-opened with `unreachable!`
 //! and `expect`. Consumers match the variant; they do not classify again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AnalysisRoute, CausalError, CausalQuery, DataClassification, DataInput, GraphClass, GraphRef,

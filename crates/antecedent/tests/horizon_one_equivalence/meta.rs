@@ -5,7 +5,7 @@
 //! quantities; what the temporal member adds (time-ordered orientation, a pre-trend refuter, a
 //! transport premise, a mechanism standing across periods) is pinned as the difference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

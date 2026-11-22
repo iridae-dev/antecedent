@@ -10,7 +10,7 @@
 //! computed by hand from the rows, and either a refuter flags it or the typed `did not run`
 //! diagnostic names the refuter that could not speak.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
 

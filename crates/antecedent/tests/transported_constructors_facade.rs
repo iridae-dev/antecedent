@@ -17,7 +17,7 @@
 //! * Surrogate bridge. Trial-level regression `0.06 + 0.92 x`: a surrogate effect of
 //!   `0.8` maps to `0.796`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

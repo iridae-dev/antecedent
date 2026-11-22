@@ -16,7 +16,7 @@
 //! [`EffectConstancyIdentity`], refuses a resealed change of partition identity, estimand,
 //! covariance, null or multiplicity family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::effect_constancy::{
     CalibrationStatus, ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_NULL,

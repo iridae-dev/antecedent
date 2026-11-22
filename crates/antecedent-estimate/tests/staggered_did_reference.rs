@@ -7,7 +7,7 @@
 //! never-treated groups, an outcome offset of 1e9 with effects of order 1e-3, two clusters
 //! per group, and unbalanced panels read as available cases.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::staggered_event_study::{estimate, estimate_with, group_time_att};
 use serde_json::Value;

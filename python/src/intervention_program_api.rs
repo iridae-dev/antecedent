@@ -7,7 +7,7 @@
 //! on abduced noise, and the temporal rollout that reads earlier steps. Nothing here
 //! evaluates an expression.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

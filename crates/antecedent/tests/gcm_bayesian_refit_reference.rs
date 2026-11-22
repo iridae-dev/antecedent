@@ -16,7 +16,7 @@
 //!   difference of the two weighted covariate means of that draw's two weight vectors (up to the
 //!   Monte Carlo error of the coalition sampler); and the components add up to the total change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -4,7 +4,7 @@
 //! The equilibrium numbers are those of `A = 0.4 B + U_A`, `B = 0.5 A + U_B`: a unit
 //! shock on `U_A` gives `A = 1.25`, `B = 0.625`; `do(A = 2)` gives `B = 1`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::execution_attempt::{PhysicalEvent, observe_with_context};
 use antecedent_core::{CanonicalWriter, ExecutionContext};

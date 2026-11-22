@@ -14,7 +14,7 @@
 //! moves is the identification: which atoms certify a formula, by which rule, and how much
 //! posterior mass certifies none.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, HashSet};
 

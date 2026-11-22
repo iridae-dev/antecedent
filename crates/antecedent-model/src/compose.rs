@@ -36,7 +36,7 @@
 //! The semantic mapping from scientific quantities to these descriptors lives
 //! in `antecedent-contract`; this crate carries no claim vocabulary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub mod coherence;
 pub mod descriptor;

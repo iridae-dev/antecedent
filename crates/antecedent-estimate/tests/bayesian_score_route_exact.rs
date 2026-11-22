@@ -6,7 +6,7 @@
 //! `(n / s^2) / (n / s^2 + 1 / scale^2) * m`, at a prior scale that visibly shrinks `m`. The
 //! table's contrast mean is also tied to the fitted effect and to the retargeted contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

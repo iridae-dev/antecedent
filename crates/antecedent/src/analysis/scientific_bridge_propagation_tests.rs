@@ -4,7 +4,7 @@
 //! expectation of a nonlinear map, the refusal of an undeclared dependence and the bit-for-bit
 //! replay of the artifact.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

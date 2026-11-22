@@ -25,7 +25,7 @@
 //! graph: a read that closes a cycle is refused, and otherwise nodes are evaluated in a
 //! topological order of that combined graph, so a policy always sees its inputs computed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;

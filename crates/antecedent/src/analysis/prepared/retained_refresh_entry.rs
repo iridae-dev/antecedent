@@ -6,7 +6,7 @@
 //! complete result against a fresh reconstruction, and writes it to disk under the operation's
 //! admission budget. Nothing here re-identifies or recompiles the study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::PreparedStudy;
 use crate::error::CausalError;

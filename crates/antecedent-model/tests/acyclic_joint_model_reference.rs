@@ -11,7 +11,7 @@
 //! exact zero cells, unsorted level names and extreme odds, with and without interventions. The
 //! product must reproduce all of them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

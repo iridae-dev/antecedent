@@ -7,7 +7,7 @@
 //! `calibration = "not_measured"` section, and a refusal for every option they do not read; a
 //! fit that matches a row of the graphless support table states the row in a coded diagnostic.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "small counts convert exactly")]
 

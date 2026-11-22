@@ -9,7 +9,7 @@
 //! `(β, log σ²)` under an `InvGamma` residual prior). Other likelihoods keep the
 //! GLM score path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext};
 

@@ -8,7 +8,7 @@
 //! joint (Y,Z) with no intervention: no (wrong regime); joint (Y) only: no (Z missing).
 //! The cheapest addressing candidate is therefore the 10 USD one, not the 15 USD superset.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

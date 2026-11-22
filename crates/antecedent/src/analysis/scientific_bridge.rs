@@ -84,7 +84,7 @@
 //! is supported. An associational claim is never a bridge source. An identified
 //! set and a joint outcome law have no executed bridge.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 

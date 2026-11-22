@@ -53,7 +53,7 @@
 //! passed again; an account is **refused** for a sampled or transported request
 //! and for units with shared evidence declared independent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::counterfactual_crate::selective::whole_path_uncertainty::{
     SourceAccount, SourceTreatment, UncertaintySource, UnitSampling, UnitSpread,

@@ -20,7 +20,7 @@
 //! statistic `mean / se` is a labelled diagnostic: no p-value, interval or
 //! coverage statement is attached, because none has measured calibration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 

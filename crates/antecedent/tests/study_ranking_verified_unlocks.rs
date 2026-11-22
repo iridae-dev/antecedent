@@ -3,7 +3,7 @@
 //! right column in another population, or more rows) is never credited, and the verified
 //! study's own design action is what the ranker scores.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

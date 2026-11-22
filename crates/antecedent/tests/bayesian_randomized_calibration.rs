@@ -38,7 +38,7 @@
 //! `bayesian_randomized_routes.rs`, `bayesian_design_posterior_routes.rs`,
 //! `bayesian_arm_effect_routes.rs` and `interference_estimators_known_truth.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,

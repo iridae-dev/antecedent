@@ -10,7 +10,7 @@
 //! Cases cover clamps that cut the cycle, a correlated, a nearly singular and a 1e-6-variance
 //! disturbance covariance, saturated and offset rows, and a finite-difference declaration.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

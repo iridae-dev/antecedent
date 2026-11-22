@@ -1,6 +1,6 @@
 //! Restrained Auto: OOF loss between a parametric learner and optional GBT.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::first_col_is_exact_ones;

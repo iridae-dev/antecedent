@@ -1,6 +1,6 @@
 //! Encoding of typed queries into their wire forms.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AnomalyReference, AssignmentDesign, AssignmentDesignWire, AssociationFunctionalWire,

@@ -7,7 +7,7 @@
 //! graph was bound via `AcceptedGraph::with_schema` — refuses one whose bound names
 //! do not match the data's, in order.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

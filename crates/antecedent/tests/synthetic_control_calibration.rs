@@ -37,7 +37,7 @@
 //! posterior-quantile key; the frequentist intervals ride on the rollout payload, so their
 //! records name the interval construction here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

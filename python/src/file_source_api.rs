@@ -4,7 +4,7 @@
 //! admission pool; compute the streaming content identity; and stream the
 //! weighted Gaussian capacity summary.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
 use std::path::PathBuf;

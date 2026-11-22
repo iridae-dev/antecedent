@@ -14,7 +14,7 @@
 //! * [`FitDeclaration::NotFitted`] is a law fixed without data (a known
 //!   generator, a specified model).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 

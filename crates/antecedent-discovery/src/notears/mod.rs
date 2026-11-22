@@ -16,7 +16,7 @@
 //! Dense soft weights are row-major \(d\times d\) with \(W_{ij}\) the weight of
 //! directed edge \(i\to j\) (NOTEARS / Zheng et al. 2018). Diagonal is always zero.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

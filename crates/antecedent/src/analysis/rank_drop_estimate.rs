@@ -25,7 +25,7 @@
 //! estimator and no identification claim is made from it. The returned adjustment sets are
 //! the declared design's, not a graph search's.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId, reason_code};
 use antecedent_data::TableView;

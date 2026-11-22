@@ -3,7 +3,7 @@
 //! `conformance/estimate/admg_conditional_strata` states (7/27), from the retained plan with the
 //! builder dropped, under every validation depth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{

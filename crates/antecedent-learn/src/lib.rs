@@ -4,7 +4,7 @@
 //! It does not identify effects or compute orthogonal scores.
 //! `antecedent-estimate` must not name Forust, `SmartCore`, Burn, or other providers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

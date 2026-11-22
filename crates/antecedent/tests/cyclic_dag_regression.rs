@@ -7,7 +7,7 @@
 //! simultaneous-equation block. On acyclic support the recovered evidence ports
 //! equal those of a cyclic law with the same origin; only the solve route differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cyclic_evidence::{CyclicEvidenceSchema, CyclicEvidenceSelector as S};
 use antecedent::analysis::{CyclicExecutionRequest, Study};

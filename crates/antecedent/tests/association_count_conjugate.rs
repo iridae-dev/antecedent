@@ -8,7 +8,7 @@
 //! the next attempt. A Beta prior never changes what the cells describe: the result stays an
 //! unsupported, `not_measured` description of the observed law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

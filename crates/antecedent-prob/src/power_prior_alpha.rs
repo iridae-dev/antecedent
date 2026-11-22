@@ -49,7 +49,7 @@
 //! and the conditional interval at every grid `α`. A prior is an assumption and
 //! never upgrades identification.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

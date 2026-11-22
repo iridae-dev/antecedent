@@ -31,7 +31,7 @@
 //! `unevaluated`, and a subset larger than the declared depth is never examined
 //! and says so.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::{collections::BTreeSet, sync::Arc};
 

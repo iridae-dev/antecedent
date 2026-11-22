@@ -7,7 +7,7 @@
 //! holds one of those products verifies it against the seal instead of identifying again, so
 //! identification runs once and a retained product that changed afterwards is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::IdentityDomain;
 use antecedent_expr::IdentifiedEstimand;

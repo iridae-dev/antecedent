@@ -6,7 +6,7 @@
 //! extreme propensity odds, an outcome offset of 1e8, a prediction wrong by a constant of 5
 //! (which must cancel) and four subjects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::augmented_panel_did::estimate;
 use serde_json::Value;

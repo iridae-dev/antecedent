@@ -5,7 +5,7 @@
 //! collider on the path and a definite parent of `b`, and the edge `c *-* b` has a circle
 //! at `c`. Then if `c ∈ Sep(a,b)` orient `c → b`; otherwise orient `dₖ *→ c ←* b`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge};
 

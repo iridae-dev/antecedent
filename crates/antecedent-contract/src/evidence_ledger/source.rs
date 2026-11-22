@@ -1,7 +1,7 @@
 //! Evidence sources: what they are, which observations stand behind them and
 //! how they were derived.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

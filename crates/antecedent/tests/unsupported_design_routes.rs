@@ -8,7 +8,7 @@
 //! runs unsupported; the supported fits are in `temporal_route_support_rows.rs`. Neither route
 //! holds a matrix support status, and the matching posterior is a typed refusal.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

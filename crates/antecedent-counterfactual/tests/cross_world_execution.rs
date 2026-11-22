@@ -5,7 +5,7 @@
 //! masses `q = [0.2, 0.5, 0.1, 0.2]`. Every expected value below is computed by
 //! hand from `q` in the comment above it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

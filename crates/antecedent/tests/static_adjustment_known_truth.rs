@@ -24,7 +24,7 @@
 //! The expected value is computed in the test from the table (`stratified_truth`), never from
 //! a production estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "known_truth_cells/mod.rs"]
 mod support;

@@ -2,7 +2,7 @@
 //! responses, joint cells, mediation, attribution, and the randomized-design
 //! families.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, SeriesCall, stamp_tabular};
 use crate::analysis::builder::DataInput;

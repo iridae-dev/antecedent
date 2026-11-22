@@ -3,7 +3,7 @@
 //! Numerical mean/law engines remain reusable components. Native compiled workflows use
 //! this wrapper so current causal consumption cannot discard model-conditional standing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::decision_contract::DecisionContract;
 use crate::decision_eval::{

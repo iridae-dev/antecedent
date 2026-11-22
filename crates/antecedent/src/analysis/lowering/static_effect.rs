@@ -18,7 +18,7 @@
 //! A query whose actions have no portable world-indexed statement (a callback action)
 //! lowers to its typed functional, keyed by the canonical digest of the query.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

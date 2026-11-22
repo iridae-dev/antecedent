@@ -10,7 +10,7 @@
 //! scatter) and [`crate::ConjugateBlockRefresh`] (conjugate posterior over labelled blocks).
 //! Each one checks its cached result against a fresh reconstruction from the retained rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// One incrementally kept route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]

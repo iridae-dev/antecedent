@@ -33,7 +33,7 @@
 //! columns). They carry no coverage claim: a standard error from this module
 //! is an uncalibrated estimate of an asymptotic standard deviation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use thiserror::Error;
 

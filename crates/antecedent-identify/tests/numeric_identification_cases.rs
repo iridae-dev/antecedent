@@ -5,7 +5,7 @@
 //! and checks the identified expression or its numeric value against truncated
 //! factorization — never against `identify() == Ok` alone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

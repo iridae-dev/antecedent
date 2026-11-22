@@ -25,7 +25,7 @@
 //!
 //! [`trajectory_hazard_credible_interval`] states why a credible interval is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::splitmix::splitmix64;
 use crate::survival::{bootstrap_support_count, percentile_95};

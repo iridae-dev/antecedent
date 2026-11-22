@@ -44,7 +44,7 @@
 //! inference is the 200-replicate bootstrap, which refits ê, μ̂₀, and μ̂₁ on
 //! every resample.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

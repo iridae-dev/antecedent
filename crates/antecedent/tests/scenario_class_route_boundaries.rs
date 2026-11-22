@@ -14,7 +14,7 @@
 //! different adjustment sets, the error is that sandwich over their frozen-weight mixture of
 //! influence values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

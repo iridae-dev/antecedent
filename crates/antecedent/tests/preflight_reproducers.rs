@@ -6,7 +6,7 @@
 //! derived by hand in the test or from an independent implementation, not from the code
 //! under test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

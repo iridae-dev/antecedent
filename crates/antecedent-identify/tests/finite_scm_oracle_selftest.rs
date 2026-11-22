@@ -3,7 +3,7 @@
 //! the test) or a closed-form transport formula evaluated on enumerated
 //! evidence tables. Nothing here touches the identification algorithm.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

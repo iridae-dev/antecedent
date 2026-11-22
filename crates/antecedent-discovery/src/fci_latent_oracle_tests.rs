@@ -15,7 +15,7 @@
 //! Orientation completeness (that no mark Zhang's rules can determine is left a circle) is not
 //! asserted; that is a separate claim with its own references.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

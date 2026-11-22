@@ -17,7 +17,7 @@
 //! form `(V(psi_i + psi_j) - V(psi_i) - V(psi_j)) / 2` of the same meat, and a linear contrast
 //! of columns keeps the variance of its combined influence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

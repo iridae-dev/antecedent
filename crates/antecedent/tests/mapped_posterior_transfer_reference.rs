@@ -11,7 +11,7 @@
 //! spread of 1e-3, a correlation within 3e-9 of one, a known variance of 1e4 and the identity
 //! order.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::inference::{MappedTransferSpec, mapped_posterior_transfer_with};
 use antecedent_contract::{QuantityRole, ScientificQuantity};

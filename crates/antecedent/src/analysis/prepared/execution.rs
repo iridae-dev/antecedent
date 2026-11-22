@@ -1,6 +1,6 @@
 //! The sealed execution route a prepared handle dispatches on.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sealed::SealedOperation;
 use super::{

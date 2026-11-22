@@ -5,7 +5,7 @@
 //! refusal boundary, and the Markovian regression against the fixed-DAG edge
 //! contrast.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

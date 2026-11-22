@@ -1,6 +1,6 @@
 //! Class-aware response execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, CausalError, CausalQuery, CausalResponse, ClassEnvelopeRun, ClassResponseAtoms,

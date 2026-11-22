@@ -10,7 +10,7 @@
 //! A wrapper call is never a work unit: `algorithm_executions` is reported separately and
 //! named for what it is.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::RefCell;
 

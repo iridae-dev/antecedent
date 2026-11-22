@@ -5,7 +5,7 @@
 //! unknown is a declaration of the composition, never a default. This module
 //! turns the declarations into one parameter covariance, or refuses.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

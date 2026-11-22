@@ -7,7 +7,7 @@
 //! class, `is_mec_member` to accept exactly those DAGs among all DAGs of the same size, and no
 //! completion to be repeated. It uses no orientation rule and no shared search code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

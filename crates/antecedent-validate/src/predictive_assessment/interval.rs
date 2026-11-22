@@ -26,7 +26,7 @@
 //! was fixed before the cases were observed, and for a rolling-origin design the
 //! estimand is the average expected score across the forecast origins.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use antecedent_io_core::calibration::{

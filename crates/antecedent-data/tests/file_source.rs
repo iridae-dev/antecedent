@@ -6,7 +6,7 @@
 //! row ids past `u32::MAX` without allocating rows, null masks, datasets, the
 //! writer, and Arrow C streams.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::unwrap_used,

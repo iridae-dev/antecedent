@@ -7,7 +7,7 @@
 //! observation query and a propagation chain are replayed by their own consumers
 //! and publish what they establish; neither claims more than its record holds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,

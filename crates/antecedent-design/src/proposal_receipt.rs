@@ -34,7 +34,7 @@
 //! or [`ArrivalVerdict::Invalidated`] (a population or regime other than the
 //! premises the derivation was verified under).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

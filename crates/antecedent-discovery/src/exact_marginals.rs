@@ -34,7 +34,7 @@
 //! loses at most `log2(2^n)` bits to cancellation however concentrated the posterior is, and
 //! each marginal is accurate to about `1e-12`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

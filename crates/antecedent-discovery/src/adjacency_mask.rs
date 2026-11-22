@@ -11,7 +11,7 @@
 //! hashing are those of the bit set. The only bound on the node count is that an edge bit must
 //! be addressable as a `u32` ([`edge_bits_fit`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::{self, Write as _};
 use std::sync::Arc;

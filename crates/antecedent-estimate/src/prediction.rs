@@ -9,7 +9,7 @@
 //! none of that is checked here. Identified interventional quantities, with assumptions,
 //! support and uncertainty, come from the temporal analysis path of the `antecedent` facade.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

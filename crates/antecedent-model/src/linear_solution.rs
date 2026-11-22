@@ -45,7 +45,7 @@
 //! equilibrium map. It is the solvability status, when that status is
 //! [`Uniqueness::Unique`], and it is not [`PhysicalStability`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

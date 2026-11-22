@@ -3,7 +3,7 @@
 //! Prints wall time, CI-test count and a digest of the discovered links per thread count, so a
 //! change to the search loops can be checked for both speed and unchanged output.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

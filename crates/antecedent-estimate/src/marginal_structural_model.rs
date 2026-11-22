@@ -1,5 +1,5 @@
 //! Additive binary marginal structural model with subject-level stabilized IPTW.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::longitudinal_regime::{RegimeKernelError, SubjectHistories};
 use crate::util::dot;

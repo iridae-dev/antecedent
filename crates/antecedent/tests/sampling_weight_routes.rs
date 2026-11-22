@@ -8,7 +8,7 @@
 //! rows counted and excluded, refusal of constructions without a weighted contrast), and
 //! against the truth of a sampled super-population.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

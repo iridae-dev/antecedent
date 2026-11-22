@@ -13,7 +13,7 @@
 //!
 //! The shared assembly here also serves the structural family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

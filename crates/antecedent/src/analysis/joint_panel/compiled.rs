@@ -42,7 +42,7 @@
 //! `estimate.randomized_missing_outcomes`; that record names the namespace's sources and does
 //! not gate the route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, SemanticDigest};
 

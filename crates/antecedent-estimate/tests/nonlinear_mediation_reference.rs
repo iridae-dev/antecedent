@@ -7,7 +7,7 @@
 //! a mediator offset of 1e6, a covariate offset of 1e3, an outcome offset of 1e7, an
 //! exponential (skewed) mediator and a mediator residual 1e-3 of its scale.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::nonlinear_mediation::{

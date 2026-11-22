@@ -6,7 +6,7 @@
 //!   library's mean, probability, quantile, tail and information functionals, and as a seeded
 //!   sample; every expected value is the hand value of the functional of the declared law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalCapabilityRequest,

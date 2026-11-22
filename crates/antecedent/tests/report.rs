@@ -8,7 +8,7 @@
 //! review the diff. The report is deterministic, escapes every value it takes from
 //! an input, and prints the values its inputs hold.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::path::PathBuf;
 use std::sync::Arc;

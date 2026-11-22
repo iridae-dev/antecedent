@@ -29,7 +29,7 @@
 //! ordering carries no coverage claim: it is `point_only` with calibration
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;

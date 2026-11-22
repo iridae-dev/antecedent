@@ -10,7 +10,7 @@
 //! Absence is a value: "not measured" and "no provider" digest differently from every held
 //! record, so a record appearing, moving or being withdrawn is always a visible change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Branch, StageIdentity};
 

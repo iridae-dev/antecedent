@@ -3,7 +3,7 @@
 //! moves a measured column asks to identify again, and a graph that joins every pair says the
 //! data cannot contradict it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::staleness::{
     FindingKind, GraphImplications, ImpliedIndependence, Recommendation, StalenessPolicy,

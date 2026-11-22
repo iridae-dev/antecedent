@@ -5,7 +5,7 @@
 //! [`antecedent_state::LocalScoreCache`]. Optional PC-skeleton screening restricts Insert
 //! candidates.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};

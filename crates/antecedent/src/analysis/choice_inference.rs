@@ -19,7 +19,7 @@
 //! 4. **Export / consume** write and replay `choice_inference_result_v1`, recomputing every
 //!    value from the retained respondents and sources.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::choice_ranking::{
     ChoiceEvsiError, rank_hierarchical_studies, rank_studies_with_context,

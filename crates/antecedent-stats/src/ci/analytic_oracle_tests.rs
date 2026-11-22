@@ -5,7 +5,7 @@
 //! of correlations from 1e-8 to 1 - 1e-11, residual degrees of freedom from 1 to 1e6 and levels
 //! from 0.5 to 0.999999.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde_json::Value;
 

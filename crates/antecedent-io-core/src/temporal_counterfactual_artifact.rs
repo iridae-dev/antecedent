@@ -23,7 +23,7 @@
 //! counterfactual is not identified, and the Markov and model-adequacy premises are named, not
 //! checked. Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_counterfactual::temporal_cross_world::staged::{

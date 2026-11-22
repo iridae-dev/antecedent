@@ -28,7 +28,7 @@
 //!
 //! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::neg_cmp_op_on_partial_ord, reason = "a NaN rate must fail the range test")]
 #![allow(

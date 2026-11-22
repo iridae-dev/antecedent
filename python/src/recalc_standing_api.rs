@@ -5,7 +5,7 @@
 //! the decision, are not applicable, or cannot be declared and why. This module only carries the
 //! read-only declaration to Python as JSON.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_receipt::{
     RecalcSessionKind, SessionStanding, StandingInputDeclaration,

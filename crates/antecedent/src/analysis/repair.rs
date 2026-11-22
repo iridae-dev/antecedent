@@ -23,7 +23,7 @@
 //! independently; a report is kept even when its artifact cannot be built. The specialized planners ([`crate::design::StudyPlanResult`]
 //! and the transport and z-transport planners) are untouched.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_contract::{
     EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRegime,

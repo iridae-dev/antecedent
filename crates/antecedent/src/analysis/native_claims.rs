@@ -21,7 +21,7 @@
 //! (`CausalFunctionalPosterior`), not an interventional outcome law, so the
 //! decision engine still refuses outcome-threshold inputs on it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     ExternalProgramClaim, ExternalRefusal, ProgramBinding, ScientificQuantity,

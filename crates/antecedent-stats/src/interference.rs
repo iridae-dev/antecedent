@@ -1,6 +1,6 @@
 //! Randomization-based kernels for known network assignment designs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AssignmentDesign, CausalRng, EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, ExposureMapping,

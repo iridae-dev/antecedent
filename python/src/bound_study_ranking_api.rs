@@ -6,7 +6,7 @@
 //! checks against the prepared study's contract and the ranker are Rust's: a study the
 //! search did not verify is reported and never scored.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::repair::{RepairLimits, RepairObjective};
 use antecedent::design::{rank_studies_bound as rank_bound, repair};

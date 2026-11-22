@@ -4,7 +4,7 @@
 //! The artifacts that replay them need the estimators and live in `antecedent-io`;
 //! a planner that only proposes a query needs no more than these.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! ADMG/PAG m-separation sparse and stress benchmarks .
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

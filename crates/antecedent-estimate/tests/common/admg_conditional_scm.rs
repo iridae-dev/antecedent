@@ -3,7 +3,7 @@
 //! Each bidirected edge is a binary latent, the target population shifts the
 //! mechanism of every selected node, and every law (each source experiment and
 //! the target observational joint) and the conditional truth are enumerated.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     dead_code,
     clippy::cast_possible_truncation,

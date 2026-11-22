@@ -1,7 +1,7 @@
 //! Tests of the cross-world cell: check, evaluation, artifact replay and the
 //! independent closed form.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::closed_form::{closed_form_agrees, closed_form_point, ols_on_parents};
 use super::*;

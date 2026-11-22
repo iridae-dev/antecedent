@@ -14,7 +14,7 @@
 //! The product's draws are compared with these within bounds derived from the iid-draw sampling
 //! error of both sides; the shared Laplace kernel is also checked exactly on the same designs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::temporal_design::survival::{

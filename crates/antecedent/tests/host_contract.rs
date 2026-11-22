@@ -6,7 +6,7 @@
 //! committed text and compares it with the values compiled into this build, so
 //! a drift in either direction fails.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

@@ -24,7 +24,7 @@
 //! Every report is a diagnostic: thresholds are conventions, and calibration of the
 //! refuters is not measured here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

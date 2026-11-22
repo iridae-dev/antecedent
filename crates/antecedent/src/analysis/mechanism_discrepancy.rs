@@ -15,7 +15,7 @@
 //! `false`), it informs only a selection node on the compared node, and its Type I error and
 //! power are `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

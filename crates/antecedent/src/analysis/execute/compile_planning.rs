@@ -18,7 +18,7 @@
 //! analytic plan, quotes the simulation at the planned size, leases it from
 //! the admission pool before allocating, and runs it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

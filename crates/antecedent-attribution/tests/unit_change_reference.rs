@@ -1,7 +1,7 @@
 //! Per-unit change attribution against closed forms: an additive (linear) game, and a game with
 //! interactions whose Shapley values are enumerated over every permutation of the parents.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

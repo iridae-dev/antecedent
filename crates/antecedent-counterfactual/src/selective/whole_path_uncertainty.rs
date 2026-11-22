@@ -54,7 +54,7 @@
 //! coverage record for the abduction-action-prediction path, so an interval or
 //! posterior reading is not supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,

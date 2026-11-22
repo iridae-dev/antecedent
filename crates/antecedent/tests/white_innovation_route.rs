@@ -9,7 +9,7 @@
 //! standard error of the lag-aligned regression, computed here from the raw series. The route is
 //! an unsupported estimator with calibration `not_measured`, and every result says so.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

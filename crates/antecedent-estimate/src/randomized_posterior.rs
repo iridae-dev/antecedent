@@ -48,7 +48,7 @@
 //! (the private `posterior_lattice` module); the arm laws are discretized with a within-cell
 //! variance inflation of about `1 / 3000` of the arm variance.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use antecedent_stats::adaptive_inference::{BetaPosterior, regularized_incomplete_beta};

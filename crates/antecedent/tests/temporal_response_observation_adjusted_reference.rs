@@ -23,7 +23,7 @@
 //! bootstrap replicate count, and the refusals of a conditioning set that omits the treatment or the
 //! adjustment variable and of a delayed entry.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

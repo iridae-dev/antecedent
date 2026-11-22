@@ -1,7 +1,7 @@
 //! Target-native validation through the compiler: a derivative target refuted by refits of
 //! the prepared program, and a claim that refuses a scalar average-effect refutation for it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

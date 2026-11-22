@@ -8,7 +8,7 @@
 //! transition density and the Kalman innovation likelihood of the discretised model.  Nothing in
 //! it reads product code and no paper was retrieved.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::cyclic_adam::{CyclicAdamPolicy, fit_cyclic_adam};

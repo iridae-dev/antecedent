@@ -46,7 +46,7 @@
 //! report the posterior positivity of the regimes. The posterior is uncalibrated and the prior
 //! supplies no identifying premise.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 

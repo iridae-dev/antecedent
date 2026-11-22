@@ -35,7 +35,7 @@
 //! at the coordinate. Draws are a deterministic function of the retained
 //! statistics, the priors, the seed and the draw count.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

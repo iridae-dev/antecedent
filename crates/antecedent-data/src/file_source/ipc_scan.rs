@@ -9,7 +9,7 @@
 //! stream) without reading a single body byte, except the eight-byte
 //! uncompressed-length prefix of each buffer of a compressed batch.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};

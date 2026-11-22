@@ -8,7 +8,7 @@
 //! of squares are about `10¹⁷`, so a rate taken as the difference of those sums returns the prior
 //! rate (`b = 2.0`) instead of `2.6265...`; the block scatter that is centred on its mean does not.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_state::{ConjugateOlsPosterior, ConjugateOlsPrior, LinearOlsSuffStats};
 

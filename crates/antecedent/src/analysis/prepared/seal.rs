@@ -1,6 +1,6 @@
 //! Sealing of graph-posterior, class and temporal operations at prepare time.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::accepted::{GraphClass, GraphRef};
 use crate::analysis::builder::{DataInput, RefuteSuite};

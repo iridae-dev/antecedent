@@ -47,7 +47,7 @@
 //! separation above the threshold to a value below the tolerance, decreasing in the
 //! separation; it is a monotone yardstick, not a p-value.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Effective degrees of freedom of a replicate covariance built from `replicates` draws of a
 /// resample over `independent_units` independent units (`None`: the resample is not limited by

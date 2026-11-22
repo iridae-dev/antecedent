@@ -10,7 +10,7 @@
 //! `3.45` and `7.4`; with the target "mean at least 5" only the second meets it. For
 //! `effect = 3` the mean contrast is `3 + 0.5 * 0.45 = 3.225` and the second utility `11.4`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{
     CohortBinding, CohortColumn, CohortDecisionSource, CohortOptions, CovariateShiftDeclaration,

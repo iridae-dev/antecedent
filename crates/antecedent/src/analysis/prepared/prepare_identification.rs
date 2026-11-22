@@ -1,6 +1,6 @@
 //! Prepare-time identification caches and horizon schedules.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CachedCpdagIdentification, CachedPagIdentification, CachedStaticIdentification,

@@ -1,5 +1,5 @@
 //! One shared dependency plan for an actual retained native response and attested callbacks.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResponseContext};
 use super::recalc_common::Fields;
 use super::recalc_external::{

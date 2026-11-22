@@ -13,7 +13,7 @@
 //! numeric dose, so the contrast of two levels would be a slope scaled by their gap, and
 //! restricting the rows to the two levels would select on the endogenous treatment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

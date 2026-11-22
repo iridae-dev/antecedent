@@ -1,6 +1,6 @@
 //! Builder independent execution of a checked temporal class response.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, CausalQuery, ExecutionContext, StudyResult, TimeSeriesData};
 

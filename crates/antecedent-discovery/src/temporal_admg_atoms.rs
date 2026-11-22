@@ -12,7 +12,7 @@
 //! [`GraphPosterior::temporal_admg_atom`]; [`TemporalAdmgAtom::to_template`] unrolls nothing: it
 //! is the stationary template a window identification unrolls itself.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Lag, NodeRef, VariableId};
 use antecedent_graph::{DenseNodeId, TemporalAdmg};

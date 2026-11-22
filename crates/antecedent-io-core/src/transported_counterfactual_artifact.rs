@@ -30,7 +30,7 @@
 //! caller, not checked; no interval is published; calibration is `not_measured`. Unknown major
 //! versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;

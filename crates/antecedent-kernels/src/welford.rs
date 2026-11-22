@@ -1,6 +1,6 @@
 //! Streaming mean / sum-of-squared-deviations accumulator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Welford's online accumulator for the (optionally weighted) mean and the sum of
 /// squared deviations from it.

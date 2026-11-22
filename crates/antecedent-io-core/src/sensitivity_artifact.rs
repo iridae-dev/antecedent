@@ -34,7 +34,7 @@
 //!
 //! Refusal details use the frozen record's namespace `sensitivity_decision_composition`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod classification;
 mod utility;

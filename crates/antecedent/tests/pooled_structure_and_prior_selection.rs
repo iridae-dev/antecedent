@@ -10,7 +10,7 @@
 //!   assumptions of the result; with a diffuse prior the prior-regularized estimate for a weighted
 //!   target equals the unregularized one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, reason = "small graph node counts")]
 #![allow(

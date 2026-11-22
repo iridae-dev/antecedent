@@ -24,7 +24,7 @@
 //! candidates alone, so a variable-name match on an unverified study never marks it
 //! supported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

@@ -9,7 +9,7 @@
 //! `open`: `0.7`, variance `0.21`. The mean is `169/210`; the realized-outcome variance is
 //! `2029/44100`; the sampling variance of the mean is `2526/264600`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cross_world_execution::{
     CrossWorldExecution, ExogenousInference, ExogenousVariable, FactualUnit,

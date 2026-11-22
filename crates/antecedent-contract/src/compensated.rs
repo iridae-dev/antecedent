@@ -4,7 +4,7 @@
 //! rather than depending on them. A plain left-to-right `f64` sum drops low-order bits when
 //! terms differ greatly in magnitude or cancel; the correction term keeps them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// A Neumaier compensated running sum.
 #[derive(Clone, Copy, Debug, Default)]

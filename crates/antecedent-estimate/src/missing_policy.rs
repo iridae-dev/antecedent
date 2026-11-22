@@ -4,7 +4,7 @@
 //! first missing cell and the policies it can execute, so the caller sees exactly what to
 //! declare. A declared policy the route cannot execute is refused the same way.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::{MissingCell, MissingPolicy};
 

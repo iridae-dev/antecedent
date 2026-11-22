@@ -1,6 +1,6 @@
 //! Shared DML-AIPW / DR-Learner recalculation against finite structural truth.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::ScoreTable;

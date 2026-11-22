@@ -3,7 +3,7 @@
 //! Graph types remain distinct; only adjacency entry layout and directed
 //! reachability scratch reuse are shared.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};

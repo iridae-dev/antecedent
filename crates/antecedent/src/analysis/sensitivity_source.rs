@@ -1,6 +1,6 @@
 //! Original joint-sensitivity sources independently replayed into decision surfaces.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::JointSensitivityArtifactWire;
 use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain, ScientificQuantity};

@@ -14,7 +14,7 @@
 //! set exists at all, so that a refusal that is only conservative is distinguished from a
 //! graph that no regression set can identify.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{Lag, MediationContrast, MediationQuery, VariableId};
 use antecedent_data::TemporalNodeKey;

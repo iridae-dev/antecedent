@@ -1,6 +1,6 @@
 //! Facade gap closure: PAG execute, conditional/CF/attribution paths, Auto estimand selection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

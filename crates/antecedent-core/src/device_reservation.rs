@@ -18,7 +18,7 @@
 //! account unchanged. Its CPU and RAM lease, cancellation, and scratch cleanup
 //! stay on the admission pool.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
 use core::sync::atomic::{AtomicBool, Ordering};

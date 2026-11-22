@@ -20,7 +20,7 @@
 //! loads no resource, and every value that comes from an input is escaped; the
 //! Markdown writes the same values with every markup character escaped.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod render;
 

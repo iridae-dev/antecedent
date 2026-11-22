@@ -4,7 +4,7 @@
 //!
 //! The references are computed in this file from the generating process.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

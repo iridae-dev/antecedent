@@ -3,7 +3,7 @@
 //! MAP via damped Newton → Cholesky of −Hessian → MVN draws.
 //! Refuses to publish a posterior without convergence and curvature diagnostics.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -6,7 +6,7 @@
 //! class posteriors ([`temporal_class`]). The helpers every family shares live
 //! here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod dbn;
 mod exposure_posterior;

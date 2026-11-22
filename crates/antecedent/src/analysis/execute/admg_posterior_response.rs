@@ -4,7 +4,7 @@
 //! frozen posterior weight when [`StructuralAggregationPolicy`] is
 //! `SameEstimandWeightedMean`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::{
     estimate_general_id_response, graph_posterior_response_supported, mix_response_values,

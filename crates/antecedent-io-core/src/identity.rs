@@ -23,7 +23,7 @@
 //! is each atom's structure (static DAG, or lagged and contemporaneous DBN
 //! edges) plus its posterior weight, over the premises' schema names.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,

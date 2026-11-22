@@ -45,7 +45,7 @@
 //! or a native population other than the target's, is refused
 //! (`target_population_mismatch`); a retired source is refused by the ledger.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

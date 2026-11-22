@@ -17,7 +17,7 @@
 //! Each missing element is its own typed refusal. The final sample is never
 //! analysed as if the design had been fixed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::declaration_refusal as declare;
 use antecedent_core::{CanonicalWriter, SemanticDigest};

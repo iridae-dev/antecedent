@@ -5,7 +5,7 @@
 //! observational study measures `{X, Z}` and a trial of `do(Z)` measures
 //! `{X, Y}`. Every law is enumerated from one structural model.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-estimate/tests/common/mod.rs"]
 mod common;

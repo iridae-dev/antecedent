@@ -91,7 +91,7 @@
 //! marginals is never a leaf: a second, relaxed pass reports the exact leaf that
 //! would need the joint.
 //!
-//! The A6.1 catalog descriptor ([`antecedent_core::CatalogDistribution`]) is the
+//! The catalog descriptor ([`antecedent_core::CatalogDistribution`]) is the
 //! one place the input classification reads a regime's origin, selection, kind,
 //! measured set, interventions and levels, availability, identity, study and
 //! snapshot. The pairwise `shared_data` relation is not consulted here: this
@@ -101,7 +101,7 @@
 //! Every attempted rule application charges one operation of the shared budget
 //! at its derivation generation, with the cumulative live-state bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

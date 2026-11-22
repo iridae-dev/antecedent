@@ -6,7 +6,7 @@
 //! `python/tests/test_intervention_programs.py`. Python builds program text and calls this
 //! same entry point, so a difference would mean a second implementation had crept in.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::gcm::{
     FittedGcm, PreparedPolicy, TemporalPlan, counterfactual_policy, counterfactual_temporal_policy,

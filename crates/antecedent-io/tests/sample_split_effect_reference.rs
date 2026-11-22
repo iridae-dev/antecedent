@@ -8,7 +8,7 @@
 //! including columns offset by 1e6 to 1e9, a covariate within 1e-4 and 1e-6 of the treatment, the
 //! smallest admissible sample and an exactly collinear design, which it must refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_data::TabularData;
 use antecedent_io::measured_inference::split_effect::adjusted_effect;

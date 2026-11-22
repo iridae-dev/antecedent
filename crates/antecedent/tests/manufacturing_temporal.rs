@@ -2,7 +2,7 @@
 //!
 //! Run: `cargo +1.85 test -p antecedent --test manufacturing_temporal -- --nocapture`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

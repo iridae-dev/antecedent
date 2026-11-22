@@ -3,7 +3,7 @@
 //! every semantic mutation (counts edited, overlap flipped, derivation swapped,
 //! stored estimate edited), even resealed, is refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

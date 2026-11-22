@@ -4,7 +4,7 @@
 //! source proof. Replay is historical numerical evidence only. Current causal use requires
 //! caller-supplied live compiled authority with the same complete request identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::scientific_target_wire::ScientificTargetWire;
 use antecedent_core::execution::AdmissionLease;

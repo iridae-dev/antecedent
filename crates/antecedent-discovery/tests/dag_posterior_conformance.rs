@@ -6,7 +6,7 @@
 //! The thresholds are the fixture's; the SEMs are defined here. There is no external
 //! oracle: this is internal known-truth evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -7,7 +7,7 @@
 //! propensities, censoring with unobserved subjects, probabilities at the positivity floor, an
 //! outcome offset of 1e7, a rare treatment period and the smallest admissible sample.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::longitudinal_regime::SubjectHistories;
 use antecedent_estimate::marginal_structural_model::{

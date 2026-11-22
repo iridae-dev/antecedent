@@ -46,7 +46,7 @@
 //! coverage records and never a gate. With 1:1 matching `I = b c / (b + c)`, so the log-scale
 //! variance is the closed form `1/b + 1/c`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use crate::util::refuse;

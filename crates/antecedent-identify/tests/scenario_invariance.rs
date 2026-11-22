@@ -17,7 +17,7 @@
 //! * selection on `y`: the outcome's own mechanism differs, an s-hedge, so there
 //!   is an obstruction and no invariance list.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

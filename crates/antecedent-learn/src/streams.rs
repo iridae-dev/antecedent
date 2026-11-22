@@ -3,7 +3,7 @@
 //! The numbers are part of fitted seeds. Renaming a call site without keeping the index
 //! would refit every model that draws from that stream.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Gradient-boosted tree initialization.
 #[cfg(feature = "ml-gbdt")]

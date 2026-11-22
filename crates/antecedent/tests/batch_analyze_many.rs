@@ -8,7 +8,7 @@
 //! `prepare`) and discrete joint `InterventionResponse` cells (`prepare_cells`);
 //! any other query is refused with `route_not_supported`, naming `analyze`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

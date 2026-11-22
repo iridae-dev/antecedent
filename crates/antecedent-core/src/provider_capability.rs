@@ -22,7 +22,7 @@
 //!
 //! Two declarations with the same name and different sets are different values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

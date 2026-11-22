@@ -1,6 +1,6 @@
 //! Static and class average-effect prepare routes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::data::TableView;
 use antecedent::prelude::{Intervention, TabularData, Value};

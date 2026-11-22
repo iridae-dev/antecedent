@@ -11,7 +11,7 @@
 //! the validated range, a zero source standard error, a negative slope and clipping at both ends.
 //! Requests outside the measured scope stay refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

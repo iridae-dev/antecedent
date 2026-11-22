@@ -9,7 +9,7 @@
 //! that tie, extreme unclipped scores, a covariate with five levels, an outcome offset of 1e7
 //! and a ten-row table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

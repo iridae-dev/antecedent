@@ -9,7 +9,7 @@
 //! units of a one-armed period must be reported rather than fitted, and unequal sampling
 //! weights and mismatched history lengths must be refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IdentificationStatus};
 use antecedent_estimate::history_match::HistoryUnit;

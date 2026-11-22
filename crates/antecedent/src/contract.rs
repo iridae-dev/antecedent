@@ -1,7 +1,7 @@
 //! Claim, provider and obligation records of the contract layer: what a result may claim, which
 //! provider produced a quantity, which obligations remain, and the estimand bridges between claims.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Stable semantic coordinates for scientific values and distributions.
 pub use antecedent_contract::DistributionMeaning;

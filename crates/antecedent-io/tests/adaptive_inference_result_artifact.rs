@@ -7,7 +7,7 @@
 //! integrated with `SciPy`; and the hand calculation of augmented
 //! inverse-probability scores on a four-unit history.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AdaptiveDesignContract, AdaptiveDesignDeclaration, AssignmentFamily, BoundarySidedness,

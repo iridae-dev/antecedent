@@ -6,7 +6,7 @@
 //! are Rust's. Columns that were fit one by one carry no common alignment identity and are
 //! never paired by index.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
 use std::cell::RefCell;

@@ -11,7 +11,7 @@
 //!
 //! The function returns the refusal as plain data; a binding raises it. It never runs a fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::joint_bayesian_transport::{
     JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS, JointTransportRefusal,

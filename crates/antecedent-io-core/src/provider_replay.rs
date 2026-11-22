@@ -11,7 +11,7 @@
 //! The comparison reads two declarations. It does not cache a result and it does
 //! not call a provider.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::SemanticDigest;
 

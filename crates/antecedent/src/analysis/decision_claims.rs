@@ -27,7 +27,7 @@
 //! and data digests the caller retained. A conversion given an expected
 //! [`ClaimSource`] refuses when any of them changed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,

@@ -13,7 +13,7 @@
 //!
 //! The coverage simulations in the library modules are calibration evidence and are a separate
 //! claim.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::randomized_neyman::complete_cluster_itt;
 use antecedent_estimate::randomized_scores::cuped_ht_effect;

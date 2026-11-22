@@ -1,6 +1,6 @@
 //! Retained effect prediction, distinct from marginal-effect inference.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId};
 use serde::{Deserialize, Serialize};

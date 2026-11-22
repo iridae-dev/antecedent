@@ -13,7 +13,7 @@
 //! relative error near machine epsilon for normal results; subnormal tails
 //! necessarily lose relative precision.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Coefficients for erf on |x| <= 0.46875 (Cody, SPECFUN `CALERF`).
 #[allow(

@@ -4,7 +4,7 @@
 //! when you need to set an estimator's own options. A configured estimator is used as given;
 //! the study does not overwrite its fields.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::{
     AipwAte, CausalForest, DistanceMatching, DmlAte, DrLearner, FrontDoorTwoStage,

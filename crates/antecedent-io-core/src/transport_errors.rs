@@ -4,7 +4,7 @@
 //! estimators with [`IoError`](crate::IoError), which wraps each of them.
 //! Every artifact module re-exports its own enum at its established path.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::TransportOutcomeKind;
 use antecedent_identify::{IdentificationError, admg_conditional_refusal};

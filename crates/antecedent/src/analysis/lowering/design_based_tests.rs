@@ -1,7 +1,7 @@
 //! Design-based lowering: every cell of the family lowers completely, and a compiled design
 //! carries its own target, retained design identification, statistical program and identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

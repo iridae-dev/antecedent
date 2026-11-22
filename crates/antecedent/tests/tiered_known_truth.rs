@@ -6,7 +6,7 @@
 //! assert the reported numbers against that truth, not against another run of
 //! the same code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

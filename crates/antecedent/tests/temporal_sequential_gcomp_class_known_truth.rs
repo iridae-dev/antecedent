@@ -11,7 +11,7 @@
 //! identified atom (plus, for the incomplete kinds, an atom that stays unidentified, which the
 //! mixture reports as unidentified mass without moving the identified value).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "retained_run/mod.rs"]
 mod retained;

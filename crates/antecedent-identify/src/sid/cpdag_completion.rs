@@ -26,7 +26,7 @@
 //! masks. No search continues after the stop to compute an exact remainder.
 //! A stopped enumeration is not a complete class certificate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

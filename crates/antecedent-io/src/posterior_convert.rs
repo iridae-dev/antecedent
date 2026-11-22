@@ -1,6 +1,6 @@
 //! Convert [`CausalPosterior`] (internal) ↔ versioned wire artifacts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::VERSION;
 use antecedent_estimate::CausalPosterior;

@@ -11,7 +11,7 @@
 //! conjugate model), export an artifact an independent loader recomputes, and refuse every
 //! forged or resealed change. The row is unsupported: its calibration is `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::float_cmp,

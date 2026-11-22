@@ -2,7 +2,7 @@
 //! upcoming conditioning sets speculatively and in parallel, and report exactly what the
 //! one-test-at-a-time loop would.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

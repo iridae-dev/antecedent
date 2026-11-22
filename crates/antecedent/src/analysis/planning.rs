@@ -11,7 +11,7 @@
 //! `sampling_candidate` and `future_data` carry its sample size into design
 //! ranking and value-of-information evaluation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

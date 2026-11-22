@@ -20,7 +20,7 @@
 //! A, C, so the ranking is by net value and not by EVSI. The input order does not change the
 //! result. Tolerance 1e-12: a few float operations on numbers of order one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

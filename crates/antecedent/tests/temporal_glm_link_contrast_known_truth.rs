@@ -10,7 +10,7 @@
 //! probability-scale contrast is `0.6 - 0.3` and its Fisher delta-method standard error is
 //! `sqrt(p1 (1 - p1) / n1 + p0 (1 - p0) / n0)`, both in closed form from the counts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "retained_run/mod.rs"]
 mod retained;

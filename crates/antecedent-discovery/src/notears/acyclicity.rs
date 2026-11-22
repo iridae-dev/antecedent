@@ -1,6 +1,6 @@
 //! Smooth exact acyclicity constraint \(h(W)=\operatorname{tr}(e^{W\circ W})-d\).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 const TAYLOR_TERMS: u32 = 20;
 

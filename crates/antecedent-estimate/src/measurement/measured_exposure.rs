@@ -27,7 +27,7 @@
 //! effect at every detection function inside the envelope, and the effect of a unit-level
 //! exposure is not monotone in the detection function in general.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_stats::measurement_error::{

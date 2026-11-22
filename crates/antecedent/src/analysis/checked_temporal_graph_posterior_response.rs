@@ -1,7 +1,7 @@
 //! Frozen temporal graph-posterior response: retained atoms, weights, per-atom
 //! identification, and the selected inference, validation, and physical plan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::execute::CheckedGraphPosteriorResponseInfo;
 use crate::analysis::prepared::Inspect;

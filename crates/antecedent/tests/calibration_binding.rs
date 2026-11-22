@@ -7,7 +7,7 @@
 //! own calibration key is exactly that construction, so an estimator-level
 //! record cannot describe an interval the facade reports differently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 #![allow(

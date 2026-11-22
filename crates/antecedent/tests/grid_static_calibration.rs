@@ -47,7 +47,7 @@
 //! its logit construction, and the Anderson–Rubin set by inverting the same statistic on
 //! the same rows at the 0.90 level.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

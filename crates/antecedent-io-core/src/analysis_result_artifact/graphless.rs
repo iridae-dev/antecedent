@@ -4,7 +4,7 @@
 //! recompute. The recompute stays in this module so a forged status cannot be
 //! laundered through another classifier.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{AnalysisResultWire, HistoryMatchWire};
 use crate::IoError;

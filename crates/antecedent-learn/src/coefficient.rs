@@ -3,7 +3,7 @@
 //! The fit stays in the caller. This type only predicts and records provenance, so two
 //! learners with the same coefficients emit the same predictions.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

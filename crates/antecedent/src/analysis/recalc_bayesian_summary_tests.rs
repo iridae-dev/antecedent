@@ -4,7 +4,7 @@
 //! type-7 interpolated quantiles and strict-inequality proportion of each draw set in exact
 //! arithmetic; `summarize_issued_values` is compared to its frozen rounding.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{PosteriorSummarySpec, RecalcRequestCode, RecalcRunError, summarize_issued_values};
 use serde_json::Value;

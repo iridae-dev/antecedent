@@ -15,7 +15,7 @@
 //! Contexts a `TemporalDag` cannot hold (environment-tagged, or on an occupied slot) are
 //! refused with a typed error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

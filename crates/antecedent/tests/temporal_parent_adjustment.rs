@@ -9,7 +9,7 @@
 //! history still refuse; the contract records the rule and set, and they
 //! survive export and consumption.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

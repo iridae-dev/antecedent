@@ -10,7 +10,7 @@
 //! estimator (the Young-inequality property that the product documents). Exposure probabilities
 //! returned by the product must equal the enumerated ones.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

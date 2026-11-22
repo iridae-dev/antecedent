@@ -14,7 +14,7 @@
 //! assert_eq!(data.row_count(), 3);
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(unsafe_code)]
 #![deny(missing_docs)]

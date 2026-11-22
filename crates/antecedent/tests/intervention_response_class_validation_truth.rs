@@ -8,7 +8,7 @@
 //! run on (2 and 2.299). A Cpdag or Pag level runs the plugin-level suite on every completion's
 //! own level; a temporal level runs the Pulse-native suite on each completion's own witness.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -18,7 +18,7 @@
 //! The prior scales are moderate (0.5 to 4), so the answer sits visibly between the OLS fit and
 //! the prior mean. The tolerance 1e-10 is the rounding of two small elimination solves.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::mechanism_discrepancy::{
     DiscrepancyOptions, MechanismMeasurement, ParentSpec, PopulationSample, SampleDependence,

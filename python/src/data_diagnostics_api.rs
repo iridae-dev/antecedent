@@ -1,5 +1,5 @@
 //! Native bridge for fit-free data diagnostics.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::prepared_api::PyPreparedAnalysis;
 use antecedent::{DataDiagnosticContext, DataDiagnostics};
 use pyo3::prelude::*;

@@ -1,6 +1,6 @@
 //! Uncovered potentially directed paths for FCI R8–R10 / LPCMCI primes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::ops::ControlFlow;
 

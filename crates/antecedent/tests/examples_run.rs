@@ -4,7 +4,7 @@
 //! and calls it, so an example that panics, or whose own assertion against the
 //! simulation's truth fails, fails the suite instead of surviving until a reader runs it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[allow(
     dead_code,

@@ -12,7 +12,7 @@
 //! hold 0.3*0.275 + 0.2*0.30625 = 0.14375; the 0.5 of unaccounted mass moves each to
 //! treat [0.1425 - 0.145, 0.1425 + 0.355], hold [0.14375, 0.14375 + 0.25].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

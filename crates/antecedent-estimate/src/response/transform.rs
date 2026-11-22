@@ -5,7 +5,7 @@
 //! derivative, together with the runtime notes published alongside a
 //! transformed or bias-corrected point-derivative interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

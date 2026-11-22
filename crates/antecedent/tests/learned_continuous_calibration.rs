@@ -29,7 +29,7 @@
 //!
 //! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 #[path = "learned_continuous_dgp/mod.rs"]

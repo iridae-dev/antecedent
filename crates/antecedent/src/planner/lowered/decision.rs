@@ -4,7 +4,7 @@
 //! from a decision or a value-of-information request, what that decision needs the
 //! statistical program to publish.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

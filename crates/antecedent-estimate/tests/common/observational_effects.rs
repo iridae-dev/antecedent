@@ -10,7 +10,7 @@
 //! `slope * z`, treatment `expit(steepness * z)` and independent normal noise; the value of
 //! "treat when `z > c`" is `1 + slope * phi(c)` with `phi` the standard normal density.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use antecedent_core::CausalRng;

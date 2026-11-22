@@ -1,7 +1,7 @@
 //! Sealed class routes: graph-posterior and class effects and responses,
 //! Bayesian specialists, and trial transport.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealedOperation, stamp_tabular};
 use crate::analysis::builder::DataInput;

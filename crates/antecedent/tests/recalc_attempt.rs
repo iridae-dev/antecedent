@@ -1,5 +1,5 @@
 //! Original component attempts on native failures, reuse, and cancellation.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,
     execute_adjusted_with_receipt,

@@ -57,7 +57,7 @@
 //! The finite-enumeration baseline stays available as
 //! [`finite_enumeration_baseline`], independent of the engine.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 

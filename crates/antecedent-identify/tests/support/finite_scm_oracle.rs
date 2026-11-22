@@ -30,7 +30,7 @@
 //! `#[path = "support/finite_scm_oracle.rs"]`. A fixture module that uses this
 //! one reaches it as `crate::finite_scm_oracle`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -6,7 +6,7 @@
 //! `ξ_r = sqrt(n/(n-1)) (w_r/Σw)(φ_r − θ)` and the covariance `Σ_r ξ_kr ξ_lr`, never the
 //! library's own helpers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

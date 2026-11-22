@@ -7,7 +7,7 @@
 //! pointwise interval is ordered, that a band names coordinates in range and contains their
 //! pointwise intervals, and that Holm-adjusted p-values are probabilities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 

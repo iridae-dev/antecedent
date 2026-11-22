@@ -6,7 +6,7 @@
 //! reused for a request, must be recomputed, or the request is refused, from
 //! declarations, identities and a stored record alone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

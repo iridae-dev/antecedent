@@ -9,7 +9,7 @@
 //! no support. The kink in calendar time is also checked against the analytic standard
 //! deviation of its estimator under the generated error law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::too_many_lines,

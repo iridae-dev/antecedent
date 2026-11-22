@@ -1,5 +1,5 @@
 //! Execution context: deterministic RNG streams.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// RNG stream domain: a tag that keeps indexed stream families apart.
 ///

@@ -8,7 +8,7 @@
 //! treatment rescaled by factors from 1e-12 to 1e8: a tipping partial R^2 is dimensionless, so the
 //! verdict must not move.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

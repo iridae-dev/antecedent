@@ -41,7 +41,7 @@
 //! [`SelectionEvidence`] unchanged and unused, so later synthesis can see what the assignment
 //! mechanism was.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_kernels::norm_cdf;
 

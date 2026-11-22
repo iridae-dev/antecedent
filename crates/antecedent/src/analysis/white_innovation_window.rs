@@ -6,7 +6,7 @@
 //! refute the declaration. The declared premise and the test result travel in the posterior's
 //! assumptions and diagnostics, so the result cannot be read as the tempered posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, IdentificationStatus};
 use antecedent_estimate::white_innovation_posterior::{

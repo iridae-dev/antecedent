@@ -1,6 +1,6 @@
 //! Non-authoritative accounting of operations begun by executing source engines.
 //! Successful scientific receipts remain separate from failed or cancelled attempts.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use std::cell::{Cell, RefCell};
 use std::sync::{
     Arc, Mutex, Weak,

@@ -8,7 +8,7 @@
 //! evaluation. A recanting district and an unidentified district kernel are refused with
 //! their own derivation step.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

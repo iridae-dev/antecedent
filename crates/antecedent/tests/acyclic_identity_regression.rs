@@ -16,7 +16,7 @@
 //! Generate or refresh with
 //! `cargo test -p antecedent --test acyclic_identity_regression -- --ignored write_`
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;

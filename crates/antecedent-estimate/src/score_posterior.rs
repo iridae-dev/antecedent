@@ -15,7 +15,7 @@
 //! the cross-fit nuisance fits and do not carry their sampling uncertainty. Callers state
 //! which of the two they are in; this module cannot tell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 

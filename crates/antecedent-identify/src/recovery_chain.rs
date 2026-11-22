@@ -66,7 +66,7 @@
 //! composed on this row is separate and `not_measured`: the evaluator is an exact-law
 //! evaluator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;

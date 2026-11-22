@@ -1,6 +1,6 @@
 //! DBN-posterior Pulse hot path (ADR 0011).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "bench binaries are not public API")]
 

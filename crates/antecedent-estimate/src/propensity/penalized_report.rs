@@ -5,7 +5,7 @@
 //! GLM fit and the fallback that replaced it, the support a lasso kept on each fold, and the
 //! penalties the refit bootstrap selected in every replicate (`docs/guides/penalized-aipw.md`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{GlmRefusalKind, StatsError};
 

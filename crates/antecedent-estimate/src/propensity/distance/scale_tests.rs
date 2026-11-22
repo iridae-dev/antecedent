@@ -5,7 +5,7 @@
 //! workload runs under a hard memory limit, retains memory linear in the donor rows and
 //! refuses (rather than allocating) when the limit is below what the index needs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::time::{Duration, Instant};
 

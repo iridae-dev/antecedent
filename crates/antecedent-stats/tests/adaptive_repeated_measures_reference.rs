@@ -9,7 +9,7 @@
 //! of the contrast with `Fraction` weights for up to 4000 revealed units. The mixture cases past
 //! about a thousand units are the ones on which `p^n` leaves the range of a double.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

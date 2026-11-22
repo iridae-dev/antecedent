@@ -5,7 +5,7 @@
 //! by calling the code under test, and the tag-defined transport path is
 //! checked against the weighted path where they must agree.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

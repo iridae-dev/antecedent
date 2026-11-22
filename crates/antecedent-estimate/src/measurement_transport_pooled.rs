@@ -36,7 +36,7 @@
 //! doi:10.1111/j.1467-985X.2008.00552.x (prediction for a new population); Rogan and Gladen
 //! (1978), doi:10.1093/oxfordjournals.aje.a112510.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 

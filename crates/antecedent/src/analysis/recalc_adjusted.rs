@@ -1,7 +1,7 @@
 //! Selective recalculation over retained, checked adjusted-regression models.
 //! The model-support query is distinct from the requested contrast: changing causal roles
 //! invalidates identification and fit; selecting another finite contrast reuses coefficients.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_common::{
     Fields, canonical_bits, dag_from_edges, float_bytes, identity, literal,
 };

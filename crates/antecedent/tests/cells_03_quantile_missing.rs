@@ -13,7 +13,7 @@
 //! refused for latent confounding, an equivalence class or a temporal graph; its complete-case
 //! policy is row deletion, and multiple imputation pools the discontinuity by Rubin's rules.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

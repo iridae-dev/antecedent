@@ -12,7 +12,7 @@
 //! enters only through the variance (identical shares at ten times the counts give the same
 //! point and a standard error smaller by sqrt(10)).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "../../antecedent-identify/tests/support/counterfactual_transport_adapter.rs"]
 mod counterfactual_transport_adapter;

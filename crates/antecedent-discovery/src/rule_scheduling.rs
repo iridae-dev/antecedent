@@ -7,7 +7,7 @@
 //! Explicit scheduler module — rules are applied via a delta queue, not a
 //! single procedural blob that rescans all edges after every change.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 

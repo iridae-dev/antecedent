@@ -6,7 +6,7 @@
 //! derived from the support model by `scripts/generate_support_matrix_docs.py` into
 //! `antecedent-io-core/data/unit_support_status.json`, which this build embeds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::OnceLock;
 

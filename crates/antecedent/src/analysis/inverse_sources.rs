@@ -55,7 +55,7 @@
 //! and the query. The law is an input; new data means a new law and a new
 //! result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::ExecutionContext;

@@ -60,7 +60,7 @@
 //! needs its covariance kind and each kind its declaration; a mismatch is refused, never
 //! dropped. Level counts, the minimum rows per level and the Holm family are unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};

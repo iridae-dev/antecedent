@@ -1,6 +1,6 @@
 //! Tests of the prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod dbn_mediation_cache;
 mod frontdoor_checked;

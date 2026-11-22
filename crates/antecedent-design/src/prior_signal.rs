@@ -15,7 +15,7 @@
 //! never sharpens beyond the sources, so it is conservative when the sources are
 //! genuinely independent evidence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

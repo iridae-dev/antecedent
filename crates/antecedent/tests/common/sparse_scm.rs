@@ -36,7 +36,7 @@
 //! tests formed from still-standing false adjacencies can be inspected with
 //! [`Scm::population_pc_margin`]; they do not change admission to this measured family.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

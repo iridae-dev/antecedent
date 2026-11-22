@@ -16,7 +16,7 @@
 //! below are plain covariances. `rho` applies AR(1) serial correlation to the
 //! exogenous confounder `z` and to the outcome innovation; `rho = 0` is iid.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

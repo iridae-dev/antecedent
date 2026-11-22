@@ -6,7 +6,7 @@
 //! within the regression margin of a plain draw. The margin is relative to a plain draw on
 //! the same machine in the same process, so it holds on any runner.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     missing_docs,

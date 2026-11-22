@@ -12,7 +12,7 @@
 //! A route whose observed law already identifies the effect is absent, exactly as in
 //! the obligation adapter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -11,7 +11,7 @@
 //! contiguous blocks `floor(i * folds / n)`; cluster folds are the product's recorded assignment,
 //! whose definition (every cluster whole in one fold, both roles in every fold) is checked here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

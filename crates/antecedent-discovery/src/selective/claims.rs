@@ -23,7 +23,7 @@
 //! * **Support range.** Variable counts and sample sizes inside the measured grid only; a
 //!   request outside it is refused as outside the measured range.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::convert::Infallible;
 

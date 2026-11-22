@@ -43,7 +43,7 @@
 //!   state's invalidation log onto claim keys, so a stale query result recomputes
 //!   its claim and a withdrawn premise withdraws it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

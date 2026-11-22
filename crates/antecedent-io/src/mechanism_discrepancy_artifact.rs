@@ -27,7 +27,7 @@
 //! `not_measured` (`calibration = "not_measured"`), and no causal or interval support is granted.
 //! Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 use antecedent_estimate::mechanism_discrepancy::{

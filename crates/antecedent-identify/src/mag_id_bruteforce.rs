@@ -23,7 +23,7 @@
 //! the mixed-source `Checker`): three encodings that can check one another. Do not
 //! replace them with the shared owners.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

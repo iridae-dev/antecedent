@@ -4,7 +4,7 @@
 //! prior scale, treatment levels, or latency never re-runs discovery — only an
 //! explicit new discover / review → prepare cycle may replace the graph.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod adjusted_retarget;
 mod cached;

@@ -1,6 +1,6 @@
 //! Sealed checked execution product for joint-cell AIPW responses on a static
 //! DAG or on a `CoDetermined` tier closure.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::proof_support::EstimandClaim;

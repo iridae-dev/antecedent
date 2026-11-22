@@ -4,7 +4,7 @@
 //! retains that proof; each required world additionally needs observed cell support from
 //! the same frozen score table. No new numerical fit or identification is performed here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -7,7 +7,7 @@
 //! definition, `psi_ic = mu_c + 1{cell_i = c} (y_i - mu_c) / e_c`, and the contrast value and
 //! standard error from those scores, sharing no code with the estimator.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

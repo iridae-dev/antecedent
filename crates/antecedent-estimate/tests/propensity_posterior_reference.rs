@@ -8,7 +8,7 @@
 //! the mode and the probability that it lies outside a positivity band (a Normal tail on the
 //! logit scale), for three prior scales.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::penalized_propensity_posterior::{
     PropensityCoefficientPrior, StaticPropensityDesign,

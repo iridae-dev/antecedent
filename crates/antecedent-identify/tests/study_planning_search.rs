@@ -7,7 +7,7 @@
 //! source `b` changes Z1 and Y and can run do(Z1 = 0). The target supplies its
 //! observational law.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::{Arc, Mutex};
 

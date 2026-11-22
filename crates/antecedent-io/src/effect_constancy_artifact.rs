@@ -22,7 +22,7 @@
 //! and power are `not_measured` (`calibration = "not_measured"`), and the artifact grants no causal
 //! or interval support (`inference_claim = "point_only"`). Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
 use antecedent_estimate::effect_constancy::{

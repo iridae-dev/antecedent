@@ -17,7 +17,7 @@
 //!   estimator's own exchangeable-rank rule (checked to reproduce the
 //!   published endpoints at 0.95 exactly), so one execution scores both levels.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     dead_code,

@@ -36,7 +36,7 @@
 //! washout. Planned characteristics are point statements under the declared
 //! assumptions; no coverage or calibration claim is attached to them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod analytic;
 mod request;

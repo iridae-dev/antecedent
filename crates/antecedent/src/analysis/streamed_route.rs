@@ -8,7 +8,7 @@
 //! reduction and its configuration admits it, and nothing downstream needs the materialized
 //! design: no refuter, no custom validator and, for weighting and AIPW, no bootstrap.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{OutcomeFunctional, TargetPopulation};
 use antecedent_data::{ColumnView, TableView};

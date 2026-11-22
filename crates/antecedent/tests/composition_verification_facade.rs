@@ -7,7 +7,7 @@
 //! leaves identification reused; changing the target population recomputes the
 //! law and the decision and leaves the score artifact reused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

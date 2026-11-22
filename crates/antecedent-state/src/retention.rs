@@ -12,7 +12,7 @@
 //! only [`RetainedOperation::ReadDiskArtifact`]. [`RetentionMode::require`] refuses an
 //! operation the mode cannot serve.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

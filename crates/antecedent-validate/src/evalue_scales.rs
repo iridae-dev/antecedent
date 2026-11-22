@@ -22,7 +22,7 @@
 //! confounder explains the point estimate and the interval limit away as the two break-even
 //! values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ValidationError;
 use crate::assumption_range::{AssumptionRange, RangePoint, SensitivityAssumption};

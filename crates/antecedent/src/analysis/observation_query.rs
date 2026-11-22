@@ -66,7 +66,7 @@
 //! returns a new composition; a query asked of it is a new claim with a new
 //! identity, and the earlier claim is unchanged.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,

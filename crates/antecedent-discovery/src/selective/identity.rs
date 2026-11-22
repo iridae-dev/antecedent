@@ -5,7 +5,7 @@
 //! formatting of a value. Stable caller labels and object addresses do not prove unchanged
 //! content, so the data identity is the content of the columns the search reads.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ScalarType, ValueType, VariableId, to_hex};
 use antecedent_data::{

@@ -5,7 +5,7 @@
 //! admission pool still had, so the caller can lower the chunk, stream a
 //! summary route, or raise the pool by a known amount.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::path::PathBuf;

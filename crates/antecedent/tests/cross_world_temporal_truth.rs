@@ -10,7 +10,7 @@
 //! clean mechanism rejects at no more than about its size, and a planted anticipation (the outcome
 //! reads the treatment of the same period) is flagged on every seed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

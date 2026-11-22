@@ -24,7 +24,7 @@
 //! The naive pipeline (the recorded column, one assumed structure, no prior, every row) misses the
 //! truth by more than the tolerance, so each stage earns its place.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

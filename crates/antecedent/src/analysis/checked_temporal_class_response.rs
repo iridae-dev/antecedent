@@ -1,7 +1,7 @@
 //! Retained completion proofs and execution settings for an incomplete temporal
 //! graph response (mean curve or single-step intervention response).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::{complete_mean_response, inference_label};

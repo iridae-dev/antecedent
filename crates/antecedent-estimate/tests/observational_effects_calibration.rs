@@ -22,7 +22,7 @@
 //!   fed four fifths of the data, against its expectation over independent training sets
 //!   simulated with the same greedy rule.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,

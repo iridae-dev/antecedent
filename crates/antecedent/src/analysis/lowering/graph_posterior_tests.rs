@@ -2,7 +2,7 @@
 //! layers read the study's configuration, and preparation and estimation carry
 //! the identity compile stamped.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

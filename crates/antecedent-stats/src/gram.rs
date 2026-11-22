@@ -1,6 +1,6 @@
 //! Form Gram matrices and related dense helpers shared by OLS paths.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Column-major `X` does not cover `nrows * ncols` entries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

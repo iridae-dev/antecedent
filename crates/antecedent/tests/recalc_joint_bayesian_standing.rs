@@ -9,7 +9,7 @@
 //! - a fresh state recomputes every declared stage, and a changed draw count or seed is a
 //!   different alignment input.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 use antecedent::analysis::recalc_bayesian::PosteriorSummarySpec;

@@ -11,7 +11,7 @@
 //! cargo bench -p antecedent-stats --bench matching_spatial
 //! ```
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs, reason = "criterion generates benchmark entry points")]
 #![allow(

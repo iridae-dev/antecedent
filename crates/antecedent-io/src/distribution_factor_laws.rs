@@ -1,6 +1,6 @@
 //! The portable finite-discrete wire of a prepared empirical provider snapshot.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::RegimeId;
 use antecedent_expr::{DomainRef, FactorRequirement};

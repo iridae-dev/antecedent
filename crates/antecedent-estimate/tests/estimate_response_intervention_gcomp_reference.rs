@@ -11,7 +11,7 @@
 //! with an outcome offset of 1e5. The refusal of a soft intervention, a duplicated target, a Gaussian
 //! policy of zero variance and a joint categorical support over the exact-mixture budget is executed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

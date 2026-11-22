@@ -1,7 +1,7 @@
 //! Every setter of every non-file modality yields a new unified source identity, and the
 //! lazy views taken of the earlier source stop matching it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

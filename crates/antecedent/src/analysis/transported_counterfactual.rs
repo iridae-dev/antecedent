@@ -28,7 +28,7 @@
 //! recomputes it ([`TransportedCounterfactual::consume`]) and refuses any resealed change of a
 //! premise, law, coefficient, selection or assignment when it retains the identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,

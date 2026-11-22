@@ -4,7 +4,7 @@
 //! This is not [`crate::randomized_neyman::factorial_2x2`], which estimates
 //! fixed-cell sample means and Neyman variances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Horvitz–Thompson cell means and factorial contrasts under independent factors.
 #[derive(Clone, Debug, PartialEq)]

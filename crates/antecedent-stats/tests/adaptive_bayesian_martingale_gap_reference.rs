@@ -10,7 +10,7 @@
 //! counts attributed to the assigned arm while exposure fails). The report rows check the Beta
 //! shapes, the probability of being best and the expected loss under non-uniform priors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "support/adaptive_procedure_reference.rs"]
 mod support;

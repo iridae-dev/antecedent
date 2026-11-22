@@ -5,7 +5,7 @@
 //! position (see [`node_variable_id`]); other node kinds carry no identification variable.
 //! The first node carrying a variable wins, so a lookup agrees with a front-to-back scan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 

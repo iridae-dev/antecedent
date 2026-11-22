@@ -14,7 +14,7 @@
 //! within one execution, so a memo must not outlive one: it is created by the
 //! executor that owns the fixed inputs and dropped with it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, IdentificationStatus, VariableId};
 use std::sync::Arc;

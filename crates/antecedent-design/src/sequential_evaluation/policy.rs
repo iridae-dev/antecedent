@@ -1,6 +1,6 @@
 //! Observed histories and caller-supplied contingent policies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::fmt;

@@ -2,7 +2,7 @@
 //!
 //! Dense indexes are process-local and **must not** be serialized.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ids::{Lag, VariableId};
 

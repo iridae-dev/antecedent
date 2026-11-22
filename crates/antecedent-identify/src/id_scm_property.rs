@@ -6,7 +6,7 @@
 //! does not depend on `antecedent-model` / `antecedent-estimate`, so Monte Carlo
 //! sampling from a fitted SCM is out of scope here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, ToleranceClass, Value, VariableId};
 use antecedent_expr::{

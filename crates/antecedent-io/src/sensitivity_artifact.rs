@@ -4,7 +4,7 @@
 //! sensitivity types are re-exported here so a decision-level consumer can adapt a
 //! result without naming the validation crate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io_core::sensitivity_artifact::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,

@@ -5,7 +5,7 @@
 //! projected graph's nodes are the observed variables in the listed order; the comparison is on
 //! every ordered observed pair, so no extra and no missing edge passes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

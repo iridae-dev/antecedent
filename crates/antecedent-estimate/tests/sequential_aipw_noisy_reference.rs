@@ -7,7 +7,7 @@
 //! The generating effect of the always-treat regime over never-treat is `2.82` (first action
 //! `1.0` plus `0.8 * 0.4` through the intermediate covariate plus second action `1.5`).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "a 53-bit integer converts exactly")]
 

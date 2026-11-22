@@ -1,6 +1,6 @@
 //! Catalog-aware alternative search for classical transport.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, BitSet, BoundTransportFunctional, CausalExprArena, ClassicalTransportDerivation,

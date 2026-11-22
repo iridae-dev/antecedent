@@ -53,7 +53,7 @@
 //! data for a target-native mechanism replaces that refit in the declaration. The diagram
 //! and invariances are kept only by being passed again.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use super::mechanism_exports::model_crate::mechanism_transport::{
     DETAIL_DIAGRAM_SOURCE_MISMATCH, DETAIL_DIAGRAM_TARGET_MISMATCH, DETAIL_DUPLICATE_MECHANISM,

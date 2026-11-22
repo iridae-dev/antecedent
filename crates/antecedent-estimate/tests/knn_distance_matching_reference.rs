@@ -8,7 +8,7 @@
 //! outcome noise `Var(effect) / (1 + 1/M)`) from their definitions. Cases cover M of 2, 3, 4 and
 //! 5, a caliper, duplicated rows that tie, covariate units of 1e14 and a small table.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

@@ -16,7 +16,7 @@
 //! touched, is the honest estimate and is refused or flagged when the study design cannot
 //! supply one.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::adaptive_policy::AdaptivePolicyFamily;
 use antecedent_core::{CanonicalWriter, CausalRng, ExecutionContext, VariableId, derive_stream};

@@ -9,7 +9,7 @@
 //! raising the intercept of external.0 to 4.5 gives treat 5.0 - 1 = 4.0 and treat is selected.
 //! Structural ranking orders by declared sufficiency, then cost, then sample budget, then id.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::conditional_study_ranking::{
     ConditionalBranch, ConditionalCandidate, ConditionalStudyPolicy, ConditionalStudyRanking,
 };

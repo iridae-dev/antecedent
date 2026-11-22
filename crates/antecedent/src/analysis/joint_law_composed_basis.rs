@@ -8,7 +8,7 @@
 //! calibration harness binds the same key, so a record describes exactly the
 //! construction a claim reports.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

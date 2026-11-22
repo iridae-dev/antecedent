@@ -1,6 +1,6 @@
 //! Coherence checks and comparison helpers of a compiled product.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AssumptionSet, AssumptionStatus, CompiledProductParts, Diagnostic, IdentificationClaimClass,

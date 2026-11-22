@@ -14,7 +14,7 @@
 //! The route must equal the hand mixture of single-structure studies over the answered mass,
 //! with the standard error `sqrt((sum w se)^2 + between-structure variance)`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, reason = "small graph node counts")]
 #![allow(

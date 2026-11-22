@@ -39,7 +39,7 @@
 //! discovered graph equals the true graph. It is a measured property of the method over the
 //! family and is never support.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::single_match_else,

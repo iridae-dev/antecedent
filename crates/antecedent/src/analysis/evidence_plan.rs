@@ -21,7 +21,7 @@
 //! never an impossibility, the ordering is `point_only` and its calibration
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

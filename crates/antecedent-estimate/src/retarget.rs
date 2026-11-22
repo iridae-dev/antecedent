@@ -5,7 +5,7 @@
 //! Treatment, intervened coordinates, and their descendants are refused.
 //! Weighted overlap failure is a support refusal, not a hard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

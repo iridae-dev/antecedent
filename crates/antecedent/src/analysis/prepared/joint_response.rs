@@ -5,7 +5,7 @@
 //! linear functional of that same fit. Scheduled and mediation targets keep their own
 //! compiler contracts and are refused here, rather than treated as static hard sets.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

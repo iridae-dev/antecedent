@@ -3,7 +3,7 @@
 //! agreement of a refusal with what `refresh` refuses, and consumption of the exported
 //! baseline without the producer.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::recalc_adjusted::{
     AdjustedContrast, AdjustedModel, AdjustedRequest, AdjustedSession,

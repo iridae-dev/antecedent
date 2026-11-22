@@ -8,7 +8,7 @@
 //! (the treatment is a deterministic function of the covariate) is detected by the overlap
 //! assessment and a planted curvature in the covariate by the posterior predictive check.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

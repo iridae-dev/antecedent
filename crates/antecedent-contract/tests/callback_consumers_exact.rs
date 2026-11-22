@@ -8,7 +8,7 @@
 //! states one) is the one produced. Every defect is reported, in the order quantity fields,
 //! semantic identity, support, operations, uncertainty.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 

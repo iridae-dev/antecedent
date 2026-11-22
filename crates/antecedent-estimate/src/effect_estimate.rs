@@ -7,7 +7,7 @@
 //! Every group other than the point is `None`/empty/false for an estimator that does not
 //! produce it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -4,7 +4,7 @@
 //! `oracle_data/shapley_reference.py`, which computes each Shapley value in exact rational
 //! arithmetic by two independent definitions (all player orders and the weighted subset sum).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_attribution::{
     AttributionError, Coalition, CoalitionPayoff, ShapleyEstimate, estimate_shapley,

@@ -15,7 +15,7 @@
 //! The designs are `#[ignore]`d measurement designs; the closed-form references of the route are
 //! `dose_grid_functional_bayesian_reference.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg(feature = "calibration-internal")]
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation dimensions")]

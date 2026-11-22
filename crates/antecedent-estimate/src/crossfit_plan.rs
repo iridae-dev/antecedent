@@ -8,7 +8,7 @@
 //! `antecedent_learn::crossfit_plan`; this module adds the estimator-side refusals, the
 //! cluster source and the fold engines.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_learn::LearnError;
 

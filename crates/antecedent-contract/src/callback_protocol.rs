@@ -37,7 +37,7 @@
 //! is in the analysis facade; the portable result is an artifact of
 //! `antecedent-io-core`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::result_large_err,

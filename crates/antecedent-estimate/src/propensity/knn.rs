@@ -15,7 +15,7 @@
 //! ([`KnnDistanceMatching::construction_id`]), and its interval is measured by its own
 //! calibration designs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext};
 use antecedent_data::TabularData;

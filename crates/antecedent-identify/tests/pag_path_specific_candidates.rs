@@ -13,7 +13,7 @@
 //! * when every candidate is identified, the functionals the envelope carries contain the
 //!   effect of each model the MAG represents, computed by enumerating its exogenous states.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

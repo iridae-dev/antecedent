@@ -4,7 +4,7 @@
 //! flat to concentrated posteriors, near-flat and non-integer concentrations, and up to
 //! eight options.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::DirichletPosterior;
 use serde_json::Value;

@@ -6,7 +6,7 @@
 //! [`Refusal`] borrows the three parts. [`NextAttempt`] is the one value a
 //! refusal uses to name what to try instead: a stable name and a sentence.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 

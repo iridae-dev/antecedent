@@ -7,7 +7,7 @@
 //! and every refusal are Rust's. The source treatment must be completely randomized; that is
 //! asserted by the caller and never inferred from the rows.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::NumericColumn;
 use antecedent::analysis::discovered_transport::{

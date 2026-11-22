@@ -5,7 +5,7 @@
 //! record a run that already happened. Physical identity, the stored scientific
 //! digest, and the numerical-policy flag stay separate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::execution::execution_facts::{
     ExecutionBackend, ExecutionCounts, ExecutionFactError, ExecutionFactStatus, ExecutionFacts,

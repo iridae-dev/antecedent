@@ -11,7 +11,7 @@
 //! acyclic orientations of the skeleton that keep the unshielded colliders; neither the
 //! Insert/Reverse/Delete operators nor the Meek rules are used to produce it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeSet, HashSet};
 

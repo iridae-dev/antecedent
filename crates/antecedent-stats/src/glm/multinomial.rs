@@ -1,6 +1,6 @@
 //! Multinomial logit fits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::binomial::fit_logistic;
 use super::{GlmDesignRef, GlmOptions, SATURATION_MARGIN, design_column};

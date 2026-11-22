@@ -12,7 +12,7 @@
 //! quantile, and the floor at the largest pointwise Student interval. Refusals of a band without a
 //! bandwidth or with fewer than 100 replicates are executed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

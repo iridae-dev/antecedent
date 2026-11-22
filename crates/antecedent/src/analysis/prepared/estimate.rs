@@ -1,6 +1,6 @@
 //! Estimate clicks and sealed-operation dispatch for a prepared handle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CheckedAipwOperation, CheckedFrontDoorOperation, CheckedGlmAdjustmentOperation,

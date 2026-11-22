@@ -5,7 +5,7 @@
 //! interaction functional is not. A route matches that reference. The two routes
 //! are not checked by setting one equal to the other.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{
     CausalQuery, Dag, DenseNodeId, InferenceMode, RefuteSuite, Study, StudyResult, TemporalDag,

@@ -1,6 +1,6 @@
 //! Small text predicates shared by the validators of every crate.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Whether `text` is empty or only whitespace.
 ///

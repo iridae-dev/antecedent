@@ -6,7 +6,7 @@
 //! Each route is first run where it works against an answer written out by hand, then given the
 //! declaration it cannot read, and is refused with a typed reason and a next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

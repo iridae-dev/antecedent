@@ -19,7 +19,7 @@
 //! run policy's callback-failure capacity, and releases any unattributed failures when the run
 //! finishes, including successful fallbacks and signal overrides.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;

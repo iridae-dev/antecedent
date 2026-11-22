@@ -41,7 +41,7 @@
 //! within-class randomization and Gaussian-linear class model are declared, not tested. Unknown
 //! major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::latent_class_effects::{

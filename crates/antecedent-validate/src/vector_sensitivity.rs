@@ -23,7 +23,7 @@
 //! cited by a claim on another. The confounding structure is an assumption of the analysis,
 //! not something the data certify.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::quantile_type7_sorted as quantile_sorted;

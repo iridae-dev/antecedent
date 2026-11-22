@@ -28,7 +28,7 @@
 //! of smaller order than `n^-1/2`, so no bias adjustment is applied. A time-series regression is
 //! not a substitute.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;

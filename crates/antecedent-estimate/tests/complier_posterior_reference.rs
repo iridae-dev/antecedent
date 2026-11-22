@@ -7,7 +7,7 @@
 //! rational arithmetic on ten rows with a known and with a row-varying assignment probability
 //! and freezes the distribution functions and the 2.5% and 97.5% points of the ratio.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::complier_posterior::bayesian_complier_effect;

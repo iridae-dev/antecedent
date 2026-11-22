@@ -1,6 +1,6 @@
 //! Mechanism attribution and simulation routes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Admg, Arc, AttributeQuery, AttributeTarget, AttributionOutcome, CELL_BYTES, CausalError,

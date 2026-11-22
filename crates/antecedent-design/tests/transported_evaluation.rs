@@ -16,7 +16,7 @@
 //! The adaptive trial has eight units, two arms and strata `unit % 2`.
 //! Weighted cell means are worked out in the test.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

@@ -57,7 +57,7 @@
 //! estimate is reported with its calibration status; [`PolicySpec`],
 //! [`SequentialRequest`], [`request_interval`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Build a typed refusal with its registered reason code, its
 /// `sequential_evaluation.<rule>` detail, the message and the remedy, all

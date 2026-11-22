@@ -7,7 +7,7 @@
 //! completions with bidirected edges remain unevaluable for sequential
 //! estimation. Dynamic schedules stay refused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cell::Cell;
 use std::sync::Arc;

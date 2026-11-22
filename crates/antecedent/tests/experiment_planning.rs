@@ -5,7 +5,7 @@
 //! pool refuses a store it cannot hold, unplannable designs are refused with
 //! the next attempt named, and a plan's sample size feeds design ranking.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

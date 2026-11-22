@@ -22,7 +22,7 @@
 //! cached value. The residual variance is `SSE_w / (live rows − p)`: weights are precision
 //! weights, so scaling every weight by `c` scales it by `c`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

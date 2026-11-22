@@ -25,7 +25,7 @@
 //! cancellation never exports: nothing recorded lets a consumer reproduce where
 //! the interruption fell.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

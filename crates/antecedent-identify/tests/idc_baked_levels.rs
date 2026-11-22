@@ -6,7 +6,7 @@
 //! set by rule 2 stays a free variable evaluated at each of its observed values. The oracle
 //! enumerates the exact interventional law in the SCM and never consults the identifier.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

@@ -7,7 +7,7 @@
 //! fixture is a fuzzy jump with a known local effect, so the unweighted fit is also checked
 //! against that effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, reason = "the fixture indexes small deterministic literals")]
 

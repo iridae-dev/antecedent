@@ -35,7 +35,7 @@
 //! its transport identity, and a changed callback declaration (the recorded
 //! declaration identity no longer matches).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_contract::callback_protocol::CallbackDeclaration;
 pub use antecedent_contract::provider_transport::{

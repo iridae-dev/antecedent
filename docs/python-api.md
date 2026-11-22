@@ -99,10 +99,12 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `errors` | The exception surface: `CausalError` and its concrete subclasses | [reference/refusal-codes.md](reference/refusal-codes.md) |
 | `estimation` | High-level estimation entry points | [python-options.md](python-options.md) |
 | `estimators` | Typed front-end over the `estimator_config=` dict kwarg | [python-options.md](python-options.md) |
+| `events` | Compile event forecasts and compose them with stochastic worlds and decisions | [guides/event-processes.md](guides/event-processes.md) |
 | `evidence_ledger` | The evidence ledger: which evidence contributed to a result, how it overlaps, and what changed | [evidence-ledger.md](evidence-ledger.md) |
 | `execution_attempt` | Diagnostic work observations around one original synchronous native execution | [recalculation-capabilities.md](recalculation-capabilities.md) |
 | `execution` | Reusable execution policies with shared native admission accounting | [python-options.md](python-options.md) |
 | `experiment` | First-class randomized experiment designs and intention-to-treat queries | [guides/designs/randomized-experiments.md](guides/designs/randomized-experiments.md) |
+| `exposure_measurement` | Exposure-error declarations that `prepare` and `analyze` carry through the causal estimate | [measurement-models.md](measurement-models.md) |
 | `extensibility` | Typing Protocols for slow-path Python callbacks | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
 | `external` | Bind a foreign scientific result to an identified causal contract | [guides/build/scientific-interfaces.md](guides/build/scientific-interfaces.md) |
 | `external_learners` | Explicit provider-backed nuisance learner fit and predict operations | [guides/external-learners-and-forecasts.md](guides/external-learners-and-forecasts.md) |
@@ -134,8 +136,10 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `joint_law_propagation` | Composition-aware uncertainty: propagate uncertain inputs under the dependence they need | [joint-law-propagation.md](joint-law-propagation.md) |
 | `joint_panel` | Retained multichannel panel execution through the Rust causal compiler | [guides/joint-intervention-responses.md](guides/joint-intervention-responses.md) |
 | `latent_class` | Latent-class (finite mixture) regime effects | [guides/mediation-and-latent-classes.md](guides/mediation-and-latent-classes.md) |
+| `latent_soft_intervention` | Compiled, model-conditional discovery of latent additive soft interventions | [guides/latent-soft-interventions.md](guides/latent-soft-interventions.md) |
 | `learners` | Typed prediction models shared by causal estimators and transport providers | [python-options.md](python-options.md) |
 | `matched` | Conditional odds ratio from matched case-control sets (point only) | [guides/matched-case-control.md](guides/matched-case-control.md) |
+| `measurement_exposure` | Exposure-error corrections: misclassified exposures, soft exposures, evidence-dependent detection and repeat codings as replicates | [measurement-models.md](measurement-models.md) |
 | `measurement_models` | Measurement models: corrected functionals of a latent construct measured with error | [observation-queries.md](observation-queries.md) |
 | `mechanism_composition` | Composing independently fitted mechanisms into one executable joint model | [cross-world-execution.md](cross-world-execution.md) |
 | `mechanism_discrepancy` | Source-target mechanism discrepancy diagnostic | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |

@@ -5,7 +5,7 @@
 //! neighbors that change explicit premises (never an automatic fallback). Listing and
 //! reporting read the generated matrix only; nothing is prepared, fitted or scanned.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::strategy_table::{EstimatorId, estimator_targets_cell};
 use antecedent::support::{

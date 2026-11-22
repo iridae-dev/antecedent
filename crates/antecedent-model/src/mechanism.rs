@@ -2,7 +2,7 @@
 //!
 //! Hot paths dispatch on [`MechanismSlot`] (enum), not trait objects per scalar.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

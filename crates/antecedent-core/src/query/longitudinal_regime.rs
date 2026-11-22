@@ -1,5 +1,5 @@
 //! Longitudinal regime value contract for one outcome row per subject.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::QueryError;
 use super::fault::LongitudinalRegimeFault;

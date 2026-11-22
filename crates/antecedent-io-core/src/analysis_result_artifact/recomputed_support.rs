@@ -27,7 +27,7 @@
 //! bounds and of a sequential contrast, and the analysed pairs and the realized assignment
 //! floor of a temporal design (which decisions had an observed outcome is not stored).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

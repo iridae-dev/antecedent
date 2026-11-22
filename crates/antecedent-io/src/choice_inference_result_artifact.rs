@@ -21,7 +21,7 @@
 //! `not_supported`), no frequentist error rate for the stopping rule, and no claim that
 //! stated choices identify behaviour or a causal effect.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::adaptive_design::{
     AssignmentFamily, ChoiceDesignContract, ChoiceDesignDeclaration, ChoiceLook, ChoiceRespondent,

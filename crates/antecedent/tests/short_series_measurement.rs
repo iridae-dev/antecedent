@@ -37,7 +37,7 @@
 //!   two-completion `fixtures::confounded_cpdag` Pulse envelope, and the
 //!   heterogeneous DBN posterior's multi-step Sustained (sequential atoms).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

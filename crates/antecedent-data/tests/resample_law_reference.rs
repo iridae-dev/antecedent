@@ -8,7 +8,7 @@
 //! Kolmogorov-Smirnov (continuous) criterion that rejects at a level near 1e-9, so a
 //! seeded run is deterministic and a wrong law fails by a wide margin.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

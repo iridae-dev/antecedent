@@ -11,7 +11,7 @@
 //! `crates/antecedent-estimate/src/randomized_missing.rs` and
 //! `crates/antecedent/tests/missing_data_routes.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 

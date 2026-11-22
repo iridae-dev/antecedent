@@ -7,7 +7,7 @@
 //! replicate buffer, cancellation and the joint statistic, so every route's refuters share
 //! one definition of what each check means.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::sync::Arc;

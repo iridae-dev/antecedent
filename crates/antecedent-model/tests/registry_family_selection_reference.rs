@@ -12,7 +12,7 @@
 //! purge), the recorded split provenance, the inadmissible constant, a required-by-policy choice
 //! that leaves the scores alone, and exact ties broken by the candidate listing order.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

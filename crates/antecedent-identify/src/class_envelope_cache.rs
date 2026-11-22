@@ -12,7 +12,7 @@
 //! and holds successes only. A hit returns a clone of the stored envelope, identical to a
 //! recomputation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};

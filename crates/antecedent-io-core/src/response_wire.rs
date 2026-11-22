@@ -1,6 +1,6 @@
 //! Durable wire forms for causal-response queries and results.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Field meanings intentionally mirror the fully documented domain types. Keeping the
 // serde representation visually compact makes format review substantially easier.

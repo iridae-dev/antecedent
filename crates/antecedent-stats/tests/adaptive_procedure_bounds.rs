@@ -2,7 +2,7 @@
 //! refused, with a named detail, one past it. Nothing here claims a statistic; the refusals
 //! are the supported-bounds evidence of the procedure contract and of the simulation route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, CapacityError, ContractGap,

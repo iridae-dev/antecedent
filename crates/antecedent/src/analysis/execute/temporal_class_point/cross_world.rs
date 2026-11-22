@@ -1,6 +1,6 @@
 //! Temporal class cross-world fitting and execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::Study;
 use super::{

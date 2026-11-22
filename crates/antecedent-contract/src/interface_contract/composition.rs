@@ -22,7 +22,7 @@
 //! or cancel and no count bound to enforce; [`MAX_COMPOSITION_COMPONENTS`] and
 //! [`MAX_COMPOSITION_CONNECTIONS`] are only the defaults a decoder of untrusted input applies.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

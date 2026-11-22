@@ -1,6 +1,6 @@
 //! Dense linear algebra backend abstraction (ADR 0001).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::StatsError;
 

@@ -8,7 +8,7 @@
 //! `oracle_data/dose_posterior_reference.json` (frozen by `dose_posterior_reference.py`), which
 //! are computed from the weighted normal equations and not from this module.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::dose_grid_functional::{
     ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, estimate_dose_grid_functional,

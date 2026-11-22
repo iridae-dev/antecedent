@@ -14,7 +14,7 @@
 //! digits. This checks the recovery arithmetic and the `BCa` construction; the resampling stream
 //! itself is checked by golden selection digests in `recovery_sampled.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod support {
     pub mod recovery_scm;

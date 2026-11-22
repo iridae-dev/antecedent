@@ -61,7 +61,7 @@
 //! this way, and completions that disagree are an identified set across completions in the
 //! same envelope.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity};
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId, Endpoint, Pag};

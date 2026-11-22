@@ -6,7 +6,7 @@
 //! against the data and program version it was computed from. Use it in an application that
 //! shows results while data arrive.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CacheBudget, ContractIdentities, QueryId, SemanticDigest, StateVersion};
 

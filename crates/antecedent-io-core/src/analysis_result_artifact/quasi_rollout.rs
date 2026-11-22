@@ -9,7 +9,7 @@
 //! scalar summary from the reported effects wherever the design's aggregation defines it from
 //! them alone.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::cmp::Ordering;
 

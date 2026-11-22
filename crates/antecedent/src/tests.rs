@@ -1,6 +1,6 @@
 //! Crate-level tests: the day-1 flows through the root re-exports.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

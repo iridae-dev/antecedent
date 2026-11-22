@@ -15,7 +15,7 @@
 //! here, because an association ranks no action. Layer five states that the program fits no
 //! quoted adjustment design. Layer six demands an associational claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

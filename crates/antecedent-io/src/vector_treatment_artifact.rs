@@ -47,7 +47,7 @@
 //! calibration is `not_measured`; no coverage claim is made and no interval is produced. The caller
 //! owns that the shared adjustment set is valid. Unknown major versions refuse.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::borrow::Cow;
 use std::collections::BTreeSet;

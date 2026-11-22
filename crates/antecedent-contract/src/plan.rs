@@ -3,7 +3,7 @@
 //! These types attach to diagnostics and results so execution choices remain
 //! inspectable.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

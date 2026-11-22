@@ -18,7 +18,7 @@
 //! cell error of the last value tried; nothing is summed over, zero-filled, or skipped
 //! silently ([`FREE_VARIABLES_AVERAGED_CODE`] names the resolution for diagnostics).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

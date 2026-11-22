@@ -5,7 +5,7 @@
 //! table. Source trust and calibration are retained; arithmetic replay grants no new
 //! inference or provider-verification standing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent_core::blake3_hex;
 
 use crate::decision_artifact::source_digest;

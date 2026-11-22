@@ -43,7 +43,7 @@
 //!   [`NonlinearMediationArtifact::from_bytes_with`] then needs the caller to supply the dataset
 //!   and refuses it unless the digest matches.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::nonlinear_mediation::{

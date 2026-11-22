@@ -3,7 +3,7 @@
 //! Their admission lives with the operations (`Study::seal_*` and the
 //! `admits`/`seal` constructors); this file binds each to its route.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::execute::Study;

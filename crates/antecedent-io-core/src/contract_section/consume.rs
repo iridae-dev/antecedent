@@ -1,6 +1,6 @@
 //! Contract seal, claim acceptance and host projection.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::dr_replay::{HeldSource, SourceReplayBounds, hold_source_section};
 use super::verify::{

@@ -15,7 +15,7 @@
 //! mass) is counted and reported; if no member is defined the request is
 //! refused. Members are never dropped silently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_identify::CounterfactualTransportDerivation;

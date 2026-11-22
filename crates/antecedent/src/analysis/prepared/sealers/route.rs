@@ -2,7 +2,7 @@
 //! structure discovery, panel and multi-environment temporal effects, temporal
 //! cross-world queries and temporal ADMG effects.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{SealContext, SealOutcome};
 use crate::analysis::execute::{

@@ -9,7 +9,7 @@
 //! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent --test
 //! flagship_decision_fixture -- --ignored regenerate_rust_fixtures`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::{FlagshipDependence, FlagshipWorkflow};
 use antecedent_core::ExecutionContext;

@@ -23,7 +23,7 @@
 //!
 //! The in-sample nested regression pseudo-outcome of the point estimator is retained as is.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

@@ -105,7 +105,7 @@
 //! Nothing here supports a causal claim beyond the declared premises, and the class labels are
 //! an ordering convenience, not a discovered meaning.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

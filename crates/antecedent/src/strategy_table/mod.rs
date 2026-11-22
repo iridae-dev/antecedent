@@ -5,7 +5,7 @@
 //! decide which pairs are valid for a query. Studies, plans and [`crate::StudyResult`] use
 //! these tables; select a strategy through the study builder rather than calling them.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod dispatch;
 mod ids;

@@ -12,7 +12,7 @@
 //!    `P(y | do(t))` by truncated factorisation, and the adjustment or front-door formula
 //!    evaluated on the observational joint alone must reproduce it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};

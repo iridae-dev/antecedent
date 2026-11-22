@@ -45,7 +45,7 @@
 //! ([`refuse_joint_learner_inference`]), because a flexible nuisance needs its own remainder and
 //! coverage support that no record grants.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
 use std::sync::Arc;

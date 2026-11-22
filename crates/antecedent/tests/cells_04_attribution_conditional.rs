@@ -17,7 +17,7 @@
 //! stratum has no treated rows, or no row is treated at all, has no effect to report and is
 //! refused with `design_rank_deficient` rather than answered from the other stratum.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 

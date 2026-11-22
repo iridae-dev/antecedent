@@ -14,7 +14,7 @@
 //! implementation it supplies ([`RecoveryRecord::verify`]). The record never carries
 //! code.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
 use std::hash::{Hash, Hasher};

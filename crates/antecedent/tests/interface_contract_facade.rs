@@ -6,7 +6,7 @@
 //! two quantities differ, which operations a producer lacks, which path closes
 //! the cycle.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ComponentConnection, ConsumedPort,

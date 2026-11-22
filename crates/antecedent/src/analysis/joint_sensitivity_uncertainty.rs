@@ -11,7 +11,7 @@
 //! the surface adapter of `antecedent-io-core` reports it per grid point. The artifact's consumer
 //! still refuses a forged interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, reason_code};
 use antecedent_io::IoError;

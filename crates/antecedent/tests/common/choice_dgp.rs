@@ -1,7 +1,7 @@
 //! Independent samplers for the choice-study calibration designs: the product's gamma sampler
 //! and categorical draw are not reused.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 #![allow(clippy::cast_precision_loss, reason = "bounded simulation sizes and small indices")]
 

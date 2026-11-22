@@ -3,7 +3,7 @@
 //! CPDAG completion rules R1-R4 are Meek 1995. Rules enqueue only neighbors of
 //! changed edges — never a full-graph edge scan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;

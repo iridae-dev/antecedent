@@ -22,7 +22,7 @@
 //! (derivation rule [`PARENT_ADJUSTMENT_RULE`]), which is valid in the unrolled
 //! DAG whatever the depth of the treatment's ancestry.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

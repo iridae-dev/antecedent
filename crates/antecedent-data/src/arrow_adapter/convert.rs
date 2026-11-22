@@ -1,6 +1,6 @@
 //! Column conversion: Arrow arrays and record batches to owned library columns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::chunks::owned_payload_bytes;
 use super::schema::schema_binding;

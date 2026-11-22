@@ -22,7 +22,7 @@
 //! `meta` (discovery, refutation, decisions, refresh, program search) and `panel` (joint
 //! interventions and programs).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::too_many_lines,

@@ -5,7 +5,7 @@
 //! must equal what the builder copied for these shapes, and must grow with the rows and
 //! the covariates. The counting allocator must see at least the matrix the builder owns.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

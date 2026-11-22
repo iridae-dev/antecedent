@@ -1,7 +1,7 @@
 //! Estimators, estimation results and strategy identifiers, for configuring or reading the
 //! estimation stage of a study.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_data::{NetworkData, NetworkEdge};
 

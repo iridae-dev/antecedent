@@ -7,7 +7,7 @@
 //! of finite and sampled joint laws; and the iid, Bartlett long-run and cluster-robust variances
 //! of a mean difference, with truncation lags up to n - 1.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_validate::predictive_assessment::{
     DependenceDeclaration, EnsembleCrpsForm, ForecastLaw, Outcome, ScoreKind, score_case,

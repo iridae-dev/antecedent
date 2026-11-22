@@ -9,7 +9,7 @@
 //! closed-form value `6.5 (v_top - v_bottom)` at the cells' own values. After `M` is refit
 //! as `1 + 3 X`, `E[Y | do(X = v)] = 2 + 9.5 v`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -9,7 +9,7 @@
 //! the distribution atoms, the interventional mean and the scalar effect. A table that lacks a
 //! cell the identity needs must be refused for the contrast that reads it, never zero-filled.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[path = "oracle_data/table_support.rs"]
 mod table_support;

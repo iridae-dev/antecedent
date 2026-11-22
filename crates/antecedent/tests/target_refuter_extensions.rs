@@ -2,7 +2,7 @@
 //! weighting law's nodes, the posterior-predictive check on a series under a lagged reference
 //! model, and the random common cause declared in every atom of a graph posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::target_validation::{
     PreparedTargetData, TargetRefitOptions, TargetRefutationConfig, TargetRefutationOutcome,

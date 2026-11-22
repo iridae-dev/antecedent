@@ -1,6 +1,6 @@
 //! Checked pulse and sustained effect operation over a temporal graph posterior.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::analysis::prepared::Inspect;
 use crate::analysis::route_guards::inference_label;

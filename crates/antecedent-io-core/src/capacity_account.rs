@@ -20,7 +20,7 @@
 //! Allocator slack above a requested decompression buffer is not a second
 //! budget. A digest is not the payload it replaced.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;

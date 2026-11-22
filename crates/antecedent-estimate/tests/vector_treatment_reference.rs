@@ -7,7 +7,7 @@
 //! errors, two-sided normal p-values and Holm adjustment, and the joint and contrast Wald
 //! statistics with their chi-square upper-tail probabilities.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::vector_treatment::{
     Contrast, NamedColumn, TreatmentColumn, VectorCovariance, VectorTreatmentInput,

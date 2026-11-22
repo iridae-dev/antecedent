@@ -5,7 +5,7 @@
 //! Neither fitting a change nor a prior makes that change causally identified. Explanatory
 //! contrasts require independently checked reference-world support in the compiler.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     PanelData, PanelDraw, PanelError, PanelFitOptions, PanelInference, PanelParameters,
     PanelProgram, PanelResponse, check_cancelled, invalid,

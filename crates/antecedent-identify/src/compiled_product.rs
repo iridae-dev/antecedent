@@ -13,7 +13,7 @@
 //! numerical values, so two runs that differ only by budget or by a feasible
 //! number are the same identification claim.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

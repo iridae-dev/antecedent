@@ -1,6 +1,6 @@
 //! Deferred provider materialization for transport grids.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     Arc, Assignment, EmpiricalTableOptions, ExactLawWire, ExactTransportData, ExecutionContext,

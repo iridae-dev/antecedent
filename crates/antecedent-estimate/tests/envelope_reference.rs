@@ -8,7 +8,7 @@
 //! published summaries must carry those moments, the status must follow the retained mass, and
 //! the input order of the atoms must not matter.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

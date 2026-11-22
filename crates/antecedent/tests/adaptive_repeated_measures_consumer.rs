@@ -7,7 +7,7 @@
 //! and sequential-evaluation outputs, and no coverage route names it, so the
 //! cell is REFUSED by absence of a route: this asserts both facts.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_procedure_report::{
     RepeatedMeasuresProcedure, RepeatedMeasuresReportBody, RepeatedMeasuresReportRequest,

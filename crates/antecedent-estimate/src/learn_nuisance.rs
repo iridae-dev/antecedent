@@ -1,6 +1,6 @@
 //! Shared learner-backed nuisance helpers for DML / [`crate::DrLearner`].
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

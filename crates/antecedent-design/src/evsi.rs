@@ -23,7 +23,7 @@
 //! Gross EVSI does not read the study cost. Net value is gross EVSI minus that cost
 //! only when a cost is declared; an absent cost is left absent.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod future;
 pub use future::{

@@ -12,7 +12,7 @@
 //! (`with_sampling_weights`): they equal the same fit on rows replicated by the integer weights.
 //! Weights declared on an estimator that a route does not run are refused the same way.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -14,7 +14,7 @@
 //! reaches `(u + j) / n`) when the size falls below half the particles. The statistical agreement
 //! of the filter with the exact Kalman moments is the separate `particle_filter_oracle.rs`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

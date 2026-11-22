@@ -24,7 +24,7 @@
 //! cross-fitted scores: it is meaningful under consistency, positivity (no level has a
 //! generalized propensity near zero) and a small product of nuisance errors.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

@@ -18,7 +18,7 @@
 //!   count, the invariant a PAG carries. On three nodes that rule leaves no ambiguous graph, so
 //!   the ambiguity branch is not exercised here.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,7 +1,7 @@
 //! Typed refusals of selective discovery: a registered reason code, a namespaced detail and
 //! the declaration, evidence or action that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::DiscoveryError;
 

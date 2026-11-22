@@ -31,7 +31,7 @@
 //! uncertainty about the assignment law flows into the posterior. Neither is calibrated: no
 //! coverage of these intervals has been measured.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

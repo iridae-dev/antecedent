@@ -12,7 +12,7 @@
 //! sampled provider is composed here, and calibration of one is separate and
 //! `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_identify::{ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan};
 

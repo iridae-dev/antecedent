@@ -23,7 +23,7 @@
 //! bit for bit). A changed premise, table entry or stored value is refused even when both
 //! digests are re-sealed, because the replayed result then differs.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::EstimationError;

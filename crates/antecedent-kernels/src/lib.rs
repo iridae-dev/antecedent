@@ -3,7 +3,7 @@
 //! Scalar kernels are the correctness reference. Portable-optimized and
 //! architecture-specific paths must pass the same differential tests
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.

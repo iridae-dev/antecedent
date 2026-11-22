@@ -3,7 +3,7 @@
 //! distribution maps, are carried in format version 2 and replayed by an
 //! independent consumer; a version-1 artifact keeps its bytes.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
     BridgeSource, MappingUncertainty, NonlinearMap, SourceMappingDependence, ValueKind,

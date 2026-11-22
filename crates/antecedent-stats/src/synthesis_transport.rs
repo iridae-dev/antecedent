@@ -30,7 +30,7 @@
 //! dependence between source estimates and native estimates is the caller's
 //! declaration (the evidence ledger decides whether the *data* overlap).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

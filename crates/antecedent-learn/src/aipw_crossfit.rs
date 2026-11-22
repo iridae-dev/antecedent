@@ -7,7 +7,7 @@
 //! problem or a cache, so any layer that must replay a cross-fitted estimate runs the same
 //! fits on the same rows and obtains the same numbers.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::{AdmissionError, MapExecutionError};

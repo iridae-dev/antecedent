@@ -10,7 +10,7 @@
 //! witness over fractions; this test re-enumerates the witness the decision returns with its own
 //! integer code and compares it with that frozen result.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

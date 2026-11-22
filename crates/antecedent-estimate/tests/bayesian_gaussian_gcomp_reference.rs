@@ -9,7 +9,7 @@
 //! the exact conjugate posterior for an unknown variance, the conjugate estimator is the same
 //! computation, and the temporal wrapper is the same fit on a lag-aligned design.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

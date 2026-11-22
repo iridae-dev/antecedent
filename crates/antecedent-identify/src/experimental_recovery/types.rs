@@ -1,6 +1,6 @@
 //! Declarations, decisions and outcome types of the clamp-experiment recipe.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CLAMP_EXPERIMENT_RECIPE, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt,

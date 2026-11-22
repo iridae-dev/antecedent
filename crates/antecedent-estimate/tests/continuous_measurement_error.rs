@@ -7,7 +7,7 @@
 //! written in reported standard errors or as absolute bands stated per test.
 //! Simulations use fixed seeds.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::num::NonZeroU32;
 

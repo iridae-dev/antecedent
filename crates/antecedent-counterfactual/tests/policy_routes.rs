@@ -5,7 +5,7 @@
 //! Every route calls the same per-node precedence and program executor, so on identical
 //! noise the values agree bit for bit; independent hand computations pin the values.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

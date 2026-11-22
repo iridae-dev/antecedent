@@ -42,7 +42,7 @@
 //! `cross_world_execution.elimination_bound_exceeded`; the model stays computable but not by
 //! this bounded plan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

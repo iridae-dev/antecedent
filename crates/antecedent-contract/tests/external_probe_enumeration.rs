@@ -12,7 +12,7 @@
 //! wrong CDF, and an unnormalized law. The tolerance 1e-12 only absorbs float noise, as every
 //! quantity is a dyadic rational.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalScientificObject, ExternalVerificationError,

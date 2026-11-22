@@ -18,7 +18,7 @@
 //! contrast equal to the planted exposure effect, whatever the assignment.
 //!
 //! The 2,000-replication coverage tests are calibration evidence and are a separate claim.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,

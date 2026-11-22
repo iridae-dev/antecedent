@@ -8,7 +8,7 @@
 //! (1). A smaller set defaults to [`SEED_ZERO`] (0). Unifying them would change
 //! results, so each function keeps the default it has.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Discovery and estimation significance level (`alpha=0.05`).
 pub(crate) const ALPHA: f64 = 0.05;

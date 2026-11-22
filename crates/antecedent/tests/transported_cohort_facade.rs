@@ -10,7 +10,7 @@
 //! `(0.2, 0.3, 0.5)` has row contrasts `(1.5, 2.25, 2.5)` and weighted mean
 //! `0.2 * 1.5 + 0.3 * 2.25 + 0.5 * 2.5 = 2.225`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::cohort_decision::{CohortBinding, CohortColumn};
 use antecedent::analysis::transported_cohort::{

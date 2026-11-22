@@ -64,7 +64,7 @@
 //!   simultaneous band over the grid adds that bias to a Gaussian multiplier sup-t half-width.
 //!   Calibration stays `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

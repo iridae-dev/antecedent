@@ -8,7 +8,7 @@
 //! structure x inference x validation) coordinate cited is executed; no production
 //! estimator is called to produce an expectation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::too_many_lines,

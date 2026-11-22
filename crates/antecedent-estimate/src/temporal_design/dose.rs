@@ -22,7 +22,7 @@
 //! posterior is a posterior of the bandwidth-`h` local-quadratic projection of `m`; its
 //! smoothing bias is reported beside it, never inside the credible interval.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
 

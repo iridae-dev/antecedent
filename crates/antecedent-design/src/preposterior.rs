@@ -40,7 +40,7 @@
 //! calculations in medical decision modeling", *Medical Decision Making* 24(2),
 //! 2004, pp. 207–227 (Monte Carlo EVSI).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Uniform index draws truncate a non-negative float; envelope slopes are compared
 // exactly to merge identical lines.

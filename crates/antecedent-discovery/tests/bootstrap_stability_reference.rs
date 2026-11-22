@@ -7,7 +7,7 @@
 //! acceptance boundary (at least two successes and at least half of the requested). The product
 //! must reproduce every frequency, the reference frequency, the failed mass and the refusals.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

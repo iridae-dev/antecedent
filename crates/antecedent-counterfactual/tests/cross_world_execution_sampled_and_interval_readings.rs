@@ -9,7 +9,7 @@
 //! each cell either the exact reference value (a hand-enumerated response-type model) or a
 //! typed refusal that did no abduction, prediction or sampling work and retained nothing.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::RequestedReading;
 use antecedent_core::ExecutionContext;

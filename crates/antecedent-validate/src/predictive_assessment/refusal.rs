@@ -4,7 +4,7 @@
 //! `predictive_assessment.*` detail and a message that states the declaration
 //! or evidence that would support the request.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use thiserror::Error;

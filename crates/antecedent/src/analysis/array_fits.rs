@@ -10,7 +10,7 @@
 //! request, array or stored value. The artifact is a different kind from the cross-fitted
 //! effect-score table, which does not read it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_io::array_fit_artifact::{
     ARRAY_FIT_ARTIFACT_FEATURE, ARRAY_FIT_ARTIFACT_VERSION, ARRAY_FIT_CALIBRATION,

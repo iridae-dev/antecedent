@@ -1,5 +1,5 @@
 //! Checked empirical two-step history adapter; dependent intervals remain closed.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json, refusal_json};
 use crate::recalc_bounds::check_values;
 use crate::recalc_family_api::{caps, payload, resume, run_error};

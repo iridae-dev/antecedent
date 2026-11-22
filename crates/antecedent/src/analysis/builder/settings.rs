@@ -4,7 +4,7 @@
 //! caller declarations. They are grouped once here by what they decide, so the
 //! phases pass a group rather than re-listing its fields.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

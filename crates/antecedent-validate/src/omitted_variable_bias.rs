@@ -29,7 +29,7 @@
 //! [`ovb_range`] reports the extreme-scenario curve and the robustness values as an
 //! [`AssumptionRange`] tied to the target.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, student_t_ppf};
 

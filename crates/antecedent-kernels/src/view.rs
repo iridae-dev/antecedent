@@ -2,7 +2,7 @@
 //!
 //! Public APIs expose these views; SIMD types are never part of the public API.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use core::fmt;
 

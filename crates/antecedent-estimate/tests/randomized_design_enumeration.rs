@@ -7,7 +7,7 @@
 //! over the whole realization set; this test requires the product to reproduce every realization
 //! and to refuse exactly the realizations the reference marks as unsupported.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::multi_arm::estimate_multi_arm;
 use antecedent_estimate::randomized_scores::independent_action_contrast;

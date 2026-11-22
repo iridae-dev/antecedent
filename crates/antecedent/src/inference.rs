@@ -5,7 +5,7 @@
 //! from earlier posteriors. The module also re-exports the prior, likelihood and test types
 //! these declarations use.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

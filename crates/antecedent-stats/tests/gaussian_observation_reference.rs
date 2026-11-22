@@ -7,7 +7,7 @@
 //! touch the mean, and intervals of width down to 1e-12 standard deviations, where differencing
 //! two CDF values near one half or two nearby tail logarithms loses digits.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{GaussianObservation as G, gaussian_observation_log_likelihood as loglik};
 

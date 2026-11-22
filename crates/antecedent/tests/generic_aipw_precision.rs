@@ -3,7 +3,7 @@
 //! True scores are2+.5Z: unweighted mean2/IF variance.25; known w(Z)=3/1
 //! ratio target2.25 with IF±.375/variance.140625. Original exact arm OLS models,
 //! five-fold propensity/outcome fit sets, actual frozen-score consumer, no new CI.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss, reason = "bounded diagnostic dimensions")]
 #[path = "common/calibration.rs"]
 mod calibration;

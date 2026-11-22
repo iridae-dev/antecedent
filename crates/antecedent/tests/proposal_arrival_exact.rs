@@ -6,7 +6,7 @@
 //! 200 in all, the planned sample size. Selection acts on X alone, so the transported
 //! P*(y = 1 | do(x)) is each arm's own proportion: 36/120 = 0.3 and 44/80 = 0.55 (not 44/200,
 //! which would be the share of the pooled sample). The treated distribution is [0.45, 0.55].
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent::analysis::proposal_arrival::{
     ArrivalLimits, ArrivalPoint, ArrivalRequest, execute_with_limits,

@@ -8,7 +8,7 @@
 //! fit, which a tight prior therefore inflates. These claims apply only to this model and
 //! declared bandwidth; bandwidth comparisons are an explicit sensitivity analysis.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
 use crate::util::DrawSpec;

@@ -6,7 +6,7 @@
 //! control rows), the extreme-weight count over the clip-sensitivity grid, the common-support
 //! share and the trimmed share, in `Fraction` arithmetic. The product report must agree.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::{IpwTarget, OverlapPolicy, OverlapReport};
 use serde_json::Value;

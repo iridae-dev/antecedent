@@ -1,6 +1,6 @@
 //! Directed ancestry, descendants, and intervention mutilation.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::algo::closure_into;
 use crate::dag::Dag;

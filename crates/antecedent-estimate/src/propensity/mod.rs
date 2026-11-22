@@ -16,7 +16,7 @@
 //! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts and do
 //! **not** write [`crate::EffectEstimate::se_bootstrap`], even when `bootstrap_replicates > 0`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![cfg_attr(
     test,

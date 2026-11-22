@@ -1,6 +1,6 @@
 //! TemporalCpdag/Pag graph-posterior Pulse/Sustained: policy, mass, and suites.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

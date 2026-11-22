@@ -27,7 +27,7 @@
 //! population's run, identity and claims are recomputed while every other population's are
 //! kept. Relabelling rows as another population is refused, not absorbed.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 use std::convert::Infallible;

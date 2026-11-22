@@ -13,7 +13,7 @@
 //! mean `2.51578947368421`, standard deviation `1.01566675015402`, 95% interval
 //! `[0.52511922308750, 4.50645972428092]` and positive probability `0.99337509301353`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure;
 use antecedent::analysis::repeated_measures_posterior_report::{

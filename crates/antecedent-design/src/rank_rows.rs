@@ -5,7 +5,7 @@
 //! adjacent candidates are tied or rank-uncertain under the fixed unpaired
 //! normal critical value. One predicate keeps those decisions identical.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Absolute slack in the EVSI bound, added to `4·stderr`.
 pub(crate) const EVSI_BOUND_ABS: f64 = 1e-9;

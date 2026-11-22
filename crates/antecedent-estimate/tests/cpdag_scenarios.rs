@@ -7,7 +7,7 @@
 //! `P(c = 1 | b = 1)` (the SCM makes `c` independent of `a` given `b`), the third
 //! gives `P(c = 1)` because `c` is not a descendant of `b`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

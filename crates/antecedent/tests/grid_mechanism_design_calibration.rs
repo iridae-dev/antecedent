@@ -37,7 +37,7 @@
 //! posterior-quantile interval re-summarized from the retained draws, a normal interval re-formed
 //! from the published standard error.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::float_cmp,

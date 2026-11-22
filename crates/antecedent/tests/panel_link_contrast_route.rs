@@ -7,7 +7,7 @@
 //! Laplace sample under the stated Gaussian prior. The routes are unsupported estimators with
 //! calibration `not_measured`; a single dependent series is refused with its next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

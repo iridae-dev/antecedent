@@ -14,7 +14,7 @@
 //!   on that product;
 //! * a temporal ADMG: single and several horizons, front-door and adjustment.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::needless_range_loop,

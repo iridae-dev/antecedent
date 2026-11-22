@@ -4,7 +4,7 @@
 //! first component of each group; [`column_blocks_for_frame`] builds per-lag
 //! frame-index blocks for pairwise multivariate CI.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;

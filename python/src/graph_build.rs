@@ -1,6 +1,6 @@
 //! Shared graph / dummy-CI construction for PyO3 bindings (SOLID/DRY).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::data::{SamplingRegularity, TableView, TimeDummyEncoding, TimeIndex};
 use antecedent::discovery::{SpaceDummyCiMode, TimeDummyCiMode};

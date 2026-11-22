@@ -1,6 +1,6 @@
 //! Compiled discovery of latent additive soft interventions on a declared DAG.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

@@ -62,7 +62,7 @@
 //! every downstream claim are recomputed against it. Nothing is patched in place, and a
 //! refresh never converts reuse into a split.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

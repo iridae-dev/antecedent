@@ -3,7 +3,7 @@
 //! Each operation owns a checked scientific target and calls its family executor
 //! directly, preserving the class/window estimator and its uncertainty semantics.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

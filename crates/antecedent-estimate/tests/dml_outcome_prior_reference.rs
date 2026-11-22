@@ -9,7 +9,7 @@
 //! cross-fitted estimate, and that a prior whose coordinates do not map onto the outcome design
 //! is refused with the next attempt.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_precision_loss,

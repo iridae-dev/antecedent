@@ -1,6 +1,6 @@
 //! TemporalCpdag/Pag graph-posterior response: class envelope per atom, then policy.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::{
     mix_response_values, mix_support_reports, response_envelope_from_weighted,

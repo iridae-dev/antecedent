@@ -5,7 +5,7 @@
 //! attempt. An EVSI request quotes its Monte Carlo store and refuses before
 //! allocation when the admission pool cannot hold it.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 

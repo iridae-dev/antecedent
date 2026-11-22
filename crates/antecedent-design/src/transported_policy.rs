@@ -51,7 +51,7 @@
 //! (`diagram_binding_mismatch`, `initial_law_declared_invariant` and the
 //! support refusal).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeMap;
 

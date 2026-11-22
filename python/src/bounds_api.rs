@@ -5,7 +5,7 @@
 //! Python. The result is never a point; it states `supported` when the fit met a row of the
 //! graphless support table, and its calibration label is `not_measured`.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use pyo3::prelude::*;
 

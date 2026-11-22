@@ -9,7 +9,7 @@
 //! near-collinear columns, a very high-leverage row, six-decade column scales and six-decade
 //! weights, rank-deficient designs, subnormal and near-overflow sample variances.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, MEstimateOptions, SandwichKind,

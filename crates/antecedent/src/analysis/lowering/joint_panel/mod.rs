@@ -20,7 +20,7 @@
 //! identifies the target. The support status it records comes from the route's capability unit
 //! (`analysis::joint_panel::compiled::support_status`) and does not enter the program identity.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub(crate) mod design;
 pub(crate) mod experiment;

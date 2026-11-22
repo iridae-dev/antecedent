@@ -3,7 +3,7 @@
 //! Rules follow Bareinboim and Pearl (2013), Figure 5. Catalog binding is a
 //! separate operation: failure to bind a leaf is not a nontransportability proof.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::prepared::AncestorMemo;
 

@@ -1,7 +1,7 @@
 //! Read-only inspection of a prepared handle: the retained operation, the plan
 //! view, and the frozen study, schema and plan.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     CachedTemporalIdentification, CheckedAipwOperation, CheckedBayesianGcompOperation,

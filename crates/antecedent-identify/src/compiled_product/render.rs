@@ -1,6 +1,6 @@
 //! Canonical identity text of a compiled product.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
     AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, AssumptionStatus,

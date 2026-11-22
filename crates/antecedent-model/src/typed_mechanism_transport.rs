@@ -53,7 +53,7 @@
 //!   independence default. The transport assumption adds no variance and the
 //!   result says so ([`UNCERTAINTY_SCOPE`]).
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
 

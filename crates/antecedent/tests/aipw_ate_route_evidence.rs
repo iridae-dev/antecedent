@@ -1,6 +1,6 @@
 //! Coordinate-specific closure evidence for checked AIPW ATE execution.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 

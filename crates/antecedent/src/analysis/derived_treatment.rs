@@ -15,7 +15,7 @@
 //! rank-deficient adjustment design are refused with the columns named. The numerical rank
 //! machinery of [`preflight_design`] detects these; it is never used to drop a column.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, VariableId, reason_code};
 use antecedent_data::{TableView, TabularData};

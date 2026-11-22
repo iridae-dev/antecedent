@@ -11,7 +11,7 @@
 //! quality are separate records. A utility-only change on the static cell reuses
 //! the causal fit.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ContrastForm, ExecutionContext, InferenceSelection,

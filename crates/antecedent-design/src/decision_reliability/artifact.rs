@@ -9,7 +9,7 @@
 //! Calibration annotates a published route and never gates it, so the report carries no
 //! route list; publication always checks the current calibration independently.
 //!
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{ExecutionContext, blake3_hex};
 use antecedent_io_core::convert::to_cbor;

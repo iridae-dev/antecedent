@@ -1,5 +1,5 @@
 //! Instrumentation of actual finite generic-ID and multi-source checker invocations.
-//! SPDX-License-Identifier: MIT OR Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 use std::cell::Cell;
 thread_local! {static CHECKS:Cell<u64>=const{Cell::new(0)};}
 /// Observe actual primitive checker invocations, including nested scopes and refusals.
