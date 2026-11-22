@@ -8,13 +8,13 @@ A first analysis::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
-:func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
-the first-class typed queries, the five graph classes, the inference / identifier /
-estimator selectors, and the two error names most callers catch. The specialized
-families — randomized and factorial experiments, held-out policy value,
-difference-in-differences and other quasi-experimental designs, survival, and
-longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
+The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`,
+:func:`prepare`, :func:`identify`, :func:`estimate`, :func:`rebind`, :func:`reconfigure`) and
+:func:`load`, the accepted-structure and result types, the first-class typed queries, the five
+graph classes, the inference / identifier / estimator selectors, and the two error names most
+callers catch. The specialized families — randomized and factorial experiments, held-out policy
+value, difference-in-differences and other quasi-experimental designs, survival, and longitudinal
+regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
 ``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
 ``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegime``),
 not at the root.
@@ -29,10 +29,10 @@ Root-exported stage modules (listed in ``__all__``):
 ``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
 Narrower modules imported eagerly, reachable but deliberately outside ``__all__``:
-``accepted_graph``, ``artifacts``, ``counterfactual``, ``decision``, ``derived``, ``estimators``,
-``external``, ``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
-``matched``, ``model``, ``observation``, ``population``, ``prediction``, ``query``,
-``results``, and ``transport``.
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``data_diagnostics``, ``decision``,
+``derived``, ``estimators``, ``external``, ``handoff``, ``ids``, ``inference``, ``interference``,
+``intervention``, ``learners``, ``matched``, ``model``, ``observation``, ``population``,
+``prediction``, ``query``, ``results``, and ``transport``.
 
 The stage modules listed in ``_LAZY_MODULES`` are loaded on first attribute access (``antecedent.recalc_cell`` imports
 the module then, so ``import antecedent`` pays nothing for them) and are listed by
@@ -132,6 +132,15 @@ measured coverage record).
 validation design: proper scores, paired differences with declared dependence, labelled
 diagnostics and a held-out check from row identities (point-only; a good score is not causal
 validity and no interval is reported).
+
+Feedback, events and latent interventions: ``cyclic`` fits and discovers cyclic and dynamic
+structural models (equilibrium SCMs, polynomial systems, ODE, Ornstein-Uhlenbeck and stochastic
+differential equation systems) and answers typed-world questions on them, conditional on the
+specified or fitted model; ``events`` compiles event forecasts, likelihoods, worlds,
+assessments, updates and future studies into an inspectable plan and composes them with
+stochastic worlds and decisions; ``latent_soft_intervention`` compiles a randomized recorded
+action on a declared continuous DAG, looks for hidden additive versions of the delivered action
+and forecasts from the retained fit.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -438,6 +447,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "discretized_composition",
     "dose_grid",
     "effect_constancy_review",
+    "events",
     "evidence_ledger",
     "execution_attempt",
     "exposure_measurement",
@@ -456,6 +466,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "joint_distribution",
     "joint_law_propagation",
     "latent_class",
+    "latent_soft_intervention",
     "measurement_exposure",
     "measurement_models",
     "mechanism_composition",
@@ -536,6 +547,7 @@ if _TYPE_CHECKING:
     from . import discretized_composition as discretized_composition
     from . import dose_grid as dose_grid
     from . import effect_constancy_review as effect_constancy_review
+    from . import events as events
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
     from . import exposure_measurement as exposure_measurement
@@ -556,6 +568,7 @@ if _TYPE_CHECKING:
     from . import joint_law_propagation as joint_law_propagation
     from . import joint_panel as joint_panel
     from . import latent_class as latent_class
+    from . import latent_soft_intervention as latent_soft_intervention
     from . import measurement_exposure as measurement_exposure
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition
