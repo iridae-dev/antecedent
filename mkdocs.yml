@@ -134,7 +134,7 @@ nav:
     - Optimise history-dependent policies: adaptive-policies.md
     - Reliability of a selected decision: decision-reliability.md
   - Evidence and composition:
-    - Choose a 3.0 composition workflow: guides/composition-in-3-0.md
+    - Choose a composition workflow: guides/composition-workflows.md
     - External evidence and study synthesis: evidence-ledger.md
     - Experimental evidence for decisions: decision-evidence.md
     - Categorical-choice evidence to decision: choice-evidence.md
