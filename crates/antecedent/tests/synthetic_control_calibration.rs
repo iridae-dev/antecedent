@@ -242,7 +242,7 @@ fn measure(test: &'static str, scored: Scored, seed_base: u64) {
         if let Scored::PredictivePeriod(k) = scored {
             // This study reads one period from the rollout, a separate target
             // from the average which the public primary basis describes.
-            construction.functional.push_str(&format!("+period={}", k + 1));
+            construction.functional = format!("{}+period={}", construction.functional, k + 1);
         }
         tally.bind_validation(&construction, *scope, validation);
         tally.record(Some(interval), truth);

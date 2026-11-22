@@ -1272,7 +1272,7 @@ mod tests {
             var_fingerprint: 1,
             penalty_fingerprint: 1,
         });
-        let expected = -3.018_683_580_238_146_4;
+        let expected = -3.018_683_580_238_146;
         for parents in [[0, 1, 2], [2, 0, 1], [1, 2, 0]] {
             let actual = cache.local_score(&data, 3, &Arc::from(parents)).unwrap();
             assert!((actual - expected).abs() < 1e-11, "{actual}");

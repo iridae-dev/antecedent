@@ -75,7 +75,7 @@ impl CoverageTally {
             }
         }
         self.assert();
-        self.emit_design_counts(serde_json::json!({
+        self.emit_design_counts(&serde_json::json!({
             "interval_counts": {
                 "attempted": attempted, "returned": self.with_interval, "covered": self.covered
             }
@@ -96,11 +96,11 @@ impl CoverageTally {
                 reason = "the tally sums small nonnegative integer refusal counts"
             )]
             let total = refusals.length_sum as u64;
-            self.emit_design_counts(serde_json::json!({"overlap_refusals": total}));
+            self.emit_design_counts(&serde_json::json!({"overlap_refusals": total}));
         }
     }
 
-    fn emit_design_counts(&self, counts: serde_json::Value) {
+    fn emit_design_counts(&self, counts: &serde_json::Value) {
         let line = serde_json::json!({
             "id": self.record_id().expect("study counts need a bound record"),
             "grid_point": grid_point(),

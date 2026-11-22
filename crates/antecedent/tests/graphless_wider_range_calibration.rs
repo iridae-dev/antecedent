@@ -432,7 +432,9 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
     assert_eq!(validation, NO_VALIDATION);
     match scored {
         Bayesian::First => construction.functional.push_str("+period=1"),
-        Bayesian::Last => construction.functional.push_str(&format!("+period={}", panel.post)),
+        Bayesian::Last => {
+            construction.functional = format!("{}+period={}", construction.functional, panel.post);
+        }
         Bayesian::Posterior | Bayesian::Average => {}
     }
     Some(Published { interval: (interval[0], interval[1]), construction, scope })
