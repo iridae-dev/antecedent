@@ -335,11 +335,13 @@ pub(super) fn with_response_options(
     }
 }
 
-/// A supplied static class structure (PAG / CPDAG) or bidirected ADMG.
+/// A supplied static class structure (PAG / CPDAG), a bidirected ADMG, or a temporal ADMG
+/// that a static query reads as its contemporaneous projection.
 pub(super) enum StaticClassGraph {
     Pag(antecedent::graph::Pag),
     Cpdag(antecedent::graph::Cpdag),
     Admg(antecedent::graph::Admg),
+    TemporalAdmg(antecedent::graph::TemporalAdmg),
 }
 
 impl StaticClassGraph {
@@ -353,8 +355,11 @@ impl StaticClassGraph {
         } else if let Ok(g) = graph.extract::<graphs::Admg>() {
             require_named_graph_order(&g.names, names, "Admg")?;
             Ok(Self::Admg(g.aligned_to_names(names)?))
+        } else if let Ok(g) = graph.extract::<graphs::TemporalAdmg>() {
+            require_named_graph_order(&g.names, names, "TemporalAdmg")?;
+            Ok(Self::TemporalAdmg(g.graph))
         } else {
-            Err(crate::value_err("graph must be a Pag, Cpdag, or Admg"))
+            Err(crate::value_err("graph must be a Pag, Cpdag, Admg, or TemporalAdmg"))
         }
     }
 
@@ -368,6 +373,7 @@ impl StaticClassGraph {
             Self::Pag(g) => with_graph(builder, g, accepted, discovery_algorithm),
             Self::Cpdag(g) => with_graph(builder, g, accepted, discovery_algorithm),
             Self::Admg(g) => with_graph(builder, g, accepted, discovery_algorithm),
+            Self::TemporalAdmg(g) => with_graph(builder, g, accepted, discovery_algorithm),
         }
     }
 }

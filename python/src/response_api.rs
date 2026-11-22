@@ -692,7 +692,8 @@ pub(crate) fn response_result(
         } else {
             envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect()
         };
-        (points, legacy_values.into_iter().map(|value| vec![value]).collect(), scalar, None)
+        let matrix = vector_point_matrix(&response.estimate, structural);
+        (points, legacy_values.into_iter().map(|value| vec![value]).collect(), scalar, matrix)
     } else {
         match response.estimate {
             ResponseIdentification::PointIdentified(value)
@@ -847,6 +848,28 @@ fn response_value_flat(value: Option<&ResponseValue>) -> Vec<f64> {
             envelope.lower.iter().chain(envelope.upper.iter()).copied().collect()
         }
         None => Vec::new(),
+    }
+}
+
+/// The matrix reading of a vector-valued response that carries a structural mixture (a
+/// Jacobian or a directional derivative on a class), as [`value_parts`] gives it on a supplied
+/// DAG: the published point when the members agree, else the identified-mass summary when the
+/// mixture publishes one. `None` for a scalar or a curve, whose envelope rows carry the reading.
+fn vector_point_matrix(
+    estimate: &ResponseIdentification,
+    structural: Option<&antecedent::result::StructuralResponseMixture>,
+) -> Option<Vec<Vec<f64>>> {
+    let point = match estimate {
+        ResponseIdentification::PointIdentified(value) => value,
+        _ => structural?.conditional_on_identified.as_ref()?,
+    };
+    match point {
+        ResponseValue::Vector(values) => Some(vec![values.to_vec()]),
+        ResponseValue::Jacobian { outcomes, treatments, values } => {
+            validate_jacobian_shape(*outcomes, *treatments, values.len()).ok()?;
+            Some(values.chunks(*treatments).map(<[f64]>::to_vec).collect())
+        }
+        _ => None,
     }
 }
 

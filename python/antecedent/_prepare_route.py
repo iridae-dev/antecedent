@@ -122,6 +122,19 @@ _RESPONSE_NUISANCE_KEYS = frozenset(
 _RESPONSE_CONFIG_KEYS = _RESPONSE_NUISANCE_KEYS | frozenset(
     {"simultaneous_replicates", "multiplier_seed", "export_row_diagnostics"}
 )
+#: Static structures other than a DAG that a static query binds directly: the compiler runs the
+#: query's class executor on the equivalence class, the latent-confounded ADMG, or the
+#: contemporaneous projection of a temporal ADMG.
+_STATIC_CLASS_GRAPHS = (Cpdag, Pag, Admg, TemporalAdmg)
+#: The static derivative queries.
+_DERIVATIVE_QUERIES = (
+    PointDerivative,
+    AverageDerivative,
+    Elasticity,
+    SemiElasticity,
+    DirectionalDerivative,
+    ResponseJacobian,
+)
 _RESPONSE_ESTIMATORS = {
     "response_curve": "response.kennedy_dr",
     "point_derivative": "response.kennedy_dr",
@@ -168,8 +181,10 @@ def _check_response_strategy(
                 f"{query.kind} requires identifier='response.backdoor'; got {identifier!r}"
             )
         return
+    # A derivative on a class structure, ADMG or temporal ADMG is identified by one adjustment
+    # set valid in every member (a curve or level on a Cpdag, Pag or Admg routes earlier).
     expected_identifier = (
-        "generalized.adjustment" if isinstance(graph, (Pag, Cpdag)) else "response.backdoor"
+        "generalized.adjustment" if isinstance(graph, _STATIC_CLASS_GRAPHS) else "response.backdoor"
     )
     if identifier not in (None, expected_identifier):
         raise ValueError(
@@ -477,25 +492,27 @@ class _PrepareRoute:
         handler = self._route("post_admg")
         if handler is not None:
             return getattr(self, handler)()
+        # A class structure is bound as itself: the compiler runs the query's class executor on
+        # it and the result names that class. A DAG (or an edge list) is the explicit structure.
+        class_graph = self.graph if isinstance(self.graph, _STATIC_CLASS_GRAPHS) else None
         if isinstance(query, InterventionalDistribution):
             self._refuse_estimator_config("InterventionalDistribution")
             self._refuse_ids("InterventionalDistribution (general.id + functional.distribution)")
-            admg = isinstance(self.graph, Admg)
             native = _NativePreparedAnalysis.prepare_distribution(
                 self.names,
                 self.columns,
-                [] if admg else _static_edges(self.graph),
+                [] if class_graph is not None else _static_edges(self.graph),
                 query.outcome,
                 dict(query.interventions),
-                graph=self.graph if admg else None,
+                graph=class_graph,
                 conditioning=list(query.conditioning) or None,
                 accepted=self.accepted,
                 **self._common(),
             )
             return native, "average"
-        edges = _static_edges(self.graph)
+        edges = [] if class_graph is not None else _static_edges(self.graph)
         if isinstance(query, (MediationEffect, NestedCounterfactual, Counterfactual)):
-            return self._static_kind(edges)
+            return self._static_kind(edges, class_graph)
         if isinstance(query, PathSpecificEffect):
             self._refuse_estimator_config("PathSpecificEffect")
             self._refuse_ids("PathSpecificEffect (path_specific.natural + functional.effect)")
@@ -510,6 +527,7 @@ class _PrepareRoute:
                 path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
                 max_paths=query.max_paths,
                 max_len=query.max_len,
+                graph=class_graph,
                 accepted=self.accepted,
                 **self._common(),
             )
@@ -691,8 +709,26 @@ class _PrepareRoute:
                 **shared,
             )
             return native, "response_curve"
+        if static and isinstance(query, _DERIVATIVE_QUERIES):
+            # Every atom (a DAG, a class, an ADMG) runs the derivative's executor on its own
+            # structure; the atoms mix by posterior probability.
+            _refuse_derivative_observation(query)
+            response_options = _parse_response_estimator_config(query, self.estimator_config)
+            target = _derivative_target_spec(query)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_derivative(
+                self.names,
+                self.columns,
+                target.pop("kind"),
+                target.pop("treatments"),
+                target.pop("outcomes"),
+                **target,
+                response_options=dict(response_options) if response_options else None,
+                **shared,
+            )
+            return native, "response_curve"
         self._refuse_estimator_config(
-            "a graph-posterior mixture other than AverageEffect or a static ResponseCurve"
+            "a graph-posterior mixture other than AverageEffect, a static ResponseCurve or a "
+            "derivative"
         )
         if static and isinstance(query, ConditionalEffect):
             from .query import coerce_outcome_functional
@@ -820,17 +856,19 @@ class _PrepareRoute:
                 return mixed
         raise CausalUnsupportedError(
             "this query has no graph-posterior mixture. Graph-posterior cells are "
-            "AverageEffect / ConditionalEffect / ResponseCurve / InterventionResponse, "
-            "MediationEffect / PathSpecificEffect / NestedCounterfactual / "
-            "InterventionalDistribution / AnomalyAttribution / ChangeAttribution / "
-            "TransportQuery on DAG, CPDAG, PAG and ADMG atoms, and Pulse / Sustained / "
+            "AverageEffect / ConditionalEffect / ResponseCurve / InterventionResponse / the "
+            "derivatives, MediationEffect / PathSpecificEffect / Counterfactual / "
+            "NestedCounterfactual / InterventionalDistribution / AnomalyAttribution / "
+            "ChangeAttribution / TransportQuery on DAG, CPDAG, PAG and ADMG atoms, and Pulse / "
+            "Sustained / "
             "TemporalMediationEffect / temporal ResponseCurve / InterventionResponse on DBN and "
             "temporal-class atoms",
             reason_code="option_not_applicable",
         )
 
     def _graph_posterior_cross_world(self, shared: dict[str, Any]) -> tuple[Any, Any] | None:
-        """Mediation, path-restricted, natural direct, distribution, attribution and transport.
+        """Mediation, counterfactual, path-restricted, natural direct, distribution, attribution
+        and transport.
 
         Every atom of the posterior is answered by the explicit executor of its own structure
         and the atoms are mixed by posterior probability; the native compiler owns which
@@ -884,6 +922,21 @@ class _PrepareRoute:
                 "outcome": query.outcome,
                 "mediators": list(query.mediators),
                 "contrast": query.contrast,
+                "control_level": query.control_level,
+                "active_level": query.active_level,
+            }
+        elif isinstance(query, Counterfactual):
+            if query.also_outcomes or query.active_interventions or query.control_interventions:
+                raise CausalUnsupportedError(
+                    "a counterfactual over a graph posterior answers one outcome under one "
+                    "treatment in every atom; also_outcomes and a joint baseline are answered on "
+                    "a supplied or accepted structure",
+                    reason_code="option_not_applicable",
+                )
+            arguments = {
+                "kind": "counterfactual",
+                "treatment": query.treatment,
+                "outcome": query.outcome,
                 "control_level": query.control_level,
                 "active_level": query.active_level,
             }
@@ -2280,21 +2333,33 @@ class _PrepareRoute:
         )
         return native, "average"
 
-    def _static_kind(self, edges: list[tuple[str, str]]) -> tuple[Any, Any]:
+    def _static_kind(
+        self, edges: list[tuple[str, str]], class_graph: Any = None
+    ) -> tuple[Any, Any]:
         query = self.query
         self._refuse_estimator_config(f"{type(query).__name__}")
-        expected_id = (
-            "path_specific.natural"
-            if isinstance(query, (MediationEffect, NestedCounterfactual))
-            else "gcm.parametric"
-        )
-        expected_est = (
-            "mediation.linear"
-            if isinstance(query, (MediationEffect, NestedCounterfactual))
-            else "gcm.fit"
-        )
-        if self.identifier not in (None, expected_id) or self.estimator not in (None, expected_est):
-            raise CausalUnsupportedError(f"{query.kind} requires {expected_id} and {expected_est}")
+        if class_graph is not None:
+            # The class executor resolves its own identifier and estimator for the structure
+            # (ID* or the per-completion route, the functional plug-in, a mechanism fit).
+            self._refuse_ids(f"{type(query).__name__} on a {type(class_graph).__name__}")
+        else:
+            expected_id = (
+                "path_specific.natural"
+                if isinstance(query, (MediationEffect, NestedCounterfactual))
+                else "gcm.parametric"
+            )
+            expected_est = (
+                "mediation.linear"
+                if isinstance(query, (MediationEffect, NestedCounterfactual))
+                else "gcm.fit"
+            )
+            if self.identifier not in (None, expected_id) or self.estimator not in (
+                None,
+                expected_est,
+            ):
+                raise CausalUnsupportedError(
+                    f"{query.kind} requires {expected_id} and {expected_est}"
+                )
         if (
             isinstance(query, Counterfactual)
             and self.bootstrap
@@ -2305,7 +2370,7 @@ class _PrepareRoute:
                 "applies to the Frequentist mechanism-refit bootstrap",
                 reason_code="option_not_applicable",
             )
-        if isinstance(query, NestedCounterfactual) and self.bootstrap:
+        if isinstance(query, NestedCounterfactual) and self.bootstrap and class_graph is None:
             raise CausalUnsupportedError(
                 "NestedCounterfactualEffect has no bootstrap interval method; its result is point-only",
                 reason_code="not_supported",
@@ -2334,6 +2399,7 @@ class _PrepareRoute:
             joint_control=list(query.control_interventions.items())
             if isinstance(query, Counterfactual)
             else [],
+            graph=class_graph,
             accepted=self.accepted,
             **self._common(),
         )
@@ -2593,17 +2659,7 @@ class _PrepareRoute:
             # suite as the second click of every estimate.
             self.deferred_suite = "placebo" if self.refute is True else str(self.refute)
             self.options.pop("refute", None)
-        derivative = isinstance(
-            query,
-            (
-                PointDerivative,
-                AverageDerivative,
-                Elasticity,
-                SemiElasticity,
-                DirectionalDerivative,
-                ResponseJacobian,
-            ),
-        )
+        derivative = isinstance(query, _DERIVATIVE_QUERIES)
         # A static derivative's cheap/full suite is the derivative refuter state
         # (unsupported); the native study runs it, so the suite stays in the options.
         if self._explicit_refute() and not scalar_dag_response and not derivative:
@@ -2628,6 +2684,10 @@ class _PrepareRoute:
             estimator=self.estimator,
             inference=self.inference,
         )
+        if derivative and isinstance(graph, _STATIC_CLASS_GRAPHS):
+            # Each completion of a class (or the ADMG itself) is identified by one adjustment
+            # set; the class executor publishes a point or the completions' identified set.
+            return self._derivative([], response_options, graph)
         edges = _static_edges(graph)
         if isinstance(query, ResponseCurve):
             return self._response_curve(edges, response_options)
@@ -2883,17 +2943,13 @@ class _PrepareRoute:
         return native, "intervention_response"
 
     def _derivative(
-        self, edges: list[tuple[str, str]], response_options: Mapping[str, Any]
+        self,
+        edges: list[tuple[str, str]],
+        response_options: Mapping[str, Any],
+        class_graph: Any = None,
     ) -> tuple[Any, Any]:
-        from .observation import Complete
-
         query = self.query
-        if getattr(query, "observation", None) is not None and not isinstance(
-            query.observation, Complete
-        ):
-            raise CausalUnsupportedError("derivatives require complete observations")
-        if query.observation_assumptions:
-            raise CausalUnsupportedError("derivatives require the unweighted observed population")
+        _refuse_derivative_observation(query)
         target = _derivative_target_spec(query)
         native = _NativePreparedAnalysis.prepare_derivative(
             self.names,
@@ -2904,10 +2960,23 @@ class _PrepareRoute:
             target.pop("outcomes"),
             **target,
             response_options=dict(response_options),
+            graph=class_graph,
             accepted=self.accepted,
             **self._common(),
         )
         return native, "response_curve"
+
+
+def _refuse_derivative_observation(query: Any) -> None:
+    """A static derivative reads complete observations of the unweighted observed population."""
+    from .observation import Complete
+
+    if getattr(query, "observation", None) is not None and not isinstance(
+        query.observation, Complete
+    ):
+        raise CausalUnsupportedError("derivatives require complete observations")
+    if query.observation_assumptions:
+        raise CausalUnsupportedError("derivatives require the unweighted observed population")
 
 
 def _derivative_target_spec(query: Any) -> dict[str, Any]:

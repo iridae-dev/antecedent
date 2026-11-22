@@ -245,6 +245,9 @@ impl PyPreparedAnalysis {
     }
 
     /// Compile once from tabular columns + DAG edges (static PathSpecificEffect).
+    ///
+    /// `graph` binds a supplied or accepted PAG, CPDAG, ADMG or temporal ADMG in place of the
+    /// DAG `edges`; the compiler then runs the path-specific class executor on that structure.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -258,6 +261,7 @@ impl PyPreparedAnalysis {
         path_nodes=None,
         max_paths=64,
         max_len=16,
+        graph=None,
         accepted=false,
         seed=1,
         threads=None,
@@ -276,6 +280,7 @@ impl PyPreparedAnalysis {
         path_nodes: Option<Vec<String>>,
         max_paths: usize,
         max_len: usize,
+        graph: Option<Bound<'_, PyAny>>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -285,6 +290,7 @@ impl PyPreparedAnalysis {
             crate::bridge::check_paths(max_paths, max_len)?;
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             req.refuse_prior("a path-specific effect")?;
+            let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -304,19 +310,26 @@ impl PyPreparedAnalysis {
                     }
                     query = query.with_path_nodes(ids);
                 }
-                let dag = dag_from_named_edges(data.schema(), &edges)?;
-                let builder =
+                // A class structure keeps the route defaults its executor resolves (the same
+                // path-restricted identifier and functional plug-in); a DAG names them.
+                let builder = if let Some(class) = class {
+                    class
+                        .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                        .query(CausalQuery::PathSpecific(query))
+                } else {
+                    let dag = dag_from_named_edges(data.schema(), &edges)?;
                     with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
                         .query(CausalQuery::PathSpecific(query))
                         .identifier(IdentifierId::PathSpecificNatural)
-                        .estimator(EstimatorId::FunctionalEffect);
+                        .estimator(EstimatorId::FunctionalEffect)
+                };
                 req.finish_applied(builder, false)
             })
         })
     }
 
-    /// Compile once from tabular columns + DAG edges or a supplied ADMG
-    /// (static InterventionalDistribution).
+    /// Compile once from tabular columns + DAG edges, or a supplied or accepted PAG, CPDAG,
+    /// ADMG or temporal ADMG (static InterventionalDistribution).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -351,11 +364,6 @@ impl PyPreparedAnalysis {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             req.refuse_prior("an interventional distribution")?;
             let class = graph.map(|g| StaticClassGraph::extract(&g, &req.names)).transpose()?;
-            if matches!(&class, Some(g) if !matches!(g, StaticClassGraph::Admg(_))) {
-                return Err(crate::value_err(
-                    "prepare_distribution graph must be an Admg; Pag/Cpdag remain refused",
-                ));
-            }
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
                 let y_id = data.schema().id_of(&outcome).map_err(py_err)?;

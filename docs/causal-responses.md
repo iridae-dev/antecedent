@@ -581,23 +581,23 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The six derivative query types are supported on explicit or accepted DAGs at
-validation `none`, under Frequentist and Bayesian inference; see the
-[support matrix](support-matrix.md), which carries each cell's evidence.
-Derivatives on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` (the
-contemporaneous projection over rows, or the unrolled window of its template over
-a series) are not supported, so a release build refuses them; a development build
-runs them through the compiler: each identified
-completion, or the ADMG itself, is identified by one adjustment set valid for every
-treatment/outcome pair; where no adjustment set exists the front-door criterion is
-searched and the derivative is estimated with the outcome additive in the treatment, the
-mediators and the covariates (an interval that refits both stages on each replicate); a
-pair with a hedge is refused with its certificate, and a target that general ID identifies
-through neither an adjustment nor a front door is refused. Completions of a class that
-disagree publish their identified set with an Imbens-Manski band formed from their joint
-row influence, and a TemporalAdmg derivative over a series is identified per horizon on the
-unrolled window of its template and may be prepared as a handle.
-Graph-posterior, observation-adjusted, and cheap/full coordinates remain refused.
+The six derivative query types take an explicit or accepted `Dag`, `Cpdag`, `Pag`,
+latent-confounded `Admg` or `TemporalAdmg` (the contemporaneous projection over rows, or the
+unrolled window of its template over a series), or a graph posterior of such atoms, under
+Frequentist and Bayesian inference. Which of these coordinates are supported, with the
+evidence for each, is listed in the [support matrix](support-matrix.md), which is generated
+from the support model. On a class or a latent-confounded graph each identified completion,
+or the ADMG itself, is identified by one adjustment set valid for every treatment/outcome
+pair; where no adjustment set exists the front-door criterion is searched and the derivative
+is estimated with the outcome additive in the treatment, the mediators and the covariates (an
+interval that refits both stages on each replicate); a pair with a hedge is refused with its
+certificate, and a target that general ID identifies through neither an adjustment nor a front
+door is refused. Completions of a class that disagree publish their identified set with an
+Imbens-Manski band formed from their joint row influence. Over a graph posterior every atom is
+answered by the executor of its own structure and the atoms are mixed by posterior
+probability. A TemporalAdmg derivative over a series is identified per horizon on the unrolled
+window of its template and may be prepared as a handle. A derivative reads complete
+observations; an observation mechanism on a derivative is refused.
 Mean curves on `Cpdag` / `Pag` are a separate class-aware cell. The definitions below are the
 supported forms, not support to run every constructor argument. The coverage
 design for the published derivative intervals is
@@ -1018,7 +1018,7 @@ returning the nearest answer it could compute. The ones a first-time user meets 
 | `discovery=` together with a response query | Discovery is reviewed and accepted before estimation, not run inside it. | [Accept the graph first](#compose-discovery-artifacts-and-response-curves) and pass it as `graph=`. |
 | `PointDerivative`, `Elasticity` or `SemiElasticity` without a bandwidth | No default bandwidth targets a slope. | Pass `estimator_config={"bandwidth": ...}`. |
 | A positive `Frequentist(bootstrap=...)` on a static or Bayesian response, or on `cell.aipw` | The replicate count applies to Frequentist temporal surfaces only. | Omit `bootstrap`, or pass `bootstrap=0`. |
-| A derivative on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` in a release build | The cell has no supporting evidence (`not_supported`). | Use an explicit or accepted DAG, or check the [support matrix](support-matrix.md). |
+| A coordinate the support model does not support, in a release build | The cell has no supporting evidence (`not_supported`). | Look the coordinate up in the [support matrix](support-matrix.md) and choose a supported one. |
 | A coefficient prior or prior transfer on a derivative | No mapping onto the derivative's parameterization exists. | Fit without the prior. |
 | A retarget whose weights depend on the treatment or its descendants, or re-executed on another snapshot (`row_weights_bound_to_snapshot`) | The weights would no longer define a population of the prepared study. | Declare weights that depend only on adjustment variables, on the snapshot they were built for. |
 | An observation mechanism, assumption and estimator combination outside the [observation contract](observation-contract.md) | The response of the recorded proxy is not the response of the scientific outcome. | Declare a supported pair, or analyse complete observations. |
