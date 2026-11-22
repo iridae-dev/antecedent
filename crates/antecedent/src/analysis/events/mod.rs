@@ -159,11 +159,7 @@ pub(super) fn release_supported(id: &str) -> bool {
     static SNAPSHOT: std::sync::OnceLock<Option<Snapshot>> = std::sync::OnceLock::new();
     SNAPSHOT
         .get_or_init(|| {
-            serde_json::from_str(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../antecedent-io-core/data/unit_support_status.json"
-            )))
-            .ok()
+            serde_json::from_str(antecedent_io_core::graphless_support::UNIT_STATUS).ok()
         })
         .as_ref()
         .is_some_and(|snapshot| {

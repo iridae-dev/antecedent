@@ -177,6 +177,9 @@ def main() -> int:
         query_kinds(QUERY_SOURCE.read_text(encoding="utf-8")),
         GUIDE.read_text(encoding="utf-8"),
     )
+    packaged = ROOT / "crates/antecedent/data/missing_policy_support.toml"
+    if not packaged.is_file() or packaged.read_bytes() != REGISTRY.read_bytes():
+        errors.append(f"refresh the packaged missing-policy table: copy {REGISTRY} to {packaged}")
     for error in errors:
         print(error)
     if errors:

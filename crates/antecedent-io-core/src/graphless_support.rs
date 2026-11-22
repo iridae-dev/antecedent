@@ -114,7 +114,8 @@ pub enum GraphlessSupportStatus {
 /// Derived support status of the graphless rows (`data/unit_support_status.json`), written by
 /// `scripts/generate_support_matrix_docs.py` from the evidence registries and the
 /// scientific-records ledger. A row whose status is not `supported` is not admitted.
-const UNIT_STATUS: &str = include_str!("../data/unit_support_status.json");
+#[doc(hidden)]
+pub const UNIT_STATUS: &str = include_str!("../data/unit_support_status.json");
 
 #[derive(serde::Deserialize)]
 struct UnitStatusFile {

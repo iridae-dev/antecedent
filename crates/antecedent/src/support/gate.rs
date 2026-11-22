@@ -42,12 +42,9 @@ fn capability_units() -> Option<&'static [CapabilityUnit]> {
     static UNITS: OnceLock<Option<Vec<CapabilityUnit>>> = OnceLock::new();
     UNITS
         .get_or_init(|| {
-            serde_json::from_str::<UnitStatus>(include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../antecedent-io-core/data/unit_support_status.json"
-            )))
-            .ok()
-            .map(|status| status.capabilities)
+            serde_json::from_str::<UnitStatus>(antecedent_io_core::graphless_support::UNIT_STATUS)
+                .ok()
+                .map(|status| status.capabilities)
         })
         .as_deref()
 }

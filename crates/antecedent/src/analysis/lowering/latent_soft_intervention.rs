@@ -33,10 +33,7 @@ pub(crate) fn release_supported() -> bool {
     }
 
     static APPROVED: OnceLock<bool> = OnceLock::new();
-    let snapshot = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../antecedent-io-core/data/unit_support_status.json",
-    ));
+    let snapshot = antecedent_io_core::graphless_support::UNIT_STATUS;
     *APPROVED.get_or_init(|| {
         serde_json::from_str::<Snapshot>(snapshot).is_ok_and(|snapshot| {
             snapshot.capabilities.iter().any(|unit| unit.id == METHOD && unit.status == "supported")

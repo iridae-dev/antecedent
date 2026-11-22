@@ -15,7 +15,7 @@ use antecedent_core::CausalQueryKind;
 use antecedent_data::MissingPolicy;
 
 /// The registry text, compiled in.
-const REGISTRY: &str = include_str!("../../../../parity/missing_policy_support.toml");
+const REGISTRY: &str = include_str!("../../data/missing_policy_support.toml");
 
 /// Every query kind, in declaration order. `query_kind_index` is an exhaustive match, so a
 /// new [`CausalQueryKind`] fails to compile until it is listed here and given its rows (or
