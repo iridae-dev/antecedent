@@ -205,12 +205,16 @@ def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
 
 def live_projection(root: Path) -> tuple[list[dict], set[str]]:
     records = [project_record(rec) for rec in load_required(root, RECORDS).get("record", [])]
-    # A record ID alone does not establish the native matcher's construction,
-    # scope, boundary and attestation requirements. This projection carries no
-    # authoritative eligibility basis, so withhold live calibrated claims until
-    # such a basis is available. Frozen snapshots retain their recorded policy.
-    load_required(root, COVERAGE)  # Still require the current registry to exist and parse.
-    present: set[str] = set()
+    # A coverage record in the registry is current at release: the calibration status check
+    # fails any owed record first. Whether one request falls inside a record's construction,
+    # scope and boundary is decided per request by the native matcher, so a calibrated cell's
+    # entry states that per-request status rather than a blanket guarantee. Frozen snapshots
+    # retain their recorded projection.
+    present = {
+        str(rec["id"])
+        for rec in load_required(root, COVERAGE).get("record", [])
+        if rec.get("id")
+    }
     return records, present
 
 
@@ -309,7 +313,8 @@ GLOSSARY = (
     (
         "`calibrated`",
         "An interval with a coverage record measured at its own coordinate; shown to readers "
-        "as a *statistical interval*. A cell is described this way only once its records exist.",
+        "as a *statistical interval*. A cell is described this way only once its records exist, "
+        "and each result still reports its own calibration status from the native matcher.",
     ),
     (
         "`structural_envelope`",
@@ -417,10 +422,23 @@ def entry_text(rec: dict, present: set[str]) -> str:
         f"- Guarantee: {guarantee_text(rec)}.",
         f"- Bounds: {numeric_bounds(rec)}.",
     ]
-    if pending:
+    if pending and supported_uncertainty(rec):
         lines.append(
-            "- Interval: withheld. The interval route is closed (`not_supported`) until its "
-            "coverage records are measured; the result is the point only."
+            "- Interval: returned without a coverage claim. No measured coverage record backs "
+            "it, so its calibration status is `not_measured`; the claim is the point."
+        )
+    elif pending and not closed_uncertainty(rec):
+        lines.append(
+            "- Interval: no measured coverage record backs an interval here, so no coverage "
+            "claim is made; the claim is the point."
+        )
+    elif claim == "calibrated":
+        count = len(rec.get("coverage_records") or [])
+        lines.append(
+            f"- Interval: a statistical interval backed by {count} measured coverage "
+            f"record{'' if count == 1 else 's'}. Each result reports its calibration status "
+            "from the native matcher (`calibrated`, `outside_measured_scope`, "
+            "`measured_below_nominal` or `not_measured`); the interval is never withheld."
         )
     elif closed_uncertainty(rec):
         codes = ", ".join(
@@ -669,17 +687,23 @@ def self_test() -> int:
         if not ok:
             failures.append(f"{name}: {detail}" if detail else name)
 
-    withheld = _rec("a1", "calibrated", ["cov.a1"])
-    body = entry_text(withheld, set())
+    unmeasured = _rec("a1", "calibrated", ["cov.a1"])
+    body = entry_text(unmeasured, set())
     need(
-        "coverage absent is point_only", "Claim: `point_only`" in body and "withheld" in body, body
+        "coverage absent is point_only and not_measured",
+        "Claim: `point_only`" in body and "`not_measured`" in body and "withheld" not in body,
+        body,
     )
     need(
         "coverage absent does not say calibrated",
-        "calibrated" not in body.lower() or "Claim: `point_only`" in body,
+        "Claim: `calibrated`" not in body,
     )
-    covered = entry_text(withheld, {"cov.a1"})
-    need("coverage present is calibrated", "Claim: `calibrated`" in covered, covered)
+    covered = entry_text(unmeasured, {"cov.a1"})
+    need(
+        "coverage present is calibrated per request",
+        "Claim: `calibrated`" in covered and "never withheld" in covered,
+        covered,
+    )
     closed = entry_text(_rec("a1", "calibrated", ["cov.a1"], closed=True), {"cov.a1"})
     need(
         "closed interval stays point_only",
