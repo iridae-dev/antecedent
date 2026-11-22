@@ -49,7 +49,7 @@ def supported_table(lines: list[str]) -> str:
     rows = ["| Version | Supported |", "|---------|-----------|"]
     for line in lines:
         rows.append(f"| {line}.x   | Yes |")
-    rows.append("| < 2.0   | No — upgrade to the latest release |")
+    rows.append(f"| < {lines[-1]}   | No — upgrade to the latest release |")
     return "\n".join(rows)
 
 
@@ -108,14 +108,15 @@ def release_lines_for(version: str, lines: list[str]) -> list[str]:
     minor = major_minor(version)
     if minor in lines:
         return list(lines)
-    return [minor, *lines]
+    # Fixes are not backported, so a new minor line replaces the earlier ones.
+    return [minor]
 
 
 def apply_release_snippets(root: Path, version: str, edits: dict[Path, str]) -> None:
     """Fill `edits` with generated release snippets for `version`.
 
-    `supported_lines` gains the new minor when it is absent. Callers compare or write `edits`; this function does not
-    touch the tree.
+    `supported_lines` becomes the new minor alone when it is absent, since fixes are not backported.
+    Callers compare or write `edits`; this function does not touch the tree.
     """
     release_path = root / "parity" / "release.toml"
     text, lines = load_release(root)
