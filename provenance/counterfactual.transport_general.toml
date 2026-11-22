@@ -83,4 +83,4 @@ sha256 = "ec40249eda1894fa3c3790b69bd1909e4f16175ddb4dfcd96cd0c596897f89e1"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-identify/tests/support/finite_scm_oracle.rs"
-sha256 = "cb2177d36cc213358f815a8310d75e4b0dde01e6d0f47c7176c79547f9992442"
+sha256 = "47aa369169afe507f5fc0de0da3b3151e451212a380a11240930819bd171fd21"

@@ -8,7 +8,7 @@
 //! counterfactual is computed by enumerating every exogenous state and solving
 //! each world in topological order. Nothing here uses the identification code.
 //!
-// SPDX-License-Identifier: MIT OR Apache-2.0
+//! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
     clippy::cast_possible_truncation,

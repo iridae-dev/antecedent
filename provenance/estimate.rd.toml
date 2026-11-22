@@ -66,4 +66,4 @@ sha256 = "5396584f1d89de1a47dbc338ab0ba902cb56dd9d6a48eb7f208f3f9371e069c3"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/table_support.rs"
-sha256 = "b1ea24c5e276526e60ac330f732477945909496ff3d03ecf38f12f50f61eafbc"
+sha256 = "7cf317d09c3d445a967d230aa5f07970663297a461534e0909c6fa59edb001e7"

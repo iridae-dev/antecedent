@@ -104,7 +104,7 @@
     {
       "role": "comparison_helper",
       "path": "crates/antecedent-identify/src/oracle_dot.rs",
-      "sha256": "a3932fd7f9f34173c58139600239151663601408300b8896213fbc45c5ab33e3"
+      "sha256": "51dcad6852d1a6a02c2b49545c192fb4e33c62ee33de018c3180b3a615438de0"
     }
   ],
   "fixture_payload_sha256": "7de80418133f85f649dc59608d0e8164559a1128231d3a3d67b48e608f1fb97c"
