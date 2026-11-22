@@ -303,6 +303,15 @@ jobs:
       - name: Dry-run publish of every crate
         run: bash scripts/publish_crates.sh --dry-run
 
+      - name: Retain the support data in the verified crate packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-crate-support
+          path: |
+            crates/antecedent/data/support_matrix.json
+            crates/antecedent-io-core/data/unit_support_status.json
+          if-no-files-found: error
+
   # Uploaded only after PyPI accepted the wheels; the `release` environment carries the
   # required reviewer and tag-only deployment rule, as for PyPI.
   publish-crates:
@@ -317,6 +326,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -338,8 +348,11 @@ jobs:
             exit 1
           fi
 
-      - name: Embed release support status
-        run: python3 scripts/generate_support_matrix_docs.py --release
+      - name: Restore the support data verified by the crate dry run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-crate-support
+          path: crates
 
       - name: Publish crates
         env:

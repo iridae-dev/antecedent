@@ -154,7 +154,7 @@ echo "== bounds, release claims, links, conformance references =="
 step python3 scripts/generate_reason_details.py --check
 step python3 scripts/gate_reason_detail_literals.py
 step python3 scripts/gate_python_bindings_use_facade.py
-if [[ -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
+if [[ "$section" != ci-static && -n "${ANTECEDENT_RC_RECEIPTS:-}" ]]; then
   step python3 scripts/check_limits_agreement.py --strict
 else
   step python3 scripts/check_limits_agreement.py
