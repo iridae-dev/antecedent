@@ -470,6 +470,10 @@ pub fn calibration_slot_in(
 /// matching record that fails `attests` is `outside_measured_scope` with
 /// [`RECORD_NOT_ATTESTING`].
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the construction, level, identification and boundary checks run in one order"
+)]
 pub fn calibration_slot_with(
     basis: &CalibrationBasisWire,
     records: &[CoverageRecord],

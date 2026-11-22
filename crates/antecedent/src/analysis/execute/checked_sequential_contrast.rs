@@ -149,6 +149,10 @@ impl CheckedSequentialContrastOperation {
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fit, uncertainty and result assembly of one checked contrast stay together"
+    )]
     pub(crate) fn execute(
         &self,
         data: &TabularData,

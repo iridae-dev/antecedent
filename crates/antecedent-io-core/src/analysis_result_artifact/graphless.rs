@@ -154,6 +154,10 @@ const SEQUENTIAL_CONTRAST_POSTERIOR: &str = "modular_bayesian_bootstrap_posterio
     clippy::float_cmp,
     reason = "the declared floor is carried through the artifact unchanged, so equality is the check"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one recomputation checks every reported field of the contrast in order"
+)]
 pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {

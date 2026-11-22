@@ -1,3 +1,0 @@
-# Lint configuration read by clippy only; no build reads it, so evidence bindings are unaffected.
-# Functions up to 150 lines pass; longer ones still need a reasoned allow.
-too-many-lines-threshold = 150
