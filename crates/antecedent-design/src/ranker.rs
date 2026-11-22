@@ -1075,7 +1075,7 @@ mod tests {
         .expect("graphs")
     }
 
-    /// MM-012: a mismatched soft observation can raise posterior entropy; the draw
+    /// A mismatched soft observation can raise posterior entropy; the draw
     /// must keep the signed reduction rather than clipping at zero.
     #[test]
     fn entropy_channel_preserves_all_graph_key_bits() {
@@ -1470,7 +1470,7 @@ mod tests {
 
     #[test]
     fn eig_is_nonnegative_and_measure_beats_weak_sampling() {
-        // Individual draws may be negative (MM-012); the expectation may not.
+        // Individual draws may be negative; the expectation may not.
         let graphs = toy_graphs();
         let channel = EntropyChannel::new(&graphs, None).expect("channel");
         let measure = CandidateDesign::Measure(MeasurementPlan {

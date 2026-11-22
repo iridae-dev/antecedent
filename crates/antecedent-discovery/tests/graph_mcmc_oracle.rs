@@ -110,7 +110,7 @@ fn max_error(actual: &BTreeMap<String, f64>, target: &BTreeMap<String, f64>) -> 
 
 #[test]
 fn graph_mcmc_marginals_against_exact_exhaustive_targets() {
-    // MM-011: Order MCMC subtracts log|#topo orders| so edge marginals match the
+    // Order MCMC subtracts log|#topo orders| so edge marginals match the
     // exhaustive uniform-DAG Gaussian-BIC target (Structure MCMC already did).
     let fixture = fixture();
     let (chains, warmup, draws, thin) = schedule(&fixture);

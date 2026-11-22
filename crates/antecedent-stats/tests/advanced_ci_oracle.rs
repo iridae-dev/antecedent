@@ -96,7 +96,7 @@ fn symbolic_cmi_matches_tigramite_statistics_and_decisions() {
 
 #[test]
 fn gpdc_matches_oracle_decisions_after_stable_residualization() {
-    // MM-008: after centered Cholesky residualization, conditional nulls stay
+    // After centered Cholesky residualization, conditional nulls stay
     // above α=0.05 and the two-conditioner alternative rejects below it.
     let fixture = fixture();
     let cases = fixture["gpdc_cases"].as_array().unwrap();

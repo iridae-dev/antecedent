@@ -112,7 +112,7 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     assert!((coefficients[2] - unpen_intercept).abs() <= tolerance);
     assert!((coefficients[3] - unpen_slope).abs() <= tolerance);
 
-    // MM-014: EB λ must shrink the slope on non-separated data via always-on ridge,
+    // EB λ must shrink the slope on non-separated data via always-on ridge,
     // not only as a separation fallback.
     let hierarchical = chain_model(&data, MechanismFamily::HierarchicalGlm);
     let MechanismSlot::Discrete { logit_coeffs: Some(coefficients), .. } =

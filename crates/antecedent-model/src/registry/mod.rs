@@ -1322,7 +1322,7 @@ mod tests {
 
     /// The GP hyperparameters are the exact-Cholesky NLML argmin over the data-scaled
     /// grid, checked against a frozen `SciPy` oracle (`conformance/gcm/gaussian_process`).
-    /// The diagonal-proxy determinant the old code used (MM-015) picks a different cell.
+    /// The diagonal-proxy determinant the old code used picks a different cell.
     #[cfg(feature = "gaussian-process")]
     #[test]
     fn gaussian_process_matches_exact_logdet_oracle() {

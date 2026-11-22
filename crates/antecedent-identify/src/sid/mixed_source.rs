@@ -91,7 +91,7 @@
 //! marginals is never a leaf: a second, relaxed pass reports the exact leaf that
 //! would need the joint.
 //!
-//! The A6.1 catalog descriptor ([`antecedent_core::CatalogDistribution`]) is the
+//! The catalog descriptor ([`antecedent_core::CatalogDistribution`]) is the
 //! one place the input classification reads a regime's origin, selection, kind,
 //! measured set, interventions and levels, availability, identity, study and
 //! snapshot. The pairwise `shared_data` relation is not consulted here: this

@@ -93,8 +93,7 @@ pub(crate) fn gp_grid(parents: &[&[f64]], y: &[f64]) -> Result<GpGrid, ModelErro
 ///
 /// For each `(ℓ, σ)` cell of [`gp_grid`], form `K = k_RBF + σ²I`, factor once with
 /// [`cholesky_spd`], reuse that factor for both `log|K|` ([`chol_log_det`]) and
-/// `α = K⁻¹(y − ȳ)` ([`chol_solve`]). Do not proxy the determinant by `Σ log Kᵢᵢ`
-/// (MM-015).
+/// `α = K⁻¹(y − ȳ)` ([`chol_solve`]). Do not proxy the determinant by `Σ log Kᵢᵢ`.
 pub(super) fn fit_gaussian_process(
     frame: &FitFrame<'_>,
     y: &[f64],
