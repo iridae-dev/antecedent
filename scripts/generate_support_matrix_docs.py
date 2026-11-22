@@ -355,20 +355,6 @@ A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
 supported. A cell is exactly one of supported / n/a / not supported.
 
-## Python graph-input compatibility
-
-Coordinates describe the graph used by the compiled program, not merely the
-Python input object's class. On derivative, mediation, counterfactual,
-path-specific and interventional-distribution routes, the existing Python
-compatibility adapter converts a **fully oriented CPDAG** to its unique DAG.
-The prepared/result report therefore names a `Dag` coordinate (and retains
-`accepted` when the input was accepted). These calls exercise the supported DAG
-cell; they do not support CPDAG class execution. An incomplete CPDAG refuses
-with an orientation/undirected-edge reason. Callers can make the normalization
-explicit with `cpdag.try_into_dag()`. Class-aware ATE/CATE, `ResponseCurve`, and
-`InterventionResponse` routes retain their CPDAG coordinates. No unresolved
-edge is silently oriented.
-
 ## Axes
 
 **Queries** (root `__all__`):
