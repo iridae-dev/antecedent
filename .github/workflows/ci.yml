@@ -931,19 +931,19 @@ jobs:
             python: "3.14"
             target: aarch64
             manylinux: auto
-          - os: macos-14
+          - os: macos-latest
             python: "3.11"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.12"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.13"
             target: aarch64
             manylinux: ""
-          - os: macos-14
+          - os: macos-latest
             python: "3.14"
             target: aarch64
             manylinux: ""

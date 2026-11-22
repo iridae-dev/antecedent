@@ -721,7 +721,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   `cited-tests`, `benches`, `deny`, `development`, `python-lint`, `scientific`,
   `python-wheels`); a run reports display names instead, one per matrix
   combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
-  "Rust macos-latest facade", "Wheel macos-14 py3.12"). The Rust facade
+  "Rust macos-latest facade", "Wheel macos-latest py3.12"). The Rust facade
   and remaining-workspace suites are both required on Ubuntu and macOS;
   together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix

@@ -25,7 +25,7 @@
 #   bash scripts/gate_release_candidate.sh --self-test
 #
 # Job ids are workflow keys; `gh run view --json jobs` reports display names
-# ("Rust ubuntu-latest", "Wheel macos-14 py3.12"). scripts/ci_workflow.py
+# ("Rust ubuntu-latest", "Wheel macos-latest py3.12"). scripts/ci_workflow.py
 # parses ci.yml as YAML and owns that mapping, including matrix expansion.
 #
 # The multi-platform wheel matrix remains CI (`python-wheels` in ci.yml);
