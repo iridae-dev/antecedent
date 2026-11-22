@@ -205,31 +205,6 @@ inputs = ["crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.
 [[review]]
 reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
 basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
-
-[[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"adjusted_recalc_precision: adjusted_ols_retained_covariance_precision" = "efdeea5b6df9edd1894506a9bd988bc19bb4c2a98d8937f4220db7c1b720bd37"
-"learner_ate_known_truth: coverage" = "0705c57bc44c8e75cf145a0dfa43fcafbfdf7c071f253e0f28f51604bf0a1b03"
-
-[[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-estimate: bayesian_panel_hierarchical_nominal_90_coverage" = "1726ce30601e143043063df171145db936f351722f858cb2a67ee8bed41ce914"
-"antecedent-estimate: bayesian_pulse_conjugate_nominal_90_coverage" = "5546344fd1c3c456fc2f127272c1c273f57217624ebc281c7502ac3b017ddcd4"
-"antecedent-estimate: bayesian_sustained_multi_step_conjugate_nominal_90_coverage" = "6763f05228fba85b007a26f51118b19913e4793d56e16c022feabf4d097c55c4"
-"antecedent-estimate: bayesian_sustained_single_step_conjugate_nominal_90_coverage" = "c2acb07c09e00875bd8b01eb09add4f608058b5d81ab405a40d49d618a8d4907"
-
-[[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
 inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "antecedent-validate: bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform" = "a209f75d72c88cd0844d174ac78ab749c43110ef8d49d18a01dee2fec6fdb920"
@@ -237,7 +212,48 @@ inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "c
 [[review]]
 reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
 basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
+"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
+
+[[review]]
+reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
+basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"effect_constancy_calibration: known_gaussian_null_power_and_holm" = "240f409ed4d06a7a6f0cc548989984644148edc0cb43046602a26ed64f4862ff"
+
+
+[[review]]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/missing_policy_support.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"knn_matching_calibration: knn_matching_interval_ci_coverage" = "8b01f3f20ce50b8606e80dd21b2174a6aacb9629eb1fa735f335e0c5573980ca"
+
+[[review]]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/data_diagnostics/basic/fixture.json", "conformance/estimate/learner_ate/fixture.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/response/observation_primitives/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/identity.toml", "parity/missing_policy_support.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"adjusted_recalc_precision: adjusted_ols_retained_covariance_precision" = "efdeea5b6df9edd1894506a9bd988bc19bb4c2a98d8937f4220db7c1b720bd37"
+"learner_ate_known_truth: coverage" = "0705c57bc44c8e75cf145a0dfa43fcafbfdf7c071f253e0f28f51604bf0a1b03"
+
+[[review]]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/estimate/panel_hierarchical_vs_stacked/expected.json", "conformance/estimate/temporal_adjustment/expected.json", "conformance/identify/general_id_backdoor_chain/expected.json", "conformance/validate/bayesian_checks/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+[review.receipts]
+"antecedent-estimate: bayesian_panel_hierarchical_nominal_90_coverage" = "1726ce30601e143043063df171145db936f351722f858cb2a67ee8bed41ce914"
+"antecedent-estimate: bayesian_pulse_conjugate_nominal_90_coverage" = "5546344fd1c3c456fc2f127272c1c273f57217624ebc281c7502ac3b017ddcd4"
+"antecedent-estimate: bayesian_sustained_multi_step_conjugate_nominal_90_coverage" = "6763f05228fba85b007a26f51118b19913e4793d56e16c022feabf4d097c55c4"
+"antecedent-estimate: bayesian_sustained_single_step_conjugate_nominal_90_coverage" = "c2acb07c09e00875bd8b01eb09add4f608058b5d81ab405a40d49d618a8d4907"
+
+[[review]]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adaptive_inference_calibration: anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95" = "f9def46e792c2f879d1dea21094236bd0e592056c66f3e4db623ea2958120d80"
 "adaptive_inference_calibration: group_sequential_overall_type_one_error_is_alpha" = "de405e605e331030d21a4da0cf33d4141bdee20997022b20a45d19f56eaa9bd7"
@@ -260,18 +276,18 @@ inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/anteced
 "scenario_covariance_calibration: shared_row_mean_covariance_precision" = "49145f94ce175d24f69627732e5cbe0bd24b5d0ef921cf8cbdc3d4f5c6a77246"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/response/conditional_ipcw/expected.json", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "choice_inference_calibration: hierarchical_study_value_matches_importance_sampling" = "78393c3d7dbf0edf2c3d0921f75abc917524ca0f03f971f4a86f676a89133be7"
 "evsi_precision_calibration: evsi_fixed_rank_selection_and_tie_precision" = "b35971b913c7f03a213f243ffb976a2ab641da62d99c722b00d073e4a9d07819"
 "evsi_precision_calibration: paired_crn_adaptive_rank_selection_precision" = "83091cb89e65a4a86df08bc7bea2b4b31ae91bc132e40b302de15c65ec864fb9"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["conformance/response/trial_transport/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["conformance/response/trial_transport/expected.json", "crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "learned_continuous_calibration: learned_trial_aipw_misspecified_nuisance_cases" = "2eb3398386433d96bfc16d1d5238189094af734bf2572d348ee533dd206e11ab"
 "learned_continuous_calibration: learned_trial_aipw_weak_overlap_boundary" = "0713ffce0fc04aa02b97c5ed01e3efad680c2ecac8a7eb2fc61a2a96fb60f5a5"
@@ -279,9 +295,9 @@ inputs = ["conformance/response/trial_transport/expected.json", "crates/antecede
 "smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent-io-core/src/graphless_support.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/src/support/gate.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "71b6b5cff4a1e62899a725f46067a35b7cb12557babbb286def3d9897664c1ab"
 "bayesian_basis_prior_precision: mapped_native_source_prior_adapter_summary_precision" = "a8321587dc1296b6d74333afdc79341df596929a754153ccf5cedfd813104b26"
@@ -307,26 +323,18 @@ inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/t
 "temporal_class_calibration: frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion" = "3ce31cd51ffe7d8c7be2b355b3697d075ff51c6a2cbe7f2594a92849cd452798"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-stats/src/matching.rs", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"antecedent-validate: nonparametric_sensitivity_beyond_20k_100000_rows" = "eb9915d3e6c4a5421f090654ac9c179b7a29046d9eef32d53dc85f06be9f7c51"
-"antecedent-validate: scalable_sensitivity_replacement_validated_separately" = "a20921062fa441b161e7227bdccd1f8d24d9be1360caf4903a09ba50577225ab"
-
-[[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "parity/polars_decision/decision.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "antecedent-estimate: iv_2sls_hc1_heteroskedastic_ci_coverage" = "d0a20718609113d7bf5ed3cb80289e434263532e73ee934813cccb119fe08401"
 "antecedent-estimate: rd_sharp_hc1_curved_heterogeneous_probe" = "e0398292183f304a0a6e42d21f98e6945a01168e2771b0796230b4f4e1919e6c"
 "antecedent-estimate: wald_iv_hc1_ci_coverage" = "ddaa251b66a311ee2ad19137120366ab34ff95ab6e433efe727b63b7a0c875ea"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "antecedent: analysis::execute::block_length_tests::shared_block_length_sensitivity" = "c1da2c975935d05b74b1b5b232ae3c27df0d1e090d129349cf657adcbba153d3"
 "conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage" = "f391072e27cbd571d69031b66aec03d4e44d75c05f953351019ae2e180d754da"
@@ -349,16 +357,9 @@ inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/t
 "treatment_inference_calibration: vector_full_fit_homoskedastic" = "6620cf73d5035e4937601d859a92de8efa61a4e70e741a7faacc8c7e4fd75215"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
-[review.receipts]
-"effect_constancy_calibration: known_gaussian_null_power_and_holm" = "240f409ed4d06a7a6f0cc548989984644148edc0cb43046602a26ed64f4862ff"
-
-[[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "c74b9b5d52e317f83eaa57046078b56786679b9f6a62b201fdc75769c2409bf3"
 "evsi_precision_calibration: evsi_monte_carlo_score_error_and_net_value_precision" = "ebb80bbae6c72d6279e69eab24b4ab0000fa001aacb4684ed3ed68622088daf5"
@@ -366,9 +367,9 @@ inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antece
 "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice" = "db841b82e5b5e9c77790a9c7847a11428e758a935fc64e7b191b0b2ed11291ea"
 
 [[review]]
-reviewed_at = "fe88b7c248f28bf518f66f86a9dee28799c45889"
-basis = "Only integration-test target declarations and suite inventories changed among the reviewed gate inputs. Each recorded gate retains its target, exact test selection, features, source and acceptance rule. Replayed the original grid decisions against the current policy."
-inputs = ["crates/antecedent/Cargo.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
+reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+inputs = ["crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "decision_reliability_calibration: winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased" = "cecf8c085fc52749f8f74a3a78e6fb11d151108d97e3a6dd34aa850766d1f4d7"
 "refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target" = "80bb6640b735972cb3572b1af23b55bb24bfec1d9d218d33b64f82d5a6d4f8d0"
