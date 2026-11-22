@@ -4,7 +4,14 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
 description = "Optional Burn neural-net provider for antecedent-learn; emits Vec<f64> predictions"
+readme = "README.md"
 
 [lints]
 workspace = true
