@@ -229,7 +229,13 @@ def check(document):
         derived = derive(name)
         for key in ("clean", "planted"):
             for column, values in derived[key].items():
-                if table[key][column] != values:
+                # sin and cos round differently across platform math libraries; the stored
+                # table is the fixture's input, and the formula must agree with it to 1e-12.
+                stored = table[key][column]
+                if len(stored) != len(values) or not all(
+                    math.isclose(a, b, rel_tol=0.0, abs_tol=1e-12)
+                    for a, b in zip(stored, values, strict=True)
+                ):
                     problems.append(f"{name}.{key}.{column}: the stored table differs from the stated formula")
         got, want = derived["derived"], table["derived"]
         for key, value in got.items():

@@ -43,7 +43,7 @@ sha256 = "ac38a636c37c0537de609f6e5dbeb89224c0ef06d9e95b99f14062cff8b5e178"
 role = "assertion"
 path = "crates/antecedent-validate/tests/static_mediation_reference.rs"
 items = ["const PLACEBO", "const RCC", "const REPS", "const SEED", "const SUBSET", "fn build", "fn check", "fn contrast", "fn emit", "fn floats", "fn frozen_perturbations_are_the_library_streams", "fn noise", "fn perturbations", "fn query", "fn reference", "fn same", "fn suite_equals_the_exact_reference"]
-sha256 = "507e3fad2d5b807c240bd9d7360ac601bff94afd4a119fa77683245a6e3ba350"
+sha256 = "5fa5b3d7d625e09b7b625c6911b409955e1e31a15a4b0a309986a26fca4c2e33"
 
 [[method_review.artifacts]]
 role = "reference"

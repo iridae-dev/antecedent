@@ -401,7 +401,45 @@ fn committed_requests_match_their_generator() {
         let dir = fixture_root().join(name);
         let committed =
             read_fixture_bytes(&dir, "request.json", &format!("generate it with `{GENERATOR}`"));
-        let committed: CyclicFamilyRequest = serde_json::from_slice(&committed).unwrap();
-        assert_eq!(committed, request, "{name}: regenerate with `{GENERATOR}`");
+        let committed: serde_json::Value = serde_json::from_slice(&committed).unwrap();
+        let generated = serde_json::to_value(&request).unwrap();
+        assert_json_close(&committed, &generated, name, &format!("regenerate with `{GENERATOR}`"));
+    }
+}
+
+/// Structural equality with floats compared to 1e-12 relative. The generators draw their
+/// data through the platform's `ln` and `cos`, whose last bits differ between math
+/// libraries; the committed request is the canonical input, and a regenerated one must
+/// agree with it to that precision.
+fn assert_json_close(
+    committed: &serde_json::Value,
+    generated: &serde_json::Value,
+    at: &str,
+    hint: &str,
+) {
+    use serde_json::Value;
+    match (committed, generated) {
+        (Value::Number(a), Value::Number(b)) if a.is_f64() || b.is_f64() => {
+            let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
+            let scale = a.abs().max(b.abs()).max(1.0);
+            assert!((a - b).abs() <= 1e-12 * scale, "{at}: {a} differs from {b}; {hint}");
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            assert_eq!(a.len(), b.len(), "{at}: length differs; {hint}");
+            for (index, (a, b)) in a.iter().zip(b).enumerate() {
+                assert_json_close(a, b, &format!("{at}[{index}]"), hint);
+            }
+        }
+        (Value::Object(a), Value::Object(b)) => {
+            assert_eq!(
+                a.keys().collect::<Vec<_>>(),
+                b.keys().collect::<Vec<_>>(),
+                "{at}: fields differ; {hint}"
+            );
+            for (key, a) in a {
+                assert_json_close(a, &b[key], &format!("{at}.{key}"), hint);
+            }
+        }
+        (a, b) => assert_eq!(a, b, "{at}: {hint}"),
     }
 }

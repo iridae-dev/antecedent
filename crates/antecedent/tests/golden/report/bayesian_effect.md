@@ -9,7 +9,7 @@
 - **Estimator:** bayesian.gcomp
 - **Route:** StaticAteDag
 - **Claim kind:** point
-- **Value:** 2.0322712926
+- **Value:** 1.99436203012
 - **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
@@ -19,9 +19,9 @@
 
 ## Claim
 
-- **Claim id:** b559df8d7bb88a583a09d702e11c55ac31753ebf05facf3349e4ad818b009d42
+- **Claim id:** d67c7881fa67e35bbec56318619e5ebb7abeea9f39cd2153ebe098f919f87124
 - **Kind:** point
-- **Value:** 2.0322712926
+- **Value:** 1.99436203012
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
@@ -64,9 +64,9 @@
 
 ### Evidence the claim references
 
-- snapshot:439cb7aac1ca19021c183e342c677bda79e74a23a234acb023f0347ad1007c5d
-- identification:90c1dcd8dfb83272abc040fe94c2dca6453ecf272596a99488135c410a9c0f8b
-- program:a69cdf07862250de813155a83fa0ab68813df14b3592e0a1f56773b20e749acc
+- snapshot:4ea14fd02c576d9af4d7d1f75c25dbe0a614273bdfd6d164d4625ebdd000abb8
+- identification:c6d909e9ff3b13ffb992906dede96d440f43ca82ee8b1deec9a23c7069e928c6
+- program:0b6427289c4e01fcc66e15d8d4ee6de8170b9953924ccaca118d87ec2ca16380
 
 ## Uncertainty
 
@@ -308,13 +308,13 @@ This report restates the contract. It computes no estimate, grants no support, a
 
 ## Identities
 
-- **Target:** 0e8cc7ffd6ab51ac2162a8525997413b0b2885693570d5b847b4bcaefe2cab28
-- **Identification:** 90c1dcd8dfb83272abc040fe94c2dca6453ecf272596a99488135c410a9c0f8b
+- **Target:** 4191b15a90102d684a46e203b41d22015a7f8dbbcf3217bae22f46c607ca315a
+- **Identification:** c6d909e9ff3b13ffb992906dede96d440f43ca82ee8b1deec9a23c7069e928c6
 - **Identification product:** 7f3a931cd7364b9acaefd685b977f177b064987a2153b15ba9e4ba49434f4d79
-- **Program:** a69cdf07862250de813155a83fa0ab68813df14b3592e0a1f56773b20e749acc
+- **Program:** 0b6427289c4e01fcc66e15d8d4ee6de8170b9953924ccaca118d87ec2ca16380
 - **Inference binding:** 4aa359cfcc5437f528593e35dd4d50c367102d8e2a94e421c9b85051287a157e
-- **Observation:** 55d73a79374fd7a00313b8db3294dd7d0beb9db0a71fcb319640b2bf15e67131
-- **Data snapshot:** 439cb7aac1ca19021c183e342c677bda79e74a23a234acb023f0347ad1007c5d
+- **Observation:** 3b529d1e0fdc0de92a0de9213d1320e0b655fc151538998bdc3ae60e70be5e18
+- **Data snapshot:** 4ea14fd02c576d9af4d7d1f75c25dbe0a614273bdfd6d164d4625ebdd000abb8
 - **Score reuse:** none
 - **Target weights:** none
 

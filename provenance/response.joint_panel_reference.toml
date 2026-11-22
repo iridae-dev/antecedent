@@ -38,4 +38,4 @@ sha256 = "5f66cd12ebe888a91397dcad7d4207203d9be180f4bdfa3d07eb60290ca912a7"
 role = "assertion"
 path = "scripts/test_joint_panel_reference.py"
 items = ["const HERE", "const ROOT", "const SPEC", "const reference", "fn test_confounded_design_has_no_off_diagonal_support_and_requires_withholding", "fn test_generator_has_no_production_or_external_numerical_imports", "fn test_heldout_joint_program_is_not_an_observed_training_trajectory", "fn test_observed_outcomes_keep_declared_ar_errors_and_finite_lags", "fn test_seed_and_all_retained_artifacts_reproduce", "fn test_steady_state_interaction_has_an_independent_closed_form", "fn test_transient_contrast_respects_shared_initial_history", "fn test_truth_comparison_preserves_metadata_shapes_and_rejects_numeric_drift", "fn test_whole_program_experiment_retains_its_actual_independent_assignment"]
-sha256 = "ad505f6165cb22274ea91e08b84bbec9309c9c3cb53657c05b80fe9d1eecf0fc"
+sha256 = "189daa1f30d4955c918b223ebe643119f3517e12562b132a41739157da2545e7"

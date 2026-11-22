@@ -26,6 +26,9 @@ use antecedent_estimate::TemporalMediationEstimator;
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
+
 fn mediated(n: usize) -> (TimeSeriesData, MediationQuery, IdentifiedEstimand) {
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
@@ -136,10 +139,9 @@ fn bench_mediation(c: &mut Criterion) {
         let r = est.estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1)).unwrap();
         let elapsed = t0.elapsed();
         assert!(r.mediated.is_some());
-        assert!(
-            elapsed < SPARSE_BUDGET,
-            "mediation_sparse_200 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}"
-        );
+        soft_budget::check(elapsed < SPARSE_BUDGET, || {
+            format!("mediation_sparse_200 exceeded soft budget: {elapsed:?} >= {SPARSE_BUDGET:?}")
+        });
     }
     {
         let (data, q, estimand) = mediated(800);
@@ -147,10 +149,9 @@ fn bench_mediation(c: &mut Criterion) {
         let r = est.estimate(&data, &estimand, &q, &ExecutionContext::for_tests(2)).unwrap();
         let elapsed = t0.elapsed();
         assert!(r.total.is_some());
-        assert!(
-            elapsed < STRESS_BUDGET,
-            "mediation_stress_800 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}"
-        );
+        soft_budget::check(elapsed < STRESS_BUDGET, || {
+            format!("mediation_stress_800 exceeded soft budget: {elapsed:?} >= {STRESS_BUDGET:?}")
+        });
     }
 }
 

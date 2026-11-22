@@ -17,6 +17,9 @@ use antecedent_attribution::{Coalition, CoalitionPayoff, estimate_shapley};
 use antecedent_core::{CachePolicy, ComponentId, ExecutionContext, Parallelism, ShapleyConfig};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
+
 struct AdditivePayoff {
     weights: Vec<f64>,
 }
@@ -67,11 +70,15 @@ fn shapley_benches(c: &mut Criterion) {
     let t0 = Instant::now();
     run_mc(8, 200, true);
     let elapsed = t0.elapsed();
-    assert!(elapsed < Duration::from_millis(500), "shapley_mc_8p_200_cached took {elapsed:?}");
+    soft_budget::check(elapsed < Duration::from_millis(500), || {
+        format!("shapley_mc_8p_200_cached took {elapsed:?}")
+    });
     let t0 = Instant::now();
     run_exact_10p();
     let elapsed = t0.elapsed();
-    assert!(elapsed < Duration::from_millis(200), "shapley_exact_10p_cached took {elapsed:?}");
+    soft_budget::check(elapsed < Duration::from_millis(200), || {
+        format!("shapley_exact_10p_cached took {elapsed:?}")
+    });
 }
 
 fn run_exact_10p() {

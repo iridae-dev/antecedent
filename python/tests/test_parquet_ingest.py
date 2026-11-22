@@ -227,7 +227,10 @@ def test_paths_that_are_not_tables_are_refused():
     with pytest.raises(CausalValueError) as refused:
         _analyze("rows.csv")
     assert refused.value.reason_code == "invalid_argument"
-    with pytest.raises(CausalDataError, match=r"No\ such\ file\ or\ directory"):
+    # The operating system words the missing file differently; its error number is portable.
+    with pytest.raises(
+        CausalDataError, match=r"cannot read does-not-exist\.parquet: .*\(os error 2\)"
+    ):
         ant.data.from_parquet("does-not-exist.parquet")
 
 

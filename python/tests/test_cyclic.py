@@ -2302,17 +2302,47 @@ def _committed_fixtures() -> Path:
     return root
 
 
-def _replay_committed(tmp_path: Path, name: str) -> dict:
+# Normal draws are Box-Muller transforms through the platform's `ln` and `cos`, which differ in
+# the last bit between math libraries; the committed fixtures come from Apple's. A record that
+# carries such draws replays bit for bit only there, and elsewhere the consumer must refuse it as
+# a replay mismatch rather than accept different bits.
+_PRODUCER_MATH_LIBRARY = sys.platform == "darwin"
+
+
+def _replay_program(name: str) -> str:
     directory = _committed_fixtures() / name
     identity = json.loads((directory / "expected-identity.json").read_text(encoding="utf-8"))
-    replayed = _fresh_replay(
-        tmp_path,
+    return (
         "from antecedent.outcomes import require_success; import json,pathlib; from antecedent.cyclic import consume_family_artifact; "
         + f"p=pathlib.Path({str(directory)!r}); "
         + "r=require_success(consume_family_artifact((p/'family.ant').read_bytes(),"
         + f"expected_identity={identity['identity']!r})); "
-        + "print(json.dumps(r.to_dict()))",
+        + "print(json.dumps(r.to_dict()))"
     )
+
+
+def _refused_under_another_math_library(tmp_path: Path, name: str) -> bool:
+    """Whether a fresh consumer on a platform other than the producer's refused the record,
+    which it may do only as a replay mismatch."""
+    if _PRODUCER_MATH_LIBRARY:
+        return False
+    completed = subprocess.run(
+        [sys.executable, "-c", _replay_program(name)],
+        cwd=tmp_path,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return False
+    assert "identity/replay mismatch" in completed.stderr, completed.stderr
+    return True
+
+
+def _replay_committed(tmp_path: Path, name: str) -> dict:
+    directory = _committed_fixtures() / name
+    replayed = _fresh_replay(tmp_path, _replay_program(name))
     report = json.loads(replayed)
     legacy_projection = json.loads(replayed)
     if name in ("specified-feedback-pair", "previous-record-format"):
@@ -2334,6 +2364,8 @@ def _replay_committed(tmp_path: Path, name: str) -> dict:
 
 @pytest.mark.parametrize("name", _FIXTURES)
 def test_committed_cyclic_fixture_replays_in_a_fresh_process(tmp_path: Path, name: str) -> None:
+    if _refused_under_another_math_library(tmp_path, name):
+        return
     report = _replay_committed(tmp_path, name)
     manifest = json.loads(
         (_committed_fixtures() / name / "manifest.json").read_text(encoding="utf-8")

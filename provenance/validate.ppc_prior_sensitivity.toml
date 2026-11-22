@@ -72,7 +72,7 @@ sha256 = "79079bb6c034491c8f28b158061c586b6a701e678e71af159fee4b093794d3b6"
 role = "assertion"
 path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
 items = ["const REPLICATE_NOISE", "const SERIAL_PPC", "fn arr", "fn arr2", "fn assert_report", "fn assert_residual", "fn close", "fn ctx", "fn design_json", "fn fit", "fn glm_family", "fn merge", "fn post_check", "fn post_estimator", "fn ppc_prior_sensitivity_posterior_predictive_equals_the_exact_reference", "fn ppc_prior_sensitivity_prior_predictive_equals_the_exact_reference", "fn ppc_prior_sensitivity_prior_predictive_mean_follows_the_exact_law", "fn ppc_prior_sensitivity_replicate_noise_variance_is_the_conjugate_conditional", "fn prior_check", "fn prior_set", "fn problem", "fn reference", "fn regen_post", "fn regen_prior", "fn same"]
-sha256 = "c8431141e729b897daa5de6477584538e84bffab1ed72873775c6233689736fe"
+sha256 = "d1228a88b2011c1d92b516d7c638af422d476876a3a0615d386e7f74a56387e6"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -19,6 +19,9 @@ use antecedent_core::{ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
+
 /// Soft budget for the guarded Interactive cells at n = 20 000 (release build,
 /// Apple M1 Max): a few times the fixed values, and well under what an eager
 /// score scan costs there (the O(n^1.5) scan grows faster than the fit, so the
@@ -159,10 +162,9 @@ fn main() {
                      --test` (or another build with debug_assertions off)"
                 );
             } else {
-                assert!(
-                    !guarded || best < INTERACTIVE_BUDGET,
-                    "{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}"
-                );
+                soft_budget::check(!guarded || best < INTERACTIVE_BUDGET, || {
+                    format!("{cell} exceeded soft budget {INTERACTIVE_BUDGET:?}: {best:?}")
+                });
             }
         }
     }

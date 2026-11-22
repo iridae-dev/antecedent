@@ -189,10 +189,40 @@ fn recovered(
     recovered
 }
 
+/// Whether this platform's math library is the one that produced the committed fixtures.
+///
+/// Normal draws are Box–Muller transforms through the platform's `ln` and `cos`, which
+/// differ in the last bit between math libraries. A record that carries such draws replays
+/// bit for bit only under the library that produced it (the committed fixtures come from
+/// Apple's); elsewhere the consumer must refuse it as a replay mismatch rather than accept
+/// different bits.
+const PRODUCER_MATH_LIBRARY: bool = cfg!(target_os = "macos");
+
+/// [`replay`], or `None` when this platform's math library differs from the producer's and
+/// the consumer refused the record as a replay mismatch.
+fn replay_on_this_math_library(name: &str) -> Option<(CyclicContractWire, CyclicFamilyReport)> {
+    if !PRODUCER_MATH_LIBRARY {
+        let fixture = committed(name);
+        if let Err(error) =
+            consume_cyclic_family_contract(&fixture.bytes, &fixture.identity, &cpu())
+        {
+            assert!(
+                error.to_string().contains("identity/replay mismatch"),
+                "{name}: a record produced under another math library must be refused as a \
+                 replay mismatch, not with: {error}"
+            );
+            return None;
+        }
+    }
+    Some(replay(name))
+}
+
 #[test]
 fn recovered_laws_keep_their_draw_origin_through_an_independent_replay() {
     for (name, draws) in [("recovered-asymptotic-normal", 64), ("recovered-bootstrap", 12)] {
-        let (contract, report) = replay(name);
+        let Some((contract, report)) = replay_on_this_math_library(name) else {
+            continue;
+        };
         let CyclicIdentificationWire::ExperimentalRecovery { unresolved, .. } =
             &contract.identification
         else {

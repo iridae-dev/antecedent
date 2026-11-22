@@ -28,12 +28,24 @@ class JointPanelReference(unittest.TestCase):
 
     def test_seed_and_all_retained_artifacts_reproduce(self):
         for name, generated in reference.artifacts().items():
-            self.assertTrue(
-                reference.matches_artifact(
-                    name, (HERE / name).read_text(encoding="utf-8"), generated
-                ),
-                name,
-            )
+            retained = (HERE / name).read_text(encoding="utf-8")
+            if not name.endswith(".csv"):
+                self.assertTrue(reference.matches_artifact(name, retained, generated), name)
+                continue
+            # The AR(1) errors are `random.gauss` draws, which pass through the platform's `log`
+            # and `cos`; their last bits differ between math libraries, so the regenerated panel
+            # matches cell by cell: text exactly, numbers to the truth tolerance.
+            kept = list(csv.reader(retained.splitlines()))
+            new = list(csv.reader(generated.splitlines()))
+            self.assertEqual([len(row) for row in kept], [len(row) for row in new], name)
+            for row_kept, row_new in zip(kept, new, strict=True):
+                for a, b in zip(row_kept, row_new, strict=True):
+                    try:
+                        x, y = float(a), float(b)
+                    except ValueError:
+                        self.assertEqual(a, b, name)
+                        continue
+                    self.assertLessEqual(abs(x - y), reference.TRUTH_ABSOLUTE_TOLERANCE, name)
         self.assertEqual(self.truth["seed"], 20261021)
 
     def test_truth_comparison_preserves_metadata_shapes_and_rejects_numeric_drift(self):

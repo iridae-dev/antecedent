@@ -75,6 +75,13 @@ fn design(n: usize, p: usize) -> (Vec<f64>, Vec<f64>) {
     (x, y)
 }
 
+/// One solve before any measurement. The dense kernels allocate per-thread state on first use,
+/// sized from the platform's cache description rather than the design and held for the life of
+/// the thread, so it belongs to no solve's footprint.
+fn warm(x: &[f64], n: usize, p: usize, y: &[f64]) {
+    FaerBackend.least_squares_coefficients(x, n, p, y).unwrap();
+}
+
 /// Bytes outside the design copy and scratch that a solve may hold: a handful of
 /// `n`-length vectors (right-hand side, residuals, their copies) and small factors.
 fn vector_allowance(n: usize) -> usize {
@@ -87,6 +94,7 @@ fn solve_paths_hold_one_design_copy_beside_their_scratch() {
     let (n, p) = (16_384usize, 64usize);
     let design_bytes = n * p * size_of::<f64>();
     let (x, y) = design(n, p);
+    warm(&x, n, p, &y);
 
     // Full-rank coefficients.
     let (coefficients, peak, traffic) =
@@ -157,6 +165,7 @@ fn row_scaled_solve_does_not_hold_a_second_design() {
     let (n, p) = (16_384usize, 64usize);
     let design_bytes = n * p * size_of::<f64>();
     let (x, y) = design(n, p);
+    warm(&x, n, p, &y);
     let root: Vec<f64> = (0..n).map(|row| 0.5 + (row % 5) as f64 * 0.1).collect();
     let y_w: Vec<f64> = y.iter().zip(&root).map(|(v, s)| v * s).collect();
 
@@ -198,6 +207,7 @@ fn estimator_families_gather_once_and_hold_one_design() {
     let (n, p) = (16_384usize, 64usize);
     let design_bytes = n * p * size_of::<f64>();
     let (x, y) = design(n, p);
+    warm(&x, n, p, &y);
     let weights: Vec<f64> = (0..n).map(|row| 0.5 + (row % 5) as f64 * 0.1).collect();
     let bound = |traffic: &SolverTraffic, extra_designs: usize| {
         let scratch = usize::try_from(traffic.largest_scratch_bytes).unwrap();

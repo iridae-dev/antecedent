@@ -9,7 +9,7 @@
 - **Estimator:** linear.adjustment.ate
 - **Route:** StaticAteDag
 - **Claim kind:** point
-- **Value:** 1.90592295108
+- **Value:** 2.10294276347
 - **Support status:** supported
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
@@ -19,9 +19,9 @@
 
 ## Claim
 
-- **Claim id:** 5fd1f00efbc05bffd61114c1128f6b8a220454eea7930825efca4517c3cdfe8a
+- **Claim id:** d092090a8595d4748bee2b394a60b9341f1dc01ee52acaea314af6b00a8c15a7
 - **Kind:** point
-- **Value:** 1.90592295108
+- **Value:** 2.10294276347
 - **Outcome units:** none
 - **Identification domain:** identified
 - **Support domain:** unknown
@@ -64,9 +64,9 @@
 
 ### Evidence the claim references
 
-- snapshot:4517e9819225a4a546dfa1ee31cbbacd7bdbd6e1f8230afb5cf34074ea92f177
-- identification:90c1dcd8dfb83272abc040fe94c2dca6453ecf272596a99488135c410a9c0f8b
-- program:9ca21929bce36cca6f950bc30202f03470e22bd49d0934ce1fc89e788da70b5d
+- snapshot:e167b3c755118a57186bc568da11f2540f81234b1a96682827b3726587ecb212
+- identification:c6d909e9ff3b13ffb992906dede96d440f43ca82ee8b1deec9a23c7069e928c6
+- program:c33f620a69b419fe73af38578aea1b5a6f2a2da4d45240deab66d3f779f792db
 
 ## Uncertainty
 
@@ -160,7 +160,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **Family:** static\_effect
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** 2f3774027dfb4e7b359b509ed28191893433fc872a6baec233c806f0d79c24a4
+- **Program identity:** 6ac8dd815e4024dfb820b5e1f111075749ffb9adc6590eb1415e5a47848df1de
 - **Sealed operation:** linear\_adjustment
 
 ### Scientific problem
@@ -169,7 +169,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **graph\_class:** Dag
 - **plan\_id:** static\_ate
 - **query\_variables:** t, y
-- **source\_digest:** 5eb9e3cc187391923b6d47b7df03782e4b345eb9b202c6fee4b05e7341f97ace
+- **source\_digest:** a509218488dd0fe7c3510e7968827ea2d4fa054fe28f494c511c571522eb380c
 - **target.form:** target
 - **target.identity:** c1f19633ed84499d5f80449f4aba6903d5ea55effd9ee985bae72097b6894379
 
@@ -214,8 +214,8 @@ This report restates the contract. It computes no estimate, grants no support, a
 ### Evidence and decision program
 
 - **composition.kind:** single
-- **identity:** 24cb30af80bb68a8bfcc381552a8fd5b0cdddda50b3df126fd3100116e4c7de2
-- **sources\[0\].digest:** 5eb9e3cc187391923b6d47b7df03782e4b345eb9b202c6fee4b05e7341f97ace
+- **identity:** d04523ce371c1bf7c21d12c226308f2bdbb419646dddd9d090c9548bb2ef9ff6
+- **sources\[0\].digest:** a509218488dd0fe7c3510e7968827ea2d4fa054fe28f494c511c571522eb380c
 - **sources\[0\].role:** observations
 
 ### Physical plan
@@ -313,13 +313,13 @@ This report restates the contract. It computes no estimate, grants no support, a
 
 ## Identities
 
-- **Target:** 0e8cc7ffd6ab51ac2162a8525997413b0b2885693570d5b847b4bcaefe2cab28
-- **Identification:** 90c1dcd8dfb83272abc040fe94c2dca6453ecf272596a99488135c410a9c0f8b
+- **Target:** 4191b15a90102d684a46e203b41d22015a7f8dbbcf3217bae22f46c607ca315a
+- **Identification:** c6d909e9ff3b13ffb992906dede96d440f43ca82ee8b1deec9a23c7069e928c6
 - **Identification product:** 7f3a931cd7364b9acaefd685b977f177b064987a2153b15ba9e4ba49434f4d79
-- **Program:** 9ca21929bce36cca6f950bc30202f03470e22bd49d0934ce1fc89e788da70b5d
+- **Program:** c33f620a69b419fe73af38578aea1b5a6f2a2da4d45240deab66d3f779f792db
 - **Inference binding:** 122227db05904a9fdcabbcab561919a16691db0b8a445cffef22541a91240ba4
-- **Observation:** 55d73a79374fd7a00313b8db3294dd7d0beb9db0a71fcb319640b2bf15e67131
-- **Data snapshot:** 4517e9819225a4a546dfa1ee31cbbacd7bdbd6e1f8230afb5cf34074ea92f177
-- **Score reuse:** 972eea7427f3f55e78f0106805ac3c10b744dc2498044d3465e9bb9021474019
+- **Observation:** 3b529d1e0fdc0de92a0de9213d1320e0b655fc151538998bdc3ae60e70be5e18
+- **Data snapshot:** e167b3c755118a57186bc568da11f2540f81234b1a96682827b3726587ecb212
+- **Score reuse:** 5b4e2a401f0a3152f2e078d81cffe867c296724e87932453261823ff7166b020
 - **Target weights:** none
 

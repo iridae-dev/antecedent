@@ -30,14 +30,17 @@ REGENERATE = "ANTECEDENT_REGENERATE_REPORTS"
 # The execution identity records the thread budget, so a fixed budget keeps the golden
 # execution ids and memory facts the same on every machine.
 THREADS = 1
-# The claim id digests the executed result at full precision, whose last bits differ
-# between platform math libraries (aarch64 Linux among them). Every rendered value is still
-# compared exactly; only the digest is masked.
-_CLAIM_ID = re.compile(r"(Claim id:\*\* |<dt>Claim id</dt><dd>)[0-9a-f]{64}")
+# The claim id and the data snapshot digest the result and the input table at full
+# precision; their last bits differ between platform math libraries (the inputs use sin and
+# cos). Every rendered value is still compared exactly; only these digests are masked.
+_PLATFORM_DIGEST = re.compile(
+    r"(Claim id:\*\* |<dt>Claim id</dt><dd>|Data snapshot:\*\* |<dt>Data snapshot</dt><dd>"
+    r"|snapshot:)[0-9a-f]{64}"
+)
 
 
 def _portable(report: str) -> str:
-    return _CLAIM_ID.sub(r"\1<claim id>", report)
+    return _PLATFORM_DIGEST.sub(r"\1<digest>", report)
 
 
 _SECTIONS = [

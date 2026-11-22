@@ -6,8 +6,9 @@
 //! streams are crate-internal. The frozen file carries each case's inputs, the library draw
 //! streams (coefficient draws of the fitted posterior, chi-square, standard-normal and uniform
 //! replicate-noise draws, prior and generating draws) and the expected statistics evaluated from
-//! them exactly. The live tests regenerate every stream and assert it equals the frozen one, then
-//! run the product and compare with the exact values.
+//! them exactly. The live tests regenerate every stream and assert it equals the frozen one to
+//! 1e-12 relative, the agreement of the platform math libraries the draws pass through, then run
+//! the product and compare with the exact values.
 //!
 //! Draw-dependent quantities with a closed-form law (the prior predictive tail of the mean, the
 //! posterior-predictive residual-variance conditional, the rank of a generating draw, the
@@ -62,7 +63,10 @@ fn arr2(v: &Value) -> Vec<Vec<f64>> {
 fn same(a: &Value, b: &Value, path: &str) {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => {
-            assert_eq!(x.as_f64(), y.as_f64(), "{path}");
+            // The normal draws pass through the platform's `ln` and `cos`, which agree only to
+            // the last bits across math libraries.
+            let (x, y) = (x.as_f64().unwrap(), y.as_f64().unwrap());
+            assert!((x - y).abs() <= 1e-12 * y.abs().max(1.0), "{path}: {x} vs {y}");
         }
         (Value::Array(x), Value::Array(y)) => {
             assert_eq!(x.len(), y.len(), "{path} length");

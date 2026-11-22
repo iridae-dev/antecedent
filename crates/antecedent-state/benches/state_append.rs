@@ -13,6 +13,9 @@ use antecedent_core::{AverageEffectQuery, CacheBudget, CausalQuery, VariableId};
 use antecedent_state::{CausalState, DataBatchRef, LinearOlsSuffStats, StateEvent};
 use criterion::{Criterion, criterion_group, criterion_main};
 
+#[path = "../../../benches/soft_budget.rs"]
+mod soft_budget;
+
 fn run_append_once() -> CausalState {
     let mut state = CausalState::new(CacheBudget::new(1 << 20));
     let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
@@ -47,10 +50,9 @@ fn bench_append(c: &mut Criterion) {
     let state = run_append_once();
     let elapsed = t0.elapsed();
     drop(state);
-    assert!(
-        elapsed < std::time::Duration::from_millis(20),
-        "state_append_invalidate_ols exceeded soft budget: {elapsed:?}"
-    );
+    soft_budget::check(elapsed < std::time::Duration::from_millis(20), || {
+        format!("state_append_invalidate_ols exceeded soft budget: {elapsed:?}")
+    });
 }
 
 criterion_group!(benches, bench_append);

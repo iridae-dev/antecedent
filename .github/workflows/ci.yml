@@ -66,6 +66,12 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      # The gate's scripts run as `python3`. Review digests of Python items use the
+      # interpreter's `ast.unparse`, so pin the interpreter rather than take the image's.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -776,6 +782,9 @@ jobs:
       - name: Criterion smoke
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # Wall-clock soft budgets are measured on the reference development machine; a
+          # runner reports a miss as a warning (benches/soft_budget.rs).
+          ANTECEDENT_ADVISORY_SOFT_BUDGETS: "1"
         run: bash scripts/gate_release.sh --section benches
 
       - name: Compiler cache statistics
@@ -847,6 +856,8 @@ jobs:
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # pinned action ref; toolchain below
         with:
           toolchain: "1.97"
+          # The evidence-earning script tests merge coverage profiles with llvm-profdata.
+          components: llvm-tools-preview
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2

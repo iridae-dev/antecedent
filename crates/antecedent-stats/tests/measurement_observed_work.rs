@@ -73,6 +73,9 @@ fn designed_copy_bytes(rows: usize, covariates: usize) -> u64 {
 
 #[test]
 fn copied_and_allocated_bytes_follow_the_design_the_engine_built() {
+    // The dense kernels allocate per-thread state on the first solve, sized from the platform's
+    // cache description rather than the design; one unmeasured run keeps it out of the records.
+    run(400, 2);
     let small = run(400, 2);
     let more_rows = run(1600, 2);
     let more_columns = run(400, 8);

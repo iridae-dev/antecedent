@@ -19,16 +19,11 @@ use antecedent::report::{ReportFormat, ReportInput, render_report};
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::{ClaimEnvelope, SlotAvailability};
 use antecedent_core::{
-    CausalQuery, ChangeAttributionQuery, ExecutionContext, Lag, PopulationSelector,
-    SequentialContrastQuery, TemporalEffectQuery, TemporalPolicy, VariableId,
+    AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ExecutionContext, Lag,
+    PopulationSelector, SequentialContrastQuery, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
-use antecedent_graph::{Admg, DenseNodeId, TemporalDag, ensure_lagged};
-
-#[path = "fixtures_common/mod.rs"]
-mod common;
-
-use common::fixtures::confounded_scm;
+use antecedent_graph::{Admg, Dag, DenseNodeId, TemporalDag, ensure_lagged};
 
 /// One report subject: what `render_report` reads.
 struct Scenario {
@@ -98,6 +93,36 @@ const SUBJECTS: usize = 80;
 fn uniform(state: &mut u64) -> f64 {
     *state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
     (*state >> 11) as f64 / 9_007_199_254_740_992.0
+}
+
+/// Columns t, y, z of a confounded population: `z` drives both, and `t -> y` with effect 2.
+/// The noise is an Irwin-Hall sum of twelve uniforms, so every value comes from correctly
+/// rounded arithmetic and the data, with every identity derived from it, is the same on every
+/// platform.
+fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
+    let noise = |state: &mut u64| (0..12).map(|_| uniform(state)).sum::<f64>() - 6.0;
+    let mut state = seed;
+    let (mut t, mut y, mut z) = (vec![], vec![], vec![]);
+    for _ in 0..n {
+        let zi = noise(&mut state);
+        let ti = if uniform(&mut state) < (0.4 + 0.25 * zi).clamp(0.05, 0.95) { 1.0 } else { 0.0 };
+        let e = 0.4 * noise(&mut state);
+        y.push(2.0 * ti + zi + e);
+        t.push(ti);
+        z.push(zi);
+    }
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    (data, dag, query)
 }
 
 /// Columns l0, a0, l1, a1, y of a two-period sequentially randomized panel.
@@ -293,10 +318,39 @@ fn check_golden(name: &str, extension: &str, actual: &str) {
         )
     });
     assert!(
-        expected == actual,
+        portable(&expected) == portable(actual),
         "report {name}.{extension} differs from its golden file; regenerate deliberately with \
          ANTECEDENT_REGENERATE_REPORTS=1 and review the diff"
     );
+}
+
+/// The report with its full-precision digests masked. The claim id and the data snapshot
+/// digest the result and the input table, whose last bits differ between platform math
+/// libraries (the scenario data uses `ln`, `cos` and `exp`); every rendered value is still
+/// compared exactly.
+fn portable(report: &str) -> String {
+    const MARKERS: [&str; 5] = [
+        "Claim id:** ",
+        "<dt>Claim id</dt><dd>",
+        "Data snapshot:** ",
+        "<dt>Data snapshot</dt><dd>",
+        "snapshot:",
+    ];
+    let mut out = report.to_owned();
+    for marker in MARKERS {
+        let mut from = 0;
+        while let Some(at) = out[from..].find(marker) {
+            let start = from + at + marker.len();
+            let digest = out.get(start..start + 64).is_some_and(|text| {
+                text.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            });
+            if digest {
+                out.replace_range(start..start + 64, "<digest>");
+            }
+            from = start;
+        }
+    }
+    out
 }
 
 #[test]

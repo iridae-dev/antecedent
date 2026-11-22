@@ -126,6 +126,13 @@ fn same(a: &Value, b: &Value, what: &str) {
             let (x, y) = (x.as_f64().unwrap(), y.as_f64().unwrap());
             assert!((x - y).abs() <= 1e-12 * x.abs().max(1.0), "{what}: {x} vs {y}");
         }
+        (Value::Object(x), Value::Object(y)) => {
+            assert_eq!(x.len(), y.len(), "{what} keys");
+            for (key, value) in x {
+                let other = y.get(key).unwrap_or_else(|| panic!("{what}.{key} missing"));
+                same(value, other, &format!("{what}.{key}"));
+            }
+        }
         _ => assert_eq!(a, b, "{what}"),
     }
 }
