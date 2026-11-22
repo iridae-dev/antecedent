@@ -179146,7 +179146,7 @@ dgp = "crates/antecedent/tests/graph_narrow_policy_calibration.rs::binary_strata
 test = "crates/antecedent/tests/graph_narrow_policy_calibration.rs::graph_narrow_held_out_policy_l95"
 calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
 fingerprint = "acd0778b4d825bccd82753e43022be5456b81e6f9c02dcc28248158e09a57c09"
-dependency_manifest = "4fc7276ad72ea661439dfb2406e790b7acd79e96e64d8370e0bf1c5075843721"
+dependency_manifest = "fb2160d8693f98bfeec9d6a30472c01579b534c09723a3fa3b51d2a9089de6a9"
 
 [[record]]
 id = "cov.history_match.randomized_trial.bayesian.posterior_quantile.l95.bayesian_period_history_outcome_model_posterior_coverage.v2_validation_not_applicable"
@@ -241664,7 +241664,7 @@ dgp = "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudina
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95"
 calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
 fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
-dependency_manifest = "54552a5cf84b86dc168d04e1ca9b7ab9c839f7e06818c3e7c868fc2e636f5305"
+dependency_manifest = "7a41407ab50f89baea287491b29244177d37a4086e0f9e8991ba5f3617f481f4"
 
 [[record]]
 id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"
@@ -242283,7 +242283,7 @@ dgp = "crates/antecedent/tests/joint_response_calibration.rs::randomized_selecti
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_randomized_selection_exact_ties_l95"
 calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
 fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
-dependency_manifest = "3d2f30504d6041c8ab30db6c50af14a84b30ccce0bc6e9c78a8b6752583aad45"
+dependency_manifest = "96c39893436072d907cf3f2e9a566c955c52f8c06b58e5bd7205269aafbca6cf"
 
 [[record]]
 id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable"
@@ -242563,7 +242563,7 @@ dgp = "crates/antecedent/tests/joint_response_calibration.rs::finite_longitudina
 test = "crates/antecedent/tests/joint_response_calibration.rs::joint_response_finite_longitudinal_contrast_l95"
 calibration_sha = "c9da66d55e6e0a885e7f5c4528c8afe69eaaf1b0"
 fingerprint = "d501c6fdffdaf0c962d9c039f17650d21b1a200962360842f9848d549e110254"
-dependency_manifest = "8f263779f550cb4c0b3bd0a758b683b9f94d573a721e037b5aadb650aa506130"
+dependency_manifest = "7bd89b388a993e4ee3e08aafe66c14548d8904953d6a10c83a3abb6489fdfe8b"
 
 [[record]]
 id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
@@ -428381,7 +428381,7 @@ dgp = "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_p
 test = "crates/antecedent/tests/temporal_wider_range_calibration.rs::bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage"
 calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
 fingerprint = "5ae86728a4ce37914838b79549c9f1aaea57ac13c8588ee4e31686f942a23b61"
-dependency_manifest = "e0d6f627ff5f30d243bd7c316bb76928174cf24e1b057f1c31fd2b27f7ba0c09"
+dependency_manifest = "df943f413ba4d59119b28d54e494ea0f41769970d7e4600d25c96b96d1cf4558"
 
 [[record]]
 id = "cov.sequential_contrast.randomized_trial.bayesian.posterior_quantile.l95.bayesian_sequential_crossfit_contrast_posterior_coverage.v2_validation_not_applicable"
@@ -428773,7 +428773,7 @@ dgp = "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_p
 test = "crates/antecedent/tests/temporal_wider_range_calibration.rs::sequential_crossfit_contrast_wald_interval_wide_probability_coverage"
 calibration_sha = "7fd32b4b69246b2d580dbcf1c6639d1d7ace79d0"
 fingerprint = "5ae86728a4ce37914838b79549c9f1aaea57ac13c8588ee4e31686f942a23b61"
-dependency_manifest = "72c7789717a4f3e85d927d49cdf5e06cfed8a6112f27fe001094ed512c5e5816"
+dependency_manifest = "880f0ed2be0650688e12886ab413a8f12a73810ea88766a6732a91f4d02be9d9"
 
 [[record]]
 id = "cov.sequential_policy_value.not_applicable.frequentist.wald_normal.l95.off_policy_importance_weighted_wald_interval.v2_validation_not_applicable"

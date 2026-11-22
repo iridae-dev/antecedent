@@ -295,8 +295,8 @@ inputs = ["conformance/response/trial_transport/expected.json", "crates/antecede
 "smoothed_dose_calibration: smoothed_dose_transport_weak_overlap_boundary" = "7754d8a456f385e8fe172bbc243f007f9982ebfdf5c97aaf5e80816021d1d9bc"
 
 [[review]]
-reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
-basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+reviewed_at = "fcb045dbc6888efa8e3f22dedf33e61cc81e5744"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes. At fcb045dbc6 the executed-file changes are comments, lint attributes and package metadata only, token-identical once those are removed."
 inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/tests/suite_map.txt", "crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent-io-core/src/graphless_support.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/src/support/gate.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "adjusted_recalc_precision: adjusted_logit_fixed_target_delta_precision" = "71b6b5cff4a1e62899a725f46067a35b7cb12557babbb286def3d9897664c1ab"
@@ -357,8 +357,8 @@ inputs = ["crates/antecedent-estimate/Cargo.toml", "crates/antecedent-estimate/t
 "treatment_inference_calibration: vector_full_fit_homoskedastic" = "6620cf73d5035e4937601d859a92de8efa61a4e70e741a7faacc8c7e4fd75215"
 
 [[review]]
-reviewed_at = "8510ef2a906e3ab5bf465a780b39fb35e6c418e1"
-basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes."
+reviewed_at = "fcb045dbc6888efa8e3f22dedf33e61cc81e5744"
+basis = "Rechecked the stored pass decisions against the calibration protocol. The packaged missing-policy table is byte-identical to its canonical registry. The facade reads the same embedded unit status via its owning crate. Neither change modifies gate selection, generated data, inference, acceptance thresholds or the retained outcomes. At fcb045dbc6 the executed-file changes are comments, lint attributes and package metadata only, token-identical once those are removed."
 inputs = ["crates/antecedent-io-core/data/coverage_records.json", "crates/antecedent-io-core/data/method_provenance.json", "crates/antecedent-io-core/src/calibration.rs", "crates/antecedent-io-core/src/coverage_records_data.rs", "crates/antecedent/Cargo.toml", "crates/antecedent/data/missing_policy_support.toml", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/tests/suite_map.txt", "parity/calibration_groups.toml", "parity/missing_policy_support.toml", "scripts/calibration_family.py", "scripts/calibration_family_manifest.json", "scripts/calibration_groups.py"]
 [review.receipts]
 "evsi_precision_calibration: evsi_finite_and_conjugate_exact_precision" = "c74b9b5d52e317f83eaa57046078b56786679b9f6a62b201fdc75769c2409bf3"
