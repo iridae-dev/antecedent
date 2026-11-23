@@ -3,6 +3,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    deprecated,
+    reason = "these tests call the direct discovery functions the compiled route is compared with"
+)]
+#![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]

@@ -154,7 +154,7 @@ fn bayesian_exact_dag_posterior_effect_envelope() {
     let (data, _graph, query) = scm();
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let ctx = ExecutionContext::for_tests(1);
-    let gp = crate::discovery::discover_exact_dag_posterior(
+    let gp = crate::discovery::engines::discover_exact_dag_posterior(
         &data,
         &vars,
         &crate::discovery::BayesianDiscoverParams::default(),
@@ -197,7 +197,7 @@ fn graph_posterior_records_its_real_algorithm() {
     let params = crate::discovery::BayesianDiscoverParams::default();
 
     let exact =
-        crate::discovery::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
+        crate::discovery::engines::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
     assert_eq!(exact.algorithm().map(AsRef::as_ref), Some("exact_dag_posterior"));
 
     let schedule = crate::discovery::GraphMcmcSchedule {
@@ -207,7 +207,7 @@ fn graph_posterior_records_its_real_algorithm() {
         ..Default::default()
     };
     let order =
-        crate::discovery::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
+        crate::discovery::engines::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
             .unwrap();
     assert_eq!(
         order.algorithm().map(AsRef::as_ref),
@@ -233,7 +233,7 @@ fn graph_posterior_average_effect_accepts_frequentist() {
     let (data, _graph, query) = scm();
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let ctx = ExecutionContext::for_tests(1);
-    let gp = crate::discovery::discover_exact_dag_posterior(
+    let gp = crate::discovery::engines::discover_exact_dag_posterior(
         &data,
         &vars,
         &crate::discovery::BayesianDiscoverParams::default(),
@@ -279,7 +279,7 @@ fn graph_and_graph_posterior_together_conflicts() {
     let (data, graph, query) = scm();
     let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
     let ctx = ExecutionContext::for_tests(1);
-    let gp = crate::discovery::discover_exact_dag_posterior(
+    let gp = crate::discovery::engines::discover_exact_dag_posterior(
         &data,
         &vars,
         &crate::discovery::BayesianDiscoverParams::default(),

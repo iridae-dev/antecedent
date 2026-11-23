@@ -12,6 +12,10 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    deprecated,
+    reason = "these tests call the direct discovery functions the compiled route is compared with"
+)]
 #![allow(clippy::cast_possible_truncation, reason = "small graph node counts")]
 #![allow(
     clippy::float_cmp,

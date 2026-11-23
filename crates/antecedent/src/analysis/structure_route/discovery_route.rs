@@ -178,7 +178,7 @@ fn run_pc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalErro
     static_tabular(
         search,
         matches!(search.spec.method, DiscoveryMethod::Pc),
-        crate::discovery::discover_pc,
+        crate::discovery::engines::discover_pc,
         DiscoveredStructure::StaticCpdag,
     )
 }
@@ -187,7 +187,7 @@ fn run_fci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalErr
     static_tabular(
         search,
         matches!(search.spec.method, DiscoveryMethod::Fci),
-        crate::discovery::discover_fci,
+        crate::discovery::engines::discover_fci,
         DiscoveredStructure::StaticPag,
     )
 }
@@ -196,7 +196,7 @@ fn run_rfci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalEr
     static_tabular(
         search,
         matches!(search.spec.method, DiscoveryMethod::Rfci),
-        crate::discovery::discover_rfci,
+        crate::discovery::engines::discover_rfci,
         DiscoveredStructure::StaticPag,
     )
 }
@@ -205,7 +205,7 @@ fn run_ges(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalErr
     static_tabular(
         search,
         matches!(search.spec.method, DiscoveryMethod::Ges { .. }),
-        crate::discovery::discover_ges,
+        crate::discovery::engines::discover_ges,
         DiscoveredStructure::StaticCpdag,
     )
 }
@@ -219,7 +219,13 @@ fn run_lingam(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Causal
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_lingam(d, search.vars, p, *prune_threshold, search.ctx)?;
+    let found = crate::discovery::engines::discover_lingam(
+        d,
+        search.vars,
+        p,
+        *prune_threshold,
+        search.ctx,
+    )?;
     Ok(Some(DiscoveredStructure::StaticDag(found)))
 }
 
@@ -232,7 +238,7 @@ fn run_notears(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Causa
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_notears_with(
+    let found = crate::discovery::engines::discover_notears_with(
         d,
         search.vars,
         p,
@@ -278,7 +284,7 @@ type PanelEngine<R> = fn(
 ) -> Result<R, CausalError>;
 
 fn run_pcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
-    use crate::discovery as engine;
+    use crate::discovery::engines as engine;
     temporal_series_or_panel(
         search,
         matches!(search.spec.method, DiscoveryMethod::Pcmci),
@@ -289,7 +295,7 @@ fn run_pcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalE
 }
 
 fn run_pcmci_plus(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
-    use crate::discovery as engine;
+    use crate::discovery::engines as engine;
     temporal_series_or_panel(
         search,
         matches!(search.spec.method, DiscoveryMethod::PcmciPlus),
@@ -300,7 +306,7 @@ fn run_pcmci_plus(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Ca
 }
 
 fn run_lpcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
-    use crate::discovery as engine;
+    use crate::discovery::engines as engine;
     temporal_series_or_panel(
         search,
         matches!(search.spec.method, DiscoveryMethod::Lpcmci),
@@ -316,7 +322,7 @@ fn run_jpcmci_plus(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, C
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_jpcmci_plus(m, search.vars, p, search.ctx)?;
+    let found = crate::discovery::engines::discover_jpcmci_plus(m, search.vars, p, search.ctx)?;
     Ok(Some(DiscoveredStructure::TemporalCpdag(found)))
 }
 
@@ -329,7 +335,7 @@ fn run_rpcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Causal
     let regimes = search.spec.regimes.as_ref().ok_or_else(|| {
         crate::compile_reason!("required_option_missing", "regime PCMCI needs a regime assignment")
     })?;
-    let found = crate::discovery::discover_rpcmci(
+    let found = crate::discovery::engines::discover_rpcmci(
         s,
         search.vars,
         regimes,
@@ -351,7 +357,8 @@ fn run_exact_dag_posterior(
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_exact_dag_posterior(d, search.vars, b, search.ctx)?;
+    let found =
+        crate::discovery::engines::discover_exact_dag_posterior(d, search.vars, b, search.ctx)?;
     Ok(Some(DiscoveredStructure::Posterior(found)))
 }
 
@@ -363,7 +370,8 @@ fn run_exact_pag_posterior(
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_exact_pag_posterior(d, search.vars, search.ctx)?;
+    let found =
+        crate::discovery::engines::discover_exact_pag_posterior(d, search.vars, search.ctx)?;
     Ok(Some(DiscoveredStructure::Posterior(found)))
 }
 
@@ -373,7 +381,7 @@ fn run_pag_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Caus
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_pag_mcmc(
+    let found = crate::discovery::engines::discover_pag_mcmc(
         d,
         search.vars,
         &schedule_of(search.spec)?,
@@ -393,7 +401,8 @@ fn run_exact_dag_marginals(
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_exact_dag_marginals(d, search.vars, b, search.ctx)?;
+    let found =
+        crate::discovery::engines::discover_exact_dag_marginals(d, search.vars, b, search.ctx)?;
     Ok(Some(DiscoveredStructure::EdgeMarginals(found)))
 }
 
@@ -406,7 +415,7 @@ fn run_order_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Ca
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_order_mcmc(
+    let found = crate::discovery::engines::discover_order_mcmc(
         d,
         search.vars,
         b,
@@ -426,7 +435,7 @@ fn run_structure_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_structure_mcmc(
+    let found = crate::discovery::engines::discover_structure_mcmc(
         d,
         search.vars,
         b,
@@ -452,7 +461,7 @@ fn run_ci_screened_posterior(
         ScreenWeight::BayesFactor => CiSoftWeight::BayesFactor,
         ScreenWeight::PosteriorDependence => CiSoftWeight::PosteriorDependence,
     };
-    let found = crate::discovery::discover_ci_screened_posterior(
+    let found = crate::discovery::engines::discover_ci_screened_posterior(
         d,
         search.vars,
         bayesian,
@@ -481,7 +490,7 @@ fn run_screened_exact_marginals(
     else {
         return Ok(None);
     };
-    let found = crate::discovery::discover_screened_exact_marginals(
+    let found = crate::discovery::engines::discover_screened_exact_marginals(
         d,
         search.vars,
         focus,
@@ -496,7 +505,7 @@ fn run_screened_exact_marginals(
 }
 
 fn run_dbn_posterior(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
-    use crate::discovery as engine;
+    use crate::discovery::engines as engine;
     let (DiscoveryMethod::DbnPosterior { force_mcmc, .. }, SearchParams::Bayesian(b)) =
         (&search.spec.method, &search.spec.search)
     else {

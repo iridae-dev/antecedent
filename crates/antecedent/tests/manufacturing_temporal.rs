@@ -4,6 +4,11 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    deprecated,
+    reason = "these tests call the direct discovery functions the compiled route is compared with"
+)]
+
 use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
