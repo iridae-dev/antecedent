@@ -3,9 +3,12 @@
 use antecedent::Study;
 use antecedent::analysis::events::{
     EventBelief, EventError, EventForecastRequest, EventHistory, EventLaw, EventObservation,
-    EventStudyRequest, EventWindow, EventWorldRequest, ForecastAssessmentRequest, HawkesParameters,
-    PreparedEventForecast, PreparedEventLikelihood, PreparedEventStudy, PreparedEventUpdate,
-    PreparedEventWorlds, PreparedForecastAssessment,
+    EventStudyRequest, EventWindow, EventWorldRequest, ExcitationChallenge,
+    ForecastAssessmentRequest, HawkesParameters, MarkPrototype, MarkedExcitationChallenge,
+    MarkedFitSpec, MarkedHistory, MarkedParameters, PreparedEventForecast, PreparedEventLikelihood,
+    PreparedEventStudy, PreparedEventUpdate, PreparedEventWorlds, PreparedExcitationChallenge,
+    PreparedForecastAssessment, PreparedMarkedChallenge, PreparedMarkedFit, PreparedMarkedLikelihood,
+    compare_marked_release_times, compare_release_times,
 };
 use antecedent::design::decision_artifact::{contract_from_json, result_to_json};
 use antecedent::design::evsi::{CostToUtilityMap, StudyCostSpec};
@@ -48,6 +51,14 @@ enum Prepared {
     Assessment(PreparedForecastAssessment),
     Update(PreparedEventUpdate),
     Study(PreparedEventStudy),
+    Challenge(PreparedExcitationChallenge),
+    MarkedLikelihood(PreparedMarkedLikelihood),
+    MarkedFit(PreparedMarkedFit),
+    MarkedChallenge(PreparedMarkedChallenge),
+    Offspring(HawkesParameters, usize, f64),
+    Release(HawkesParameters, PreparedExcitationChallenge, f64, f64, f64),
+    MarkedOffspring(MarkedParameters, Vec<MarkPrototype>, usize, f64),
+    MarkedRelease(MarkedParameters, Vec<MarkPrototype>, PreparedMarkedChallenge, f64, f64, f64),
 }
 
 #[pymethods]
@@ -68,6 +79,38 @@ impl NativePreparedEventProgram {
             Prepared::Assessment(p) => p.plan_view(),
             Prepared::Update(p) => p.plan_view(),
             Prepared::Study(p) => p.plan_view(),
+            Prepared::Challenge(p) => p.plan_view(),
+            Prepared::MarkedLikelihood(p) => p.plan_view(),
+            Prepared::MarkedFit(p) => p.plan_view(),
+            Prepared::MarkedChallenge(p) => p.plan_view(),
+            Prepared::Offspring(_, source, horizon) => {
+                return json!({"operation": "offspring", "source": source, "horizon": horizon})
+                    .to_string();
+            }
+            Prepared::Release(_, challenge, earlier, later, end) => {
+                return json!({
+                    "operation": "release",
+                    "plan": challenge.plan_view().to_json(),
+                    "earlier": earlier,
+                    "later": later,
+                    "window_end": end,
+                })
+                .to_string();
+            }
+            Prepared::MarkedOffspring(_, _, prototype, horizon) => {
+                return json!({"operation": "marked_offspring", "prototype": prototype, "horizon": horizon})
+                    .to_string();
+            }
+            Prepared::MarkedRelease(_, _, challenge, earlier, later, end) => {
+                return json!({
+                    "operation": "marked_release",
+                    "plan": challenge.plan_view().to_json(),
+                    "earlier": earlier,
+                    "later": later,
+                    "window_end": end,
+                })
+                .to_string();
+            }
         };
         view.to_json().to_string()
     }
@@ -122,6 +165,56 @@ impl NativePreparedEventProgram {
                 }
                 Prepared::Assessment(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
                 Prepared::Study(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
+                Prepared::Challenge(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
+                Prepared::MarkedLikelihood(p) => {
+                    let likelihood = p.execute(&ctx).map_err(error)?;
+                    Ok((None, json!({"log_likelihood": likelihood}), None))
+                }
+                Prepared::MarkedFit(p) => Ok((None, json!(p.execute(&ctx).map_err(error)?), None)),
+                Prepared::MarkedChallenge(p) => {
+                    Ok((None, json!(p.execute(&ctx).map_err(error)?), None))
+                }
+                Prepared::Offspring(parameters, source, horizon) => Ok((
+                    None,
+                    json!(parameters.excitation_offspring(*source, *horizon).map_err(error)?),
+                    None,
+                )),
+                Prepared::Release(parameters, challenge, earlier, later, end) => {
+                    let reading = challenge.execute(&ctx).map_err(error)?;
+                    let comparison = match reading.status {
+                        antecedent::analysis::events::StructuralStatus::Retained => Some(
+                            compare_release_times(parameters, &reading, *earlier, *later, *end)
+                                .map_err(error)?,
+                        ),
+                        antecedent::analysis::events::StructuralStatus::Refused => None,
+                    };
+                    Ok((None, json!({"reading": reading, "comparison": comparison}), None))
+                }
+                Prepared::MarkedOffspring(parameters, prototypes, prototype, horizon) => Ok((
+                    None,
+                    json!(parameters
+                        .excitation_offspring(prototypes, *prototype, *horizon)
+                        .map_err(error)?),
+                    None,
+                )),
+                Prepared::MarkedRelease(parameters, prototypes, challenge, earlier, later, end) => {
+                    let reading = challenge.execute(&ctx).map_err(error)?;
+                    let comparison = match reading.status {
+                        antecedent::analysis::events::StructuralStatus::Retained => Some(
+                            compare_marked_release_times(
+                                parameters,
+                                prototypes,
+                                &reading,
+                                *earlier,
+                                *later,
+                                *end,
+                            )
+                            .map_err(error)?,
+                        ),
+                        antecedent::analysis::events::StructuralStatus::Refused => None,
+                    };
+                    Ok((None, json!({"reading": reading, "comparison": comparison}), None))
+                }
                 Prepared::Update(p) => {
                     let (law, belief) = p.execute_with_belief(&ctx).map_err(error)?;
                     Ok((Some(law), json!({"updated_belief": belief}), None))
@@ -222,6 +315,46 @@ enum Request {
         contract: String,
         cost: Option<Cost>,
     },
+    Offspring {
+        parameters: HawkesParameters,
+        source: usize,
+        horizon: f64,
+    },
+    Challenge {
+        request: ExcitationChallenge,
+    },
+    Release {
+        parameters: HawkesParameters,
+        challenge: ExcitationChallenge,
+        earlier: f64,
+        later: f64,
+        window_end: f64,
+    },
+    MarkedLikelihood {
+        history: MarkedHistory,
+        parameters: MarkedParameters,
+    },
+    MarkedFit {
+        history: MarkedHistory,
+        fit: MarkedFitSpec,
+    },
+    MarkedOffspring {
+        parameters: MarkedParameters,
+        prototypes: Vec<MarkPrototype>,
+        prototype: usize,
+        horizon: f64,
+    },
+    MarkedChallenge {
+        request: MarkedExcitationChallenge,
+    },
+    MarkedRelease {
+        parameters: MarkedParameters,
+        prototypes: Vec<MarkPrototype>,
+        challenge: MarkedExcitationChallenge,
+        earlier: f64,
+        later: f64,
+        window_end: f64,
+    },
 }
 
 #[derive(Deserialize)]
@@ -321,6 +454,48 @@ fn events_prepare(
                     .map_err(error)?,
                 )
             }
+            Request::Offspring { parameters, source, horizon } => {
+                Prepared::Offspring(parameters, source, horizon)
+            }
+            Request::Challenge { request } => Prepared::Challenge(
+                Study::prepare_excitation_challenge(request, &ctx).map_err(error)?,
+            ),
+            Request::Release { parameters, challenge, earlier, later, window_end } => {
+                Prepared::Release(
+                    parameters,
+                    Study::prepare_excitation_challenge(challenge, &ctx).map_err(error)?,
+                    earlier,
+                    later,
+                    window_end,
+                )
+            }
+            Request::MarkedLikelihood { history, parameters } => Prepared::MarkedLikelihood(
+                Study::prepare_marked_likelihood(history, parameters, &ctx).map_err(error)?,
+            ),
+            Request::MarkedFit { history, fit } => {
+                Prepared::MarkedFit(Study::prepare_marked_fit(history, fit, &ctx).map_err(error)?)
+            }
+            Request::MarkedOffspring { parameters, prototypes, prototype, horizon } => {
+                Prepared::MarkedOffspring(parameters, prototypes, prototype, horizon)
+            }
+            Request::MarkedChallenge { request } => Prepared::MarkedChallenge(
+                Study::prepare_marked_challenge(request, &ctx).map_err(error)?,
+            ),
+            Request::MarkedRelease {
+                parameters,
+                prototypes,
+                challenge,
+                earlier,
+                later,
+                window_end,
+            } => Prepared::MarkedRelease(
+                parameters,
+                prototypes,
+                Study::prepare_marked_challenge(challenge, &ctx).map_err(error)?,
+                earlier,
+                later,
+                window_end,
+            ),
         })
     })?;
     Ok(NativePreparedEventProgram { inner })

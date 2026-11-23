@@ -89,3 +89,24 @@ def test_off_grid_event_path_composes_with_existing_distribution():
     assert result.report()["grid"][0]["mean"] == pytest.approx(
         (expected_coarse - expected_refined) / 2.0
     )
+
+
+def test_horizon_offspring_is_not_the_lifetime_mass_or_the_discounted_resolvent():
+    horizon = 2.0
+    alpha = 0.4
+    report = events.prepare(
+        {
+            "operation": "offspring",
+            "parameters": {"baseline": [0.5], "branching": [alpha], "decay": [1.0]},
+            "source": 0,
+            "horizon": horizon,
+        }
+    ).execute().report()
+    direct = alpha * (1.0 - math.exp(-horizon))
+    lifetime = alpha / (1.0 - alpha)
+    exact = lifetime * (1.0 - math.exp(-(1.0 - alpha) * horizon))
+    discounted = direct / (1.0 - direct)
+    assert report["direct"][0] == pytest.approx(direct)
+    assert report["lifetime_descendants"][0] == pytest.approx(lifetime)
+    assert report["horizon_descendants"][0] == pytest.approx(exact)
+    assert abs(report["horizon_descendants"][0] - discounted) > 1e-3

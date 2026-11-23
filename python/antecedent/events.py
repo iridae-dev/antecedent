@@ -98,7 +98,8 @@ def prepare(
     receipt: ProviderVerificationReceipt | None = None,
     execution: Execution | None = None,
 ) -> PreparedEventProgram:
-    """Compile a forecast, likelihood, worlds, assessment, update or future study.
+    """Compile a forecast, likelihood, worlds, assessment, update, future study,
+    offspring functional, excitation challenge or marked fit.
 
     For world composition, pass a retained event result as `source`. Decision
     contracts accept an existing decision.Contract or its native JSON declaration.
