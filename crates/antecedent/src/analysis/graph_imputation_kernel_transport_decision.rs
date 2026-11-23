@@ -553,6 +553,14 @@ fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     }
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledGraphImputationKernelTransportDecision
+{
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledGraphImputationKernelTransportDecision {
     /// All six compiler layers of the mixed target effect decision.
     #[must_use]
@@ -587,6 +595,7 @@ impl CompiledGraphImputationKernelTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationTransportDecisionResult, Error> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let source = GraphImputationSource::decode(&self.native_source).map_err(Error::Invalid)?;
         if source.program() != *self.lowered.identity().as_bytes()
             || self.target.source_sample != self.producer.source_identity().to_hex()

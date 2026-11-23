@@ -314,6 +314,12 @@ pub fn compile_graph_imputation_mar_transport_with_cluster(
     })
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle for CompiledMarTransportDecision {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledMarTransportDecision {
     /// Full six-layer compiler program.
     #[must_use]
@@ -334,6 +340,7 @@ impl CompiledMarTransportDecision {
         reason = "the structured refusal is returned by value on a cold path"
     )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MarTransportResult, MarTransportError> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let mut reading = replay_mar_transport_point(&self.native_source, &self.target, ctx)?;
         if let Some(policy) = self.bootstrap {
             self.run_cluster_bootstrap(&mut reading, policy, ctx)?;

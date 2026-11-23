@@ -832,6 +832,14 @@ pub(crate) fn effect_chain(
     .with_output_quantity(ScientificQuantityWire::from(quantity))
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledGraphImputationTransportDecision
+{
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledGraphImputationTransportDecision {
     /// Inspect the complete six-layer schedule before executing it.
     #[must_use]
@@ -866,6 +874,7 @@ impl CompiledGraphImputationTransportDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationTransportDecisionResult, GraphImputationTransportDecisionError> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(GraphImputationTransportDecisionError::Invalid)?;
         if source.program() != *self.lowered.identity().as_bytes()

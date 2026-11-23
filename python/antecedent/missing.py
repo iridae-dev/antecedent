@@ -34,6 +34,7 @@ reason for each exclusion and a digest of exactly which rows were dropped.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
@@ -609,6 +610,17 @@ class PreparedGraphImputation:
             )
         except ValueError as error:
             _compiled_refusal(error)
+
+    @property
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        A mapping with ``unit`` (the capability record id), ``status``, ``supported`` and
+        ``missing_evidence``; ``None`` while no unit is bound to the route. It is read from the
+        compiled route and never enters the program identity.
+        """
+        text = self._handle.unit_support()
+        return None if text is None else dict(json.loads(text))
 
     def execute(self) -> CompiledGraphImputationResult:
         """Execute only the retained graph-specific operations on the original source."""

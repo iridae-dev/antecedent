@@ -301,6 +301,22 @@ fn effect_chain(
     .with_output_quantity(ScientificQuantityWire::from(quantity))
 }
 
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledGraphImputationEffectDecision
+{
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
+impl crate::analysis::program_handle::CompiledProgramHandle
+    for CompiledGraphImputationWorldDecision
+{
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+}
+
 impl CompiledGraphImputationEffectDecision {
     /// The six-layer outer program that binds the complete upstream schedule.
     #[must_use]
@@ -324,6 +340,7 @@ impl CompiledGraphImputationEffectDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationEffectDecisionResult, GraphImputationEffectDecisionError> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let point = self.producer.execute(ctx)?;
         point.effect_law(self.quantity.clone())?;
         let decision = compile_chain_decision(
@@ -351,6 +368,7 @@ impl CompiledGraphImputationEffectDecision {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, GraphImputationEffectDecisionError> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let replay = self.producer.replay(result.producer.receipt, ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
             || result.calibration != "not_measured"
@@ -449,6 +467,7 @@ pub fn consume_graph_imputation_effect_decision(
             "recompiled outer program differs",
         ));
     }
+    super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
     let decision =
         compile_chain_decision(effect_chain(&point, &quantity), contract.contract().clone(), ctx)?
             .execute(ctx)?;
@@ -1218,6 +1237,7 @@ impl CompiledGraphImputationWorldDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
+        super::graph_imputation::require_decision_support(ctx, self)?;
         let reading = if let Some(cluster) = &self.cluster_bootstrap {
             replay_target_predictive_cluster_bootstrap_worlds(
                 self.producer.source_bytes(),
@@ -1825,6 +1845,7 @@ pub fn consume_graph_imputation_world_decision(
             "paired world outer program differs",
         ));
     }
+    super::graph_imputation::require_decision_route_support(ctx, lowered.route())?;
     let decision = compile_action_world_chain_decision(
         paired_world_chain(&reading, &quantities, wire.predictive),
         contract.contract().clone(),

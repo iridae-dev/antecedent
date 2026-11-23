@@ -293,6 +293,12 @@ type CompiledArtifactParts = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
 
 #[pymethods]
 impl PyCompiledGraphImputation {
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::graph_imputation_decision_api::graph_unit_support_json(&self.plan.plan_view())
+    }
+
     #[new]
     #[pyo3(signature = (names, columns, treatment, outcome, graph_support, domains, imputations, iterations, n_draws, prior_scale, seed))]
     fn new(

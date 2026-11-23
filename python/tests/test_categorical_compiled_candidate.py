@@ -19,6 +19,14 @@ def _request(counts=(20, 20)):
     }
 
 
+def test_unit_support_reads_the_unit_the_route_runs_under():
+    support = PreparedCategoricalPosteriorCandidate(**_request()).unit_support
+    assert support is not None
+    assert support["unit"] == "categorical_treatment.compiled_candidate"
+    assert support["status"] == "supported" and support["supported"] is True
+    assert support["missing_evidence"] == []
+
+
 def test_compiled_candidate_replays_source_and_refuses_without_a_covering_record():
     prepared = PreparedCategoricalPosteriorCandidate(**_request())
     inspection = prepared.inspect()

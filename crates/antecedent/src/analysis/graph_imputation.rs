@@ -45,7 +45,10 @@ use antecedent_core::search::{SearchBudget, SearchLimits};
 mod wire;
 pub use wire::{GraphImputationArtifact, GraphImputationExpectation, consume};
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::planner::lowered::LoweredProgram;
+use crate::support::unit::{SupportKey, require_program};
+use crate::support::units_generated::unit_of;
 use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite, Study};
 
 pub use antecedent_core::graph_imputation_contract::GraphSupport as GraphImputationSupport;
@@ -59,6 +62,75 @@ fn invalid(message: impl std::fmt::Display) -> CausalError {
             antecedent_core::reason_code!("invalid_argument")
         ),
     }
+}
+
+/// Whether the unit the graph-imputation decision routes run under has earned its support.
+///
+/// Every decision route of the family (an effect, paired treatment worlds, a transport to a
+/// declared target, a kernel or missing-at-random transport, each with or without a
+/// whole-cluster bootstrap) is keyed to one capability record. Its gate is dormant until that
+/// record's scientific evidence is current, so that no valid use starts refusing before the
+/// record is earned; flipping this to `true` makes each decision entry point consult the
+/// unit. The base composite's own unit is earned and always gates.
+pub(crate) const DECISION_SUPPORT_EARNED: bool = false;
+
+fn support_refusal(refusal: antecedent_core::NotSupported) -> GraphImputationError {
+    GraphImputationError::Engine(CausalError::from(refusal))
+}
+
+/// Pass the support gate of `handle`'s route before it executes.
+///
+/// # Errors
+/// [`GraphImputationError::Engine`] carrying the `not_supported` refusal, in a release build.
+pub(crate) fn require_handle_support<H>(
+    ctx: &ExecutionContext,
+    handle: &H,
+) -> Result<(), GraphImputationError>
+where
+    H: CompiledProgramHandle + ?Sized,
+{
+    gate_program(ctx, handle).map_err(support_refusal)
+}
+
+/// [`require_handle_support`] for a decision route, dormant until the decision unit is earned.
+///
+/// # Errors
+/// As [`require_handle_support`], once [`DECISION_SUPPORT_EARNED`].
+pub(crate) fn require_decision_support<H>(
+    ctx: &ExecutionContext,
+    handle: &H,
+) -> Result<(), GraphImputationError>
+where
+    H: CompiledProgramHandle + ?Sized,
+{
+    if DECISION_SUPPORT_EARNED { require_handle_support(ctx, handle) } else { Ok(()) }
+}
+
+/// The support gate of the compiled route `route`, for an entry point that holds no handle
+/// (an artifact consumer that has just recompiled the program it replays).
+///
+/// # Errors
+/// As [`require_handle_support`].
+pub(crate) fn require_route_support(
+    ctx: &ExecutionContext,
+    route: &'static str,
+) -> Result<(), GraphImputationError> {
+    match unit_of(route) {
+        Some(unit) => require_program(ctx, &SupportKey::Unit(unit), route).map_err(support_refusal),
+        None => antecedent_core::support_gate::require_supported(ctx, route, &["support_unit"])
+            .map_err(support_refusal),
+    }
+}
+
+/// [`require_route_support`] for a decision route, dormant until the decision unit is earned.
+///
+/// # Errors
+/// As [`require_route_support`], once [`DECISION_SUPPORT_EARNED`].
+pub(crate) fn require_decision_route_support(
+    ctx: &ExecutionContext,
+    route: &'static str,
+) -> Result<(), GraphImputationError> {
+    if DECISION_SUPPORT_EARNED { require_route_support(ctx, route) } else { Ok(()) }
 }
 
 /// A refusal of the native replay, in the engine's own terms. Calibration never refuses: an
@@ -105,6 +177,12 @@ pub struct CompiledGraphImputation {
     atoms: Vec<RetainedAtomBinding>,
     lowered: Arc<LoweredProgram>,
     source_bytes: Arc<[u8]>,
+}
+
+impl CompiledProgramHandle for CompiledGraphImputation {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 /// A numerical child failure remains distinct from graph non-identification.
@@ -303,6 +381,7 @@ impl GraphImputationPoint {
     /// # Errors
     /// A typed engine refusal when the replay itself fails.
     pub fn measured(&self) -> Result<MeasuredInference, GraphImputationError> {
+        require_route_support(&self.ctx, "GraphImputation")?;
         antecedent_io::measured_inference::graph_candidate::measure_source(&self.bytes, &self.ctx)
             .map_err(replay_error)
     }
@@ -340,6 +419,17 @@ impl CompiledGraphImputation {
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.lowered
+    }
+
+    /// Inspect the retained program without imputing, scoring or fitting; its
+    /// [`unit_support`](crate::planner::PlanView::unit_support) is the support decision of the
+    /// unit the route runs under.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.lowered),
+            crate::planner::PlanStage::Compiled,
+        )
     }
 
     /// Identity of the original observed table sealed by this compiler.
@@ -564,14 +654,16 @@ impl CompiledGraphImputation {
         let program = *lowered.identity().as_bytes();
         let source_bytes: Arc<[u8]> =
             Arc::from(GraphImputationSource::new(parts, program).map_err(invalid)?.encode());
-        Ok(Self {
+        let compiled = Self {
             source,
             source_digest,
             _lease: lease,
             atoms,
             lowered: Arc::new(lowered),
             source_bytes,
-        })
+        };
+        require_handle_support(ctx, &compiled)?;
+        Ok(compiled)
     }
 
     /// Execute the retained source and child operations. Each operation is re-derived from its
@@ -584,6 +676,7 @@ impl CompiledGraphImputation {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationPoint, GraphImputationError> {
+        require_handle_support(ctx, self)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: "graph imputation execute" }.into());
         }
@@ -1042,5 +1135,41 @@ mod compiled_tests {
                 .unwrap();
         assert_eq!(replay.producer.receipt, result.producer.receipt);
         assert_eq!(replay.decision.decision, result.decision.decision);
+    }
+
+    #[test]
+    fn the_plan_view_reads_the_status_of_the_unit_the_route_runs_under() {
+        use crate::support::unit::route_decision;
+        let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
+        let view = plan.plan_view().unit_support().expect("the route is bound to a unit");
+        let decision = route_decision(plan.lowered().route()).expect("the table binds the route");
+        assert_eq!(plan.lowered().route(), "GraphImputation");
+        assert_eq!(view.unit(), "graph_imputation.compiled_candidate");
+        assert_eq!(view.status(), decision.status);
+        assert_eq!(plan.support().map(|d| d.status), Some(decision.status));
+    }
+
+    #[test]
+    fn a_decision_route_consults_its_unit_only_once_the_unit_is_earned() {
+        let ctx = ExecutionContext::for_tests(19);
+        // The decision gate is dormant until the decision unit's evidence is current: no
+        // valid use refuses and nothing is recorded.
+        if !DECISION_SUPPORT_EARNED {
+            require_decision_route_support(&ctx, "GraphImputationEffectDecision").unwrap();
+            assert!(ctx.would_refuse().is_empty());
+        }
+        // The route-keyed gate itself reads the unit table: a development build records what a
+        // release build refuses and runs, and a release build refuses.
+        let gated = require_route_support(&ctx, "GraphImputationEffectDecision");
+        if cfg!(feature = "development") {
+            gated.unwrap();
+            assert_eq!(ctx.would_refuse().len(), 1);
+        } else {
+            assert!(gated.is_err());
+        }
+        // The base route's unit is supported, so its gate passes silently.
+        let ctx = ExecutionContext::for_tests(19);
+        require_route_support(&ctx, "GraphImputation").unwrap();
+        assert!(ctx.would_refuse().is_empty());
     }
 }

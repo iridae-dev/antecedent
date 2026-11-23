@@ -1,0 +1,23 @@
+feature_id = "graph_imputation.compiled_decision"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Composition of the graph-imputation composite (graph.imputation compiled candidate) with the chain decision compiler: the producer's aligned posterior effect draws, paired treatment-world draws or target-standardized draws feed a declared expected-utility contract. Expected utility is the sample mean of the declared utility over those draws; no new estimator is introduced and the producer's model-conditional mixture is not reinterpreted as a sampling distribution.",
+  "A target frame (binary strata, Gaussian-kernel density ratio calibrated to the frame's covariate means, or a declared missing-at-random complete-case design with inverse observation weights) reweights the source fit; it is an assumption the target data cannot test. A target resampling (rows or whole clusters) contributes one posterior draw per replicate and is source-only uncertainty under the declared unit, with no coverage earned.",
+  "Bernoulli predictive worlds use a Laplace-approximate Bernoulli-logit posterior and Gaussian predictive worlds a declared residual variance and cross-world correlation; neither the correlation nor the residual law is identified by data.",
+  "No decision reliability, coverage or calibration is asserted; every result reports calibration as not_measured. Independent scientific review remains pending.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/graph_imputation_decision_known_truth.rs",
+  "python/tests/test_graph_imputation_decision_truth.py",
+  "python/tests/test_graph_imputation_decisions.py",
+  "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs",
+  "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs",
+  "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs",
+  "crates/antecedent/src/analysis/graph_imputation_mar_transport_decision.rs",
+]

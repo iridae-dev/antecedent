@@ -33,6 +33,17 @@ def _consume(artifact, **overrides):
     return consume_compiled_graph_imputation(artifact.data, **expected)
 
 
+def test_unit_support_reads_the_unit_the_route_runs_under():
+    prepared = _prepared()
+    support = prepared.unit_support
+    assert support is not None
+    assert support["unit"] == "graph_imputation.compiled_candidate"
+    assert support["status"] == "supported" and support["supported"] is True
+    assert support["missing_evidence"] == []
+    # Reading the support decision runs nothing and leaves the execution unchanged.
+    assert prepared.execute().mean == _prepared().execute().mean
+
+
 def test_retained_execution_replays_from_the_exported_source():
     prepared = _prepared()
     result = prepared.execute()
