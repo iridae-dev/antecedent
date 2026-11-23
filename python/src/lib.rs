@@ -182,6 +182,7 @@ mod policy_reliability_api;
 mod pooled_measurement_api;
 mod posterior;
 mod predictive_assessment_api;
+mod preferences_api;
 mod preflight_api;
 mod prepared_api;
 mod prepared_options;

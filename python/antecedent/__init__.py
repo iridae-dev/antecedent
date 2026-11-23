@@ -48,6 +48,10 @@ Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a 
   robustness under structural uncertainty, ``scenario_decision`` decides over a scenario or CPDAG
   completion set, ``sensitivity_decision`` over an assumption-sensitivity result, and ``inverse`` /
   ``inverse_query`` answer which enumerated interventions reach a target;
+* ``preferences`` decides when the trade-offs between outcomes are stated as ranges or fixed
+  values, across every admissible value (and across structures); ``preference_learning`` is the
+  optional extra that narrows or estimates those trade-offs from recorded choices and stated
+  comparisons, and its accepted preferences plug into a ``preferences`` contract;
 * ``design`` (root-exported) ranks the study to run next, ``repair`` states evidence obligations
   and identification repair, and ``proposals`` links the two with a per-proposal receipt;
 * ``fallback`` is the opt-in beside a refusal: ``analyze(..., on_refusal="describe")`` returns the
@@ -483,6 +487,8 @@ _LAZY_MODULES: tuple[str, ...] = (
     "observational_policy",
     "observational_survival",
     "predictive_assessment",
+    "preference_learning",
+    "preferences",
     "preflight",
     "program_claims",
     "propagation_chain",
@@ -583,6 +589,8 @@ if _TYPE_CHECKING:
     from . import observational_policy as observational_policy
     from . import observational_survival as observational_survival
     from . import predictive_assessment as predictive_assessment
+    from . import preference_learning as preference_learning
+    from . import preferences as preferences
     from . import preflight as preflight
     from . import program_claims as program_claims
     from . import propagation_chain as propagation_chain
