@@ -28,6 +28,7 @@ pub mod interference;
 pub mod joint_law;
 pub mod layout_rules;
 pub mod linalg;
+pub mod linear_program;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
