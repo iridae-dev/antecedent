@@ -986,6 +986,17 @@ class PreparedCategoricalPosteriorCandidate:
             self._execution.seed,
         )
 
+    @property
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        A mapping with ``unit`` (the capability record id), ``status``, ``supported`` and
+        ``missing_evidence``; ``None`` while no unit is bound to the route. It is read from the
+        compiled route and never enters the program identity.
+        """
+        text = self._handle.unit_support()
+        return None if text is None else dict(json.loads(text))
+
     def inspect(self) -> dict[str, Any]:
         """Inspect the actual retained program and source identities."""
         route, supported, source, program = self._execution._call(self._handle.inspect)

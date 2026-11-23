@@ -72,6 +72,12 @@ impl PyCompiledCategoricalPosteriorCandidate {
         Ok(Self { prepared: prepare(request, &ctx).map_err(candidate_error)? })
     }
 
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        crate::graph_imputation_decision_api::graph_unit_support_json(&self.prepared.plan_view())
+    }
+
     /// Both values are data: independently retain the expectation to check the source later.
     fn export(&self) -> (Vec<u8>, Vec<u8>) {
         (self.prepared.export_source(), self.prepared.receipt().to_bytes().to_vec())

@@ -18,6 +18,7 @@ use antecedent_io::categorical_treatment_artifact::{
     LevelScaleWire,
 };
 
+use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
 use crate::planner::lowered::LoweredProgram;
 
@@ -102,6 +103,24 @@ pub struct PreparedCategoricalPosteriorCandidate {
     _lease: antecedent_core::execution::AdmissionLease,
 }
 
+impl CompiledProgramHandle for PreparedCategoricalPosteriorCandidate {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.program
+    }
+}
+
+/// The support gate of the unit the candidate's route runs under, for an entry point whose
+/// error is an artifact error.
+fn io_support(
+    ctx: &ExecutionContext,
+    handle: &PreparedCategoricalPosteriorCandidate,
+) -> Result<(), antecedent_io::IoError> {
+    gate_program(ctx, handle).map_err(|refusal| antecedent_io::IoError::Refused {
+        code: antecedent_core::reason_code!("not_supported"),
+        message: refusal.message().to_owned(),
+    })
+}
+
 fn invalid(message: &str) -> CausalError {
     crate::compile_reason!(
         "invalid_argument",
@@ -176,13 +195,15 @@ pub fn prepare(
     }
     let receipt =
         CategoricalPosteriorCompileReceipt { source, program: *program.identity().as_bytes() };
-    Ok(PreparedCategoricalPosteriorCandidate {
+    let prepared = PreparedCategoricalPosteriorCandidate {
         request,
         source_contract,
         program,
         receipt,
         _lease: lease,
-    })
+    };
+    gate_program(ctx, &prepared)?;
+    Ok(prepared)
 }
 
 fn min_level_rows() -> u64 {
@@ -195,6 +216,16 @@ impl PreparedCategoricalPosteriorCandidate {
     #[must_use]
     pub fn program(&self) -> &LoweredProgram {
         &self.program
+    }
+    /// Inspect the retained program as a plan view; its
+    /// [`unit_support`](crate::planner::PlanView::unit_support) is the support decision of the
+    /// unit the route runs under.
+    #[must_use]
+    pub fn plan_view(&self) -> crate::planner::PlanView {
+        crate::planner::PlanView::of_program(
+            Arc::clone(&self.program),
+            crate::planner::PlanStage::Compiled,
+        )
     }
     /// Identity to retain separately before a later native source replay.
     #[must_use]
@@ -219,6 +250,7 @@ impl PreparedCategoricalPosteriorCandidate {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io::IoError> {
+        io_support(ctx, self)?;
         antecedent_io::measured_inference::categorical_candidate::measure_source(
             &self.export_source(),
             ctx,
@@ -497,6 +529,22 @@ mod tests {
 
     fn request() -> CategoricalPosteriorCandidateRequest {
         shaped(&[20, 20])
+    }
+
+    #[test]
+    fn the_plan_view_reads_the_status_of_the_unit_the_route_runs_under() {
+        use crate::support::unit::route_decision;
+        let ctx = ExecutionContext::for_tests(7);
+        let candidate = prepare(request(), &ctx).unwrap();
+        let view = candidate.plan_view().unit_support().expect("the route is bound to a unit");
+        let decision = route_decision(candidate.program().route()).expect("the table binds it");
+        assert_eq!(candidate.program().route(), "CategoricalPosteriorCandidate");
+        assert_eq!(view.unit(), "categorical_treatment.compiled_candidate");
+        assert_eq!(view.status(), decision.status);
+        assert_eq!(candidate.support().map(|d| d.status), Some(decision.status));
+        // A supported unit passes every gated entry without recording a would-refuse entry.
+        candidate.measured_interval(&ctx).unwrap();
+        assert!(ctx.would_refuse().is_empty());
     }
 
     #[test]

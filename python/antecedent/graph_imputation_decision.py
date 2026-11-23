@@ -341,6 +341,17 @@ class CompiledGraphImputationDecision:
         route: GraphImputationRoute = self._handle.route()
         return route
 
+    @property
+    def unit_support(self) -> dict[str, Any] | None:
+        """The support decision of the unit the compiled program runs under.
+
+        A mapping with ``unit`` (the capability record id), ``status``, ``supported`` and
+        ``missing_evidence``; ``None`` while no unit is bound to the route. It is read from the
+        compiled route and never enters the program identity.
+        """
+        text = self._handle.unit_support()
+        return None if text is None else dict(json.loads(text))
+
     def execute(self) -> GraphImputationDecisionResult:
         """Reimpute the source, reselect the graphs, refit and evaluate the contract.
 

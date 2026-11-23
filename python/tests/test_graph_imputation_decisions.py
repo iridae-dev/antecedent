@@ -492,6 +492,19 @@ def test_decision_executes_exports_and_replays_under_its_program(name: str) -> N
     assert_registered_refusal(refused.value)
 
 
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_unit_support_reads_the_unit_the_route_runs_under(name: str) -> None:
+    plan = _compile(CASES[name])
+    program = plan.program
+    support = plan.unit_support
+    assert support is not None
+    assert support["unit"] == "graph_imputation.compiled_decision"
+    assert support["supported"] is (support["status"] == "supported")
+    assert support["supported"] or support["missing_evidence"]
+    # Reading the support decision never changes the program identity.
+    assert plan.program == program
+
+
 def test_predictive_bernoulli_worlds_are_binary_outcomes() -> None:
     result = _compile(CASES["bernoulli_predictive_worlds"]).execute()
     assert all(value in (0.0, 1.0) for pair in result.worlds for value in pair)

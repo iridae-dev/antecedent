@@ -143,6 +143,7 @@ pub fn consume(
     expected: GraphImputationExpectation,
     ctx: &ExecutionContext,
 ) -> Result<GraphImputationPoint, GraphImputationError> {
+    require_route_support(ctx, "GraphImputation")?;
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: "graph imputation consume" }.into());
     }

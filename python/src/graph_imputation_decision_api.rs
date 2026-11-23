@@ -566,6 +566,16 @@ impl Compiled {
         }
     }
 
+    fn plan_view(&self) -> antecedent::planner::PlanView {
+        match self {
+            Self::Effect(plan) => plan.plan_view(),
+            Self::World(plan) => plan.plan_view(),
+            Self::Transport(plan) => plan.plan_view(),
+            Self::Kernel(plan) => plan.plan_view(),
+            Self::MissingAtRandom(plan) => plan.plan_view(),
+        }
+    }
+
     fn execute(&self, ctx: &ExecutionContext) -> Result<Executed, String> {
         let detail = graph_imputation::EXECUTION_REFUSED;
         match self {
@@ -906,6 +916,20 @@ fn compile(
     }
 }
 
+/// The support decision of the unit a compiled program runs under, as JSON; `None` while no
+/// unit is bound to its route. Reading it changes no program identity.
+pub(crate) fn graph_unit_support_json(view: &antecedent::planner::PlanView) -> Option<String> {
+    view.unit_support().map(|unit| {
+        json!({
+            "unit": unit.unit(),
+            "status": unit.status().as_str(),
+            "supported": unit.supported(),
+            "missing_evidence": unit.missing_evidence(),
+        })
+        .to_string()
+    })
+}
+
 // -------------------------------------------------------------------------- Python handles
 
 /// A compiled decision on the graph-imputation mixture and its last execution.
@@ -926,6 +950,12 @@ impl PyGraphImputationDecision {
     /// The route family: `effect`, `world`, `transport`, `kernel_transport` or `mar_transport`.
     fn route(&self) -> &'static str {
         self.compiled.route().label()
+    }
+
+    /// The support decision of the unit the compiled program runs under, as JSON; `None` while
+    /// no unit is bound to its route.
+    fn unit_support(&self) -> Option<String> {
+        graph_unit_support_json(&self.compiled.plan_view())
     }
 
     /// Refit the graph and imputation schedule and evaluate the decision: `(json, refusal)`.
